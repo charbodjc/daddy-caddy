@@ -1,17 +1,7 @@
 module.exports = {
-  dependencies: {
-    'react-native-vector-icons': {
-      platforms: {
-        ios: null,
-      },
-    },
-    'react-native-sqlite-storage': {
-      platforms: {
-        android: {
-          sourceDir: '../node_modules/react-native-sqlite-storage/src/android/src',
-          packageImportPath: 'import io.liteglue.SQLitePluginPackage;',
-        },
-      },
-    },
+  project: {
+    ios: {},
+    android: {},
   },
+  assets: ['./node_modules/react-native-vector-icons/Fonts'],
 };
