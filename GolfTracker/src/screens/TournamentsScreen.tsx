@@ -8,6 +8,8 @@ import {
   TextInput,
   Alert,
   Modal,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
@@ -157,7 +159,8 @@ const TournamentsScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Tournaments</Text>
         <Text style={styles.subtitle}>Track your tournament rounds</Text>
@@ -191,14 +194,16 @@ const TournamentsScreen = () => {
       )}
 
       {/* Add Tournament Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>New Tournament</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
@@ -298,10 +303,13 @@ const TournamentsScreen = () => {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
-        </View>
-      </Modal>
-    </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      </View>
+    </TouchableWithoutFeedback>
   );
 };
 

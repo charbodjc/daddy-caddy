@@ -7,6 +7,10 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  TouchableWithoutFeedback,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
@@ -26,10 +30,41 @@ const RoundTrackerScreen = () => {
   const [holes, setHoles] = useState<GolfHole[]>([]);
   const [isStarted, setIsStarted] = useState(false);
   const [roundId, setRoundId] = useState<string>('');
+  const [activeRound, setActiveRound] = useState<GolfRound | null>(null);
 
   useEffect(() => {
     initializeHoles();
+    loadActiveRound();
   }, []);
+
+  const loadActiveRound = async () => {
+    try {
+      // Check for saved active round
+      const savedRoundId = await DatabaseService.getPreference('active_round_id');
+      if (savedRoundId) {
+        const round = await DatabaseService.getRound(savedRoundId);
+        if (round && !round.totalScore) { // Only load if round is not finished
+          setRoundId(round.id);
+          setCourseName(round.courseName);
+          setIsStarted(true);
+          setActiveRound(round);
+          if (round.holes) {
+            setHoles(round.holes);
+            // Find the next unplayed hole
+            const nextHole = round.holes.find(h => h.strokes === 0);
+            if (nextHole) {
+              setCurrentHole(nextHole.holeNumber);
+            }
+          }
+        } else {
+          // Clear the preference if round is finished or not found
+          await DatabaseService.setPreference('active_round_id', '');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading active round:', error);
+    }
+  };
 
   const initializeHoles = () => {
     const initialHoles: GolfHole[] = [];
@@ -50,14 +85,41 @@ const RoundTrackerScreen = () => {
     setHoles(initialHoles);
   };
 
-  const startRound = () => {
+  const startRound = async () => {
     if (!courseName.trim()) {
       Alert.alert('Error', 'Please enter a course name');
       return;
     }
     // Generate a round ID for this session
-    setRoundId(Date.now().toString());
+    const newRoundId = Date.now().toString();
+    setRoundId(newRoundId);
     setIsStarted(true);
+    
+    // Save the active round ID to preferences
+    try {
+      await DatabaseService.setPreference('active_round_id', newRoundId);
+      
+      // Create a preliminary round in the database
+      const newRound: GolfRound = {
+        id: newRoundId,
+        tournamentId,
+        tournamentName,
+        courseName: courseName.trim(),
+        date: new Date(),
+        holes,
+        totalScore: undefined, // Not finished yet
+        totalPutts: undefined,
+        fairwaysHit: undefined,
+        greensInRegulation: undefined,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      
+      await DatabaseService.saveRound(newRound);
+      setActiveRound(newRound);
+    } catch (error) {
+      console.error('Error saving active round:', error);
+    }
   };
 
   const updateHole = (holeNumber: number, updates: Partial<GolfHole>) => {
@@ -108,6 +170,7 @@ const RoundTrackerScreen = () => {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Finish',
+          style: 'default',
           onPress: async () => {
             try {
               const round: GolfRound = {
@@ -126,10 +189,41 @@ const RoundTrackerScreen = () => {
               };
 
               await DatabaseService.saveRound(round);
+              // Clear the active round preference
+              await DatabaseService.setPreference('active_round_id', '');
               navigation.navigate('RoundSummary' as never, { roundId: round.id } as never);
             } catch (error) {
               Alert.alert('Error', 'Failed to save round. Please try again.');
               console.error('Save round error:', error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const deleteRound = async () => {
+    Alert.alert(
+      'Delete Round?',
+      'Are you sure you want to delete this round? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Clear the active round preference
+              await DatabaseService.setPreference('active_round_id', '');
+              // Delete the round if it was saved
+              if (activeRound) {
+                await DatabaseService.deleteRound(roundId);
+              }
+              // Navigate back to home
+              navigation.goBack();
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete round.');
+              console.error('Delete round error:', error);
             }
           },
         },
@@ -149,49 +243,59 @@ const RoundTrackerScreen = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'eagle': return '#FF0000';  // Red for eagle
+      case 'eagle': return '#FFD700';  // Gold for eagle
       case 'birdie': return '#FF0000'; // Red for birdie
       case 'par': return 'transparent'; // No background for par
-      case 'bogey': return 'transparent'; // No background for bogey+
-      case 'double': return 'transparent'; // No background for bogey+
+      case 'bogey': return 'transparent'; // No background for bogey (single)
+      case 'double': return '#000'; // Black for double bogey or worse
       default: return '#ccc';
     }
   };
 
   if (!isStarted) {
     return (
-      <View style={styles.container}>
-        <View style={styles.setupContainer}>
-          <Text style={styles.setupTitle}>New Round Setup</Text>
-          
-          {tournamentName && (
-            <View style={styles.tournamentInfo}>
-              <Icon name="emoji-events" size={20} color="#4CAF50" />
-              <Text style={styles.tournamentText}>{tournamentName}</Text>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <KeyboardAvoidingView 
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.setupContainer}>
+            <View style={styles.setupContent}>
+              <Text style={styles.setupTitle}>New Round Setup</Text>
+              
+              {tournamentName && (
+                <View style={styles.tournamentInfo}>
+                  <Icon name="emoji-events" size={20} color="#4CAF50" />
+                  <Text style={styles.tournamentText}>{tournamentName}</Text>
+                </View>
+              )}
+
+              <TextInput
+                style={styles.input}
+                placeholder="Course Name"
+                value={courseName}
+                onChangeText={setCourseName}
+                autoCapitalize="words"
+                returnKeyType="done"
+                onSubmitEditing={startRound}
+              />
+
+              <TouchableOpacity style={styles.startButton} onPress={startRound}>
+                <Icon name="play-arrow" size={24} color="#fff" />
+                <Text style={styles.startButtonText}>Start Round</Text>
+              </TouchableOpacity>
             </View>
-          )}
-
-          <TextInput
-            style={styles.input}
-            placeholder="Course Name"
-            value={courseName}
-            onChangeText={setCourseName}
-            autoCapitalize="words"
-          />
-
-          <TouchableOpacity style={styles.startButton} onPress={startRound}>
-            <Icon name="play-arrow" size={24} color="#fff" />
-            <Text style={styles.startButtonText}>Start Round</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+          </View>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
     );
   }
 
   const stats = calculateScore();
 
   return (
-    <View style={styles.container}>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={styles.container}>
       {/* Header with score */}
       <View style={styles.header}>
         <View style={styles.courseInfo}>
@@ -199,6 +303,22 @@ const RoundTrackerScreen = () => {
           {tournamentName && (
             <Text style={styles.tournamentName}>{tournamentName}</Text>
           )}
+        </View>
+        
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            style={styles.headerIconButton}
+            onPress={deleteRound}
+          >
+            <Icon name="delete" size={24} color="#ff6b6b" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.headerIconButton}
+            onPress={finishRound}
+          >
+            <Icon name="check-circle" size={24} color="#4CAF50" />
+          </TouchableOpacity>
         </View>
         
         <View style={styles.mediaButtons}>
@@ -264,33 +384,37 @@ const RoundTrackerScreen = () => {
                 <Text style={styles.holeNumber}>{hole.holeNumber}</Text>
                 <View style={[
                   styles.holeStatus,
-                  status === 'birdie' || status === 'eagle' ? styles.holeStatusCircle : 
-                  (status === 'bogey' || status === 'double') ? styles.holeStatusSquare : 
+                  status === 'eagle' ? styles.holeStatusEagleCircle :
+                  status === 'birdie' ? styles.holeStatusBirdieCircle : 
+                  status === 'bogey' ? styles.holeStatusSquare : 
+                  status === 'double' ? styles.holeStatusFilledSquare :
                   styles.holeStatusNone,
                   { backgroundColor: getStatusColor(status) }
                 ]}>
-                  <Text style={[
-                    styles.holeScore,
-                    status === 'par' ? styles.holeScorePar :
-                    (status === 'birdie' || status === 'eagle') ? styles.holeScoreBirdie :
-                    (status === 'bogey' || status === 'double') ? styles.holeScoreBogey :
-                    styles.holeScorePending
-                  ]}>
-                    {hole.strokes > 0 ? hole.strokes : '-'}
-                  </Text>
+                  {hole.strokes > 0 ? (
+                    <Text style={[
+                      styles.holeScore,
+                      status === 'par' ? styles.holeScorePar :
+                      status === 'eagle' ? styles.holeScoreEagle :
+                      status === 'birdie' ? styles.holeScoreBirdie :
+                      status === 'bogey' ? styles.holeScoreBogey :
+                      status === 'double' ? styles.holeScoreDouble :
+                      styles.holeScorePending
+                    ]}>
+                      {hole.strokes}
+                    </Text>
+                  ) : (
+                    <FontAwesome5 name="golf-ball" size={20} color="#999" />
+                  )}
                 </View>
                 <Text style={styles.holePar}>Par {hole.par}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
-
-        <TouchableOpacity style={styles.finishButton} onPress={finishRound}>
-          <Icon name="check-circle" size={24} color="#fff" />
-          <Text style={styles.finishButtonText}>Finish Round</Text>
-        </TouchableOpacity>
       </ScrollView>
-    </View>
+      </View>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -303,6 +427,9 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     justifyContent: 'center',
+  },
+  setupContent: {
+    width: '100%',
   },
   setupTitle: {
     fontSize: 24,
@@ -345,6 +472,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  headerIconButton: {
+    padding: 8,
   },
   mediaButtons: {
     flexDirection: 'row',
@@ -509,15 +643,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 5,
   },
-  holeStatusCircle: {
+  holeStatusEagleCircle: {
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: '#FF0000',
+    borderColor: '#FFD700',  // Gold border for eagle
+  },
+  holeStatusBirdieCircle: {
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#FF0000',  // Red border for birdie
   },
   holeStatusSquare: {
     borderRadius: 4,
     borderWidth: 2,
     borderColor: '#000',
+  },
+  holeStatusFilledSquare: {
+    borderRadius: 4,
+    // No border needed, filled with black background
   },
   holeStatusNone: {
     // No border for par or pending
@@ -529,11 +672,17 @@ const styles = StyleSheet.create({
   holeScorePar: {
     color: '#000',
   },
+  holeScoreEagle: {
+    color: '#000',  // Black text inside gold circle
+  },
   holeScoreBirdie: {
-    color: '#000',  // Black text inside red circle
+    color: '#fff',  // White text inside red circle
   },
   holeScoreBogey: {
     color: '#000',
+  },
+  holeScoreDouble: {
+    color: '#fff',  // White text for double bogey or worse
   },
   holeScorePending: {
     color: '#999',

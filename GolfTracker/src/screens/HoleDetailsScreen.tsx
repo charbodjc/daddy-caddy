@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   TextInput,
   Switch,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -58,7 +60,8 @@ const HoleDetailsScreen = () => {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Hole {hole.holeNumber}</Text>
         <Text style={styles.subtitle}>Par {hole.par}</Text>
@@ -184,7 +187,8 @@ const HoleDetailsScreen = () => {
           <Text style={styles.saveButtonText}>Save</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </TouchableWithoutFeedback>
   );
 };
 

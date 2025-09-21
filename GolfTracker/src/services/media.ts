@@ -156,6 +156,85 @@ class MediaService {
   async getMediaForHole(roundId: string, holeNumber: number): Promise<MediaItem[]> {
     return DatabaseService.getMediaForHole(roundId, holeNumber);
   }
+
+  async captureMedia(type: 'photo' | 'video'): Promise<MediaItem | null> {
+    // This is a wrapper method that doesn't save to database yet
+    const hasPermission = await this.requestPermissions();
+    if (!hasPermission) {
+      throw new Error('Camera permissions not granted');
+    }
+
+    const options: CameraOptions = type === 'photo' ? {
+      mediaType: 'photo',
+      includeBase64: false,
+      maxHeight: 2000,
+      maxWidth: 2000,
+      quality: 0.9,
+      saveToPhotos: true,
+    } : {
+      mediaType: 'video',
+      videoQuality: 'medium', // Changed from 'high' to 'medium' for better compatibility
+      durationLimit: 30, // Reduced from 60 to 30 seconds
+      saveToPhotos: true,
+    };
+
+    return new Promise((resolve, reject) => {
+      launchCamera(options, (response: ImagePickerResponse) => {
+        if (response.didCancel) {
+          resolve(null);
+          return;
+        }
+        
+        if (response.errorMessage) {
+          console.error('Camera error:', response.errorMessage);
+          reject(new Error(response.errorMessage));
+          return;
+        }
+
+        if (response.errorCode) {
+          console.error('Camera error code:', response.errorCode);
+          reject(new Error(`Camera error: ${response.errorCode}`));
+          return;
+        }
+
+        if (response.assets && response.assets[0]) {
+          const asset = response.assets[0];
+          
+          const mediaItem: MediaItem = {
+            id: Date.now().toString(),
+            uri: asset.uri!,
+            type: type,
+            roundId: '', // Will be set when saving
+            holeNumber: undefined,
+            timestamp: new Date(),
+            description: '',
+          };
+          
+          resolve(mediaItem);
+        } else {
+          resolve(null);
+        }
+      });
+    });
+  }
+
+  async saveMedia(media: MediaItem, roundId: string, holeNumber?: number): Promise<void> {
+    const updatedMedia = {
+      ...media,
+      roundId,
+      holeNumber,
+      description: holeNumber ? `Hole ${holeNumber}` : `Round ${roundId}`,
+    };
+    await DatabaseService.saveMedia(updatedMedia);
+  }
+
+  async getMediaCount(roundId: string, holeNumber: number): Promise<{ photos: number; videos: number }> {
+    const media = await this.getMediaForHole(roundId, holeNumber);
+    return {
+      photos: media.filter(m => m.type === 'photo').length,
+      videos: media.filter(m => m.type === 'video').length,
+    };
+  }
 }
 
 export default new MediaService();

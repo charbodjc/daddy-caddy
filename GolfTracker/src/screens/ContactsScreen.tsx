@@ -8,6 +8,8 @@ import {
   TextInput,
   Alert,
   Modal,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DatabaseService from '../services/database';
@@ -19,9 +21,11 @@ const ContactsScreen = () => {
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [name, setName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [defaultRecipientId, setDefaultRecipientId] = useState<string | null>(null);
 
   useEffect(() => {
     loadContacts();
+    loadDefaultRecipient();
   }, []);
 
   const loadContacts = async () => {
@@ -30,6 +34,35 @@ const ContactsScreen = () => {
       setContacts(contactsList);
     } catch (error) {
       console.error('Error loading contacts:', error);
+    }
+  };
+
+  const loadDefaultRecipient = async () => {
+    try {
+      const defaultContact = await DatabaseService.getDefaultSMSRecipient();
+      setDefaultRecipientId(defaultContact?.id || null);
+    } catch (error) {
+      console.error('Error loading default recipient:', error);
+    }
+  };
+
+  const setAsDefaultRecipient = async (contactId: string) => {
+    try {
+      if (defaultRecipientId === contactId) {
+        // If already default, remove it
+        await DatabaseService.setDefaultSMSRecipient(null);
+        setDefaultRecipientId(null);
+        Alert.alert('Success', 'Default recipient removed');
+      } else {
+        // Set as new default
+        await DatabaseService.setDefaultSMSRecipient(contactId);
+        setDefaultRecipientId(contactId);
+        const contact = contacts.find(c => c.id === contactId);
+        Alert.alert('Success', `${contact?.name} set as default SMS recipient`);
+      }
+    } catch (error) {
+      console.error('Error setting default recipient:', error);
+      Alert.alert('Error', 'Failed to set default recipient');
     }
   };
 
@@ -106,15 +139,32 @@ const ContactsScreen = () => {
   };
 
   const renderContact = ({ item }: { item: Contact }) => (
-    <View style={styles.contactCard}>
+    <View style={[styles.contactCard, defaultRecipientId === item.id && styles.defaultContactCard]}>
       <View style={styles.contactInfo}>
-        <Icon name="person" size={24} color="#4CAF50" />
+        <View style={styles.contactIcon}>
+          <Icon name="person" size={24} color={defaultRecipientId === item.id ? "#2196F3" : "#4CAF50"} />
+          {defaultRecipientId === item.id && (
+            <View style={styles.defaultBadge}>
+              <Text style={styles.defaultBadgeText}>DEFAULT</Text>
+            </View>
+          )}
+        </View>
         <View style={styles.contactDetails}>
           <Text style={styles.contactName}>{item.name}</Text>
           <Text style={styles.contactPhone}>{item.phoneNumber}</Text>
         </View>
       </View>
       <View style={styles.contactActions}>
+        <TouchableOpacity
+          style={[styles.actionButton, defaultRecipientId === item.id && styles.defaultButton]}
+          onPress={() => setAsDefaultRecipient(item.id)}
+        >
+          <Icon 
+            name={defaultRecipientId === item.id ? "star" : "star-border"} 
+            size={20} 
+            color={defaultRecipientId === item.id ? "#FFD700" : "#666"} 
+          />
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => openEditModal(item)}
@@ -132,12 +182,18 @@ const ContactsScreen = () => {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={styles.container}>
+        <View style={styles.header}>
         <Text style={styles.title}>SMS Recipients</Text>
         <Text style={styles.subtitle}>
           These contacts will receive your round summaries
         </Text>
+        {defaultRecipientId && (
+          <Text style={styles.defaultInfo}>
+            ⭐ Default recipient auto-selected for quick sharing
+          </Text>
+        )}
       </View>
 
       {contacts.length === 0 ? (
@@ -168,14 +224,16 @@ const ContactsScreen = () => {
       )}
 
       {/* Add/Edit Contact Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {editingContact ? 'Edit Contact' : 'Add Contact'}
@@ -225,10 +283,13 @@ const ContactsScreen = () => {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
-        </View>
-      </Modal>
-    </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      </View>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -269,6 +330,38 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
+  },
+  defaultContactCard: {
+    borderWidth: 2,
+    borderColor: '#2196F3',
+    backgroundColor: '#F3F9FF',
+  },
+  contactIcon: {
+    position: 'relative',
+  },
+  defaultBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#2196F3',
+    borderRadius: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  defaultBadgeText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: 'bold',
+  },
+  defaultButton: {
+    backgroundColor: '#FFF8DC',
+    borderRadius: 20,
+  },
+  defaultInfo: {
+    fontSize: 12,
+    color: '#2196F3',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   contactInfo: {
     flexDirection: 'row',

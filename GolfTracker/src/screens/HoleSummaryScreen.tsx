@@ -18,6 +18,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import DatabaseService from '../services/database';
 import AIHoleAnalysisService from '../services/aiHoleAnalysis';
+import SMSService from '../services/sms';
 import { GolfHole, MediaItem, Contact } from '../types';
 
 const aiService = new AIHoleAnalysisService();
@@ -37,6 +38,7 @@ const HoleSummaryScreen = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [defaultRecipient, setDefaultRecipient] = useState<Contact | null>(null);
 
   useEffect(() => {
     loadData();
@@ -52,8 +54,18 @@ const HoleSummaryScreen = () => {
       // Load contacts
       const contactsList = await DatabaseService.getContacts();
       setContacts(contactsList);
-      // Pre-select all active contacts
-      setSelectedContacts(contactsList.map(c => c.id));
+      
+      // Check for default recipient
+      const defaultRec = await DatabaseService.getDefaultSMSRecipient();
+      setDefaultRecipient(defaultRec);
+      
+      if (defaultRec) {
+        // Only select the default recipient
+        setSelectedContacts([defaultRec.id]);
+      } else {
+        // If no default, pre-select all active contacts (old behavior)
+        setSelectedContacts(contactsList.map(c => c.id));
+      }
 
       // Generate AI summary
       await generateAISummary(holeMedia);
@@ -174,56 +186,36 @@ const HoleSummaryScreen = () => {
     }
 
     const selectedContactsData = contacts.filter(c => selectedContacts.includes(c.id));
-    const recipients = selectedContactsData.map(c => c.phoneNumber).join(',');
     
-    // Create message with AI summary
-    let message = `⛳ Hole ${hole.holeNumber} Update\n`;
-    message += `${aiSummary}\n\n`;
+    // Calculate media counts
+    const photos = mediaItems.filter(m => m.type === 'photo').length;
+    const videos = mediaItems.filter(m => m.type === 'video').length;
     
-    // Add stats
-    const scoreInfo = getScoreDisplay();
-    message += `Score: ${hole.strokes} strokes (${scoreInfo.text})\n`;
+    // Use SMS service to send the hole summary as a group text
+    const result = await SMSService.sendHoleSummary(
+      hole,
+      aiSummary,
+      { photos, videos },
+      selectedContactsData
+    );
     
-    if (hole.shotData?.putts) {
-      message += `Putts: ${hole.shotData.putts.length}\n`;
-    }
-    
-    // Add media info
-    if (mediaItems.length > 0) {
-      const photos = mediaItems.filter(m => m.type === 'photo').length;
-      const videos = mediaItems.filter(m => m.type === 'video').length;
-      message += `\n📸 Media: `;
-      if (photos > 0) message += `${photos} photo${photos !== 1 ? 's' : ''}`;
-      if (photos > 0 && videos > 0) message += ' & ';
-      if (videos > 0) message += `${videos} video${videos !== 1 ? 's' : ''}`;
-      message += ' attached';
-    }
-
-    // Open SMS with message
-    try {
-      const separator = Platform.OS === 'ios' ? '&' : '?';
-      const url = Platform.OS === 'ios' 
-        ? `sms:${recipients}${separator}body=${encodeURIComponent(message)}`
-        : `sms:${recipients}${separator}body=${encodeURIComponent(message)}`;
-
-      const canOpen = await Linking.canOpenURL(url);
-      
-      if (canOpen) {
-        await Linking.openURL(url);
-        
-        // Note: In a real app, you'd need to handle MMS for media attachments
-        // This would require native modules or third-party services
+    if (result.success) {
+      // Note about media attachments
+      if (mediaItems.length > 0) {
         Alert.alert(
           'SMS Opened',
-          'Message prepared. Note: Photos/videos need to be manually attached in your SMS app.',
+          `Message prepared for ${selectedContactsData.length} recipient${selectedContactsData.length > 1 ? 's as a group text' : ''}. Note: Photos/videos need to be manually attached in your SMS app.`,
           [{ text: 'OK' }]
         );
       } else {
-        Alert.alert('Error', 'SMS app is not available');
+        Alert.alert(
+          'SMS Opened',
+          `Message prepared for ${selectedContactsData.length} recipient${selectedContactsData.length > 1 ? 's as a group text' : ''}.`,
+          [{ text: 'OK' }]
+        );
       }
-    } catch (error) {
-      console.error('Error opening SMS:', error);
-      Alert.alert('Error', 'Failed to open SMS app');
+    } else {
+      Alert.alert('Error', result.errors.join('\n'));
     }
   };
 
@@ -331,7 +323,14 @@ const HoleSummaryScreen = () => {
 
       {/* Contact Selection */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Share With</Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Share With</Text>
+          {defaultRecipient && (
+            <Text style={styles.defaultRecipientBadge}>
+              ⭐ Default: {defaultRecipient.name}
+            </Text>
+          )}
+        </View>
         {contacts.length > 0 ? (
           <View style={styles.contactsList}>
             {contacts.map(contact => (
@@ -461,12 +460,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
     flex: 1,
     marginLeft: 8,
+  },
+  defaultRecipientBadge: {
+    fontSize: 12,
+    color: '#2196F3',
+    backgroundColor: '#F0F8FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    fontWeight: '600',
   },
   refreshButton: {
     padding: 5,

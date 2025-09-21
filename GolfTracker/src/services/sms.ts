@@ -44,10 +44,25 @@ class SMSService {
 
   private async openSMS(recipients: string, body: string): Promise<boolean> {
     try {
-      const separator = Platform.OS === 'ios' ? '&' : '?';
-      const url = Platform.OS === 'ios' 
-        ? `sms:${recipients}${separator}body=${encodeURIComponent(body)}`
-        : `sms:${recipients}${separator}body=${encodeURIComponent(body)}`;
+      let url: string;
+      
+      if (Platform.OS === 'ios') {
+        // On iOS, if no recipients or single recipient, use the standard approach
+        // For multiple recipients, open without pre-selected recipients to let user choose
+        const recipientList = recipients.split(',').filter(r => r.trim());
+        
+        if (recipientList.length <= 1) {
+          // Single recipient or no recipient - works fine
+          url = `sms:${recipients}&body=${encodeURIComponent(body)}`;
+        } else {
+          // Multiple recipients - let user select in Messages app
+          // This allows them to use existing groups or select multiple contacts
+          url = `sms:&body=${encodeURIComponent(body)}`;
+        }
+      } else {
+        // Android handles multiple recipients better
+        url = `sms:${recipients}?body=${encodeURIComponent(body)}`;
+      }
 
       const canOpen = await Linking.canOpenURL(url);
       
@@ -213,6 +228,53 @@ class SMSService {
   ): Promise<{ success: boolean; errors: string[] }> {
     const message = `⛳ Hole ${hole} Update\n🏌️ Score: ${score}\n${notes ? `📝 ${notes}` : ''}`;
     return this.sendQuickUpdate(message, contacts);
+  }
+
+  async sendHoleSummary(
+    hole: any,
+    aiSummary: string,
+    mediaCount: { photos: number; videos: number },
+    contacts: Contact[],
+    letUserSelectRecipients: boolean = false
+  ): Promise<{ success: boolean; errors: string[] }> {
+    // Create message with AI summary
+    let message = `⛳ Hole ${hole.holeNumber} Update\n`;
+    message += `${aiSummary}\n\n`;
+    
+    // Add stats
+    const diff = hole.strokes - hole.par;
+    let scoreText = '';
+    if (diff === 0) scoreText = 'Par';
+    else if (diff === -3) scoreText = 'Albatross!';
+    else if (diff === -2) scoreText = 'Eagle!';
+    else if (diff === -1) scoreText = 'Birdie';
+    else if (diff === 1) scoreText = 'Bogey';
+    else if (diff === 2) scoreText = 'Double Bogey';
+    else if (diff === 3) scoreText = 'Triple Bogey';
+    else scoreText = diff > 0 ? `+${diff}` : diff.toString();
+    
+    message += `Score: ${hole.strokes} strokes (${scoreText})\n`;
+    
+    if (hole.shotData?.putts) {
+      message += `Putts: ${hole.shotData.putts.length}\n`;
+    }
+    
+    // Add media info
+    const totalMedia = mediaCount.photos + mediaCount.videos;
+    if (totalMedia > 0) {
+      message += `\n📸 Media: `;
+      if (mediaCount.photos > 0) message += `${mediaCount.photos} photo${mediaCount.photos !== 1 ? 's' : ''}`;
+      if (mediaCount.photos > 0 && mediaCount.videos > 0) message += ' & ';
+      if (mediaCount.videos > 0) message += `${mediaCount.videos} video${mediaCount.videos !== 1 ? 's' : ''}`;
+      message += ' attached';
+    }
+    
+    if (letUserSelectRecipients) {
+      // Open SMS without pre-selected recipients
+      return this.sendQuickUpdate(message, []);
+    } else {
+      return this.sendQuickUpdate(message, contacts);
+    }
   }
 }
 

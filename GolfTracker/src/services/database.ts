@@ -100,6 +100,11 @@ class DatabaseService {
         description TEXT,
         FOREIGN KEY (roundId) REFERENCES rounds(id)
       )`,
+      `CREATE TABLE IF NOT EXISTS user_preferences (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updatedAt INTEGER NOT NULL
+      )`,
     ];
 
     for (const query of queries) {
@@ -217,6 +222,24 @@ class DatabaseService {
     }
 
     return rounds;
+  }
+
+  async deleteRound(id: string): Promise<void> {
+    if (!this.db) {
+      await this.init();
+      if (!this.db) throw new Error('Database not initialized');
+    }
+
+    try {
+      // Delete holes first
+      await this.db.executeSql('DELETE FROM holes WHERE roundId = ?', [id]);
+      // Delete the round
+      await this.db.executeSql('DELETE FROM rounds WHERE id = ?', [id]);
+      console.log('Round deleted successfully');
+    } catch (error) {
+      console.error('Error deleting round:', error);
+      throw error;
+    }
   }
 
   async getRound(id: string): Promise<GolfRound | null> {
@@ -507,6 +530,58 @@ class DatabaseService {
       console.error('Error checking for data:', error);
       return false;
     }
+  }
+
+  // User Preferences methods
+  async setPreference(key: string, value: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      await this.db.executeSql(
+        'INSERT OR REPLACE INTO user_preferences (key, value, updatedAt) VALUES (?, ?, ?)',
+        [key, value, Date.now()]
+      );
+      console.log(`Preference set: ${key} = ${value}`);
+    } catch (error) {
+      console.error('Error setting preference:', error);
+      throw error;
+    }
+  }
+
+  async getPreference(key: string): Promise<string | null> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const [result] = await this.db.executeSql(
+        'SELECT value FROM user_preferences WHERE key = ?',
+        [key]
+      );
+
+      if (result.rows.length > 0) {
+        return result.rows.item(0).value;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting preference:', error);
+      return null;
+    }
+  }
+
+  async setDefaultSMSRecipient(contactId: string | null): Promise<void> {
+    if (contactId === null) {
+      // Clear the default recipient
+      await this.setPreference('default_sms_recipient', '');
+    } else {
+      await this.setPreference('default_sms_recipient', contactId);
+    }
+  }
+
+  async getDefaultSMSRecipient(): Promise<Contact | null> {
+    const contactId = await this.getPreference('default_sms_recipient');
+    if (!contactId) return null;
+
+    const contacts = await this.getContacts();
+    return contacts.find(c => c.id === contactId) || null;
   }
 }
 
