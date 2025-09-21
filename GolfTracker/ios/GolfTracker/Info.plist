@@ -34,7 +34,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Daddy Caddy needs access to your camera to capture photos and videos of your golf shots.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>Daddy Caddy uses your location to track your position on the golf course and provide accurate distance measurements.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Daddy Caddy needs permission to save photos and videos to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

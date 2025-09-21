@@ -278,8 +278,6 @@ const ShotTrackingScreen = () => {
         case 'On Green': return '🎯';
         case 'Bunker': return '⛳';
         case 'Hazard': return '💧';
-        case 'OB': return '🚫';
-        case 'Lost Ball': return '❌';
         default: return '•';
       }
     }
@@ -332,12 +330,6 @@ const ShotTrackingScreen = () => {
                   row.selections.includes(option) && styles.optionIconActive
                 ]}>
                   {getIconForOption(categoryName, option)}
-                </Text>
-                <Text style={[
-                  styles.optionLabel,
-                  row.selections.includes(option) && styles.optionLabelActive
-                ]}>
-                  {option === 'On Target' ? 'Target' : option}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -448,9 +440,6 @@ const ShotTrackingScreen = () => {
                 <Text style={[styles.optionIcon, teeShot === option && styles.optionIconActive]}>
                   {getIconForOption('tee', option)}
                 </Text>
-                <Text style={[styles.optionLabel, teeShot === option && styles.optionLabelActive]}>
-                  {option.replace('Lost Ball', 'Lost')}
-                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -530,12 +519,6 @@ const ShotTrackingScreen = () => {
                         row.selections.includes(option) && styles.optionIconActive
                       ]}>
                         {getIconForOption('putt', option)}
-                      </Text>
-                      <Text style={[
-                        styles.optionLabel,
-                        row.selections.includes(option) && styles.optionLabelActive
-                      ]}>
-                        {option === 'In Hole' ? 'Hole' : option === 'On Target' ? 'Target' : option}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -725,8 +708,10 @@ const styles = StyleSheet.create({
   },
   optionButton: {
     alignItems: 'center',
-    padding: 8,
-    minWidth: 50,
+    justifyContent: 'center',
+    padding: 10,
+    minWidth: 45,
+    height: 45,
     marginBottom: 5,
     borderRadius: 8,
     backgroundColor: '#f5f5f5',
@@ -740,8 +725,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   optionIcon: {
-    fontSize: 20,
-    marginBottom: 2,
+    fontSize: 24,
   },
   optionIconActive: {
     color: '#fff',
