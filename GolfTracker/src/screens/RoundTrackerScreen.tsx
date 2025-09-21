@@ -9,8 +9,10 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import DatabaseService from '../services/database';
+import MediaService from '../services/media';
 import { GolfRound, GolfHole } from '../types';
 
 const RoundTrackerScreen = () => {
@@ -74,19 +76,6 @@ const RoundTrackerScreen = () => {
       roundId: roundId,
       onSave: (updatedHole: GolfHole) => {
         updateHole(holeNumber, updatedHole);
-      },
-    } as never);
-  };
-
-  const navigateToCamera = () => {
-    navigation.navigate('Camera' as never, {
-      currentHole,
-      roundId: roundId,
-      onCapture: (mediaUrl: string) => {
-        const hole = holes[currentHole - 1];
-        updateHole(currentHole, {
-          mediaUrls: [...(hole.mediaUrls || []), mediaUrl],
-        });
       },
     } as never);
   };
@@ -160,11 +149,11 @@ const RoundTrackerScreen = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'eagle': return '#FFD700';
-      case 'birdie': return '#4CAF50';
-      case 'par': return '#2196F3';
-      case 'bogey': return '#FF9800';
-      case 'double': return '#F44336';
+      case 'eagle': return '#FF0000';  // Red for eagle
+      case 'birdie': return '#FF0000'; // Red for birdie
+      case 'par': return 'transparent'; // No background for par
+      case 'bogey': return 'transparent'; // No background for bogey+
+      case 'double': return 'transparent'; // No background for bogey+
       default: return '#ccc';
     }
   };
@@ -211,68 +200,46 @@ const RoundTrackerScreen = () => {
             <Text style={styles.tournamentName}>{tournamentName}</Text>
           )}
         </View>
+        
+        <View style={styles.mediaButtons}>
+          <TouchableOpacity
+            style={styles.mediaButton}
+            onPress={async () => {
+              try {
+                const media = await MediaService.capturePhoto(roundId, currentHole);
+                if (media) {
+                  Alert.alert('Success', 'Photo saved to album');
+                }
+              } catch (error) {
+                Alert.alert('Error', 'Failed to capture photo');
+              }
+            }}
+          >
+            <FontAwesome5 name="camera" size={20} color="#fff" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.mediaButton}
+            onPress={async () => {
+              try {
+                const media = await MediaService.captureVideo(roundId, currentHole);
+                if (media) {
+                  Alert.alert('Success', 'Video saved to album');
+                }
+              } catch (error) {
+                Alert.alert('Error', 'Failed to capture video');
+              }
+            }}
+          >
+            <FontAwesome5 name="video" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+        
         <View style={styles.scoreInfo}>
           <Text style={styles.scoreLabel}>Score</Text>
           <Text style={styles.scoreValue}>
             {stats.score > 0 ? '+' : ''}{stats.score}
           </Text>
-        </View>
-      </View>
-
-      {/* Current Hole Quick Entry */}
-      <View style={styles.currentHoleSection}>
-        <Text style={styles.currentHoleTitle}>Hole {currentHole}</Text>
-        <View style={styles.quickEntry}>
-          <View style={styles.quickEntryRow}>
-            <Text style={styles.quickEntryLabel}>Par {holes[currentHole - 1].par}</Text>
-            <View style={styles.strokeButtons}>
-              {[1, 2, 3, 4, 5, 6, 7, 8].map(strokes => (
-                <TouchableOpacity
-                  key={strokes}
-                  style={[
-                    styles.strokeButton,
-                    holes[currentHole - 1].strokes === strokes && styles.strokeButtonActive,
-                  ]}
-                  onPress={() => updateHole(currentHole, { strokes })}
-                >
-                  <Text style={[
-                    styles.strokeButtonText,
-                    holes[currentHole - 1].strokes === strokes && styles.strokeButtonTextActive,
-                  ]}>
-                    {strokes}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-          
-          <View style={styles.quickActions}>
-            <TouchableOpacity
-              style={styles.quickActionButton}
-              onPress={() => navigateToHoleDetails(currentHole)}
-            >
-              <Icon name="golf-course" size={20} color="#4CAF50" />
-              <Text style={styles.quickActionText}>Shot Track</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.quickActionButton}
-              onPress={navigateToCamera}
-            >
-              <Icon name="camera-alt" size={20} color="#4CAF50" />
-              <Text style={styles.quickActionText}>Photo</Text>
-            </TouchableOpacity>
-
-            {currentHole < 18 && (
-              <TouchableOpacity
-                style={[styles.quickActionButton, styles.nextButton]}
-                onPress={() => setCurrentHole(currentHole + 1)}
-                disabled={holes[currentHole - 1].strokes === 0}
-              >
-                <Text style={styles.nextButtonText}>Next →</Text>
-              </TouchableOpacity>
-            )}
-          </View>
         </View>
       </View>
 
@@ -289,11 +256,26 @@ const RoundTrackerScreen = () => {
                   styles.holeCard,
                   currentHole === hole.holeNumber && styles.holeCardActive,
                 ]}
-                onPress={() => setCurrentHole(hole.holeNumber)}
+                onPress={() => {
+                  setCurrentHole(hole.holeNumber);
+                  navigateToHoleDetails(hole.holeNumber);
+                }}
               >
                 <Text style={styles.holeNumber}>{hole.holeNumber}</Text>
-                <View style={[styles.holeStatus, { backgroundColor: getStatusColor(status) }]}>
-                  <Text style={styles.holeScore}>
+                <View style={[
+                  styles.holeStatus,
+                  status === 'birdie' || status === 'eagle' ? styles.holeStatusCircle : 
+                  (status === 'bogey' || status === 'double') ? styles.holeStatusSquare : 
+                  styles.holeStatusNone,
+                  { backgroundColor: getStatusColor(status) }
+                ]}>
+                  <Text style={[
+                    styles.holeScore,
+                    status === 'par' ? styles.holeScorePar :
+                    (status === 'birdie' || status === 'eagle') ? styles.holeScoreBirdie :
+                    (status === 'bogey' || status === 'double') ? styles.holeScoreBogey :
+                    styles.holeScorePending
+                  ]}>
                     {hole.strokes > 0 ? hole.strokes : '-'}
                   </Text>
                 </View>
@@ -363,6 +345,15 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  mediaButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  mediaButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    padding: 10,
+    borderRadius: 20,
   },
   header: {
     backgroundColor: '#fff',
@@ -514,15 +505,38 @@ const styles = StyleSheet.create({
   holeStatus: {
     width: 32,
     height: 32,
-    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 5,
   },
+  holeStatusCircle: {
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#FF0000',
+  },
+  holeStatusSquare: {
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#000',
+  },
+  holeStatusNone: {
+    // No border for par or pending
+  },
   holeScore: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+  },
+  holeScorePar: {
+    color: '#000',
+  },
+  holeScoreBirdie: {
+    color: '#000',  // Black text inside red circle
+  },
+  holeScoreBogey: {
+    color: '#000',
+  },
+  holeScorePending: {
+    color: '#999',
   },
   holePar: {
     fontSize: 11,

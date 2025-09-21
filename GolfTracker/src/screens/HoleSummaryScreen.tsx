@@ -13,6 +13,8 @@ import {
   Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import DatabaseService from '../services/database';
 import AIHoleAnalysisService from '../services/aiHoleAnalysis';
@@ -274,10 +276,10 @@ const HoleSummaryScreen = () => {
       {/* AI Summary */}
       <View style={styles.aiSection}>
         <View style={styles.sectionHeader}>
-          <Icon name="psychology" size={24} color="#4CAF50" />
+          <FontAwesome5 name="robot" size={24} color="#4CAF50" />
           <Text style={styles.sectionTitle}>AI Summary</Text>
           <TouchableOpacity onPress={regenerateSummary} style={styles.refreshButton}>
-            <Icon name="refresh" size={20} color="#666" />
+            <Ionicons name="refresh" size={20} color="#666" />
           </TouchableOpacity>
         </View>
         
@@ -364,12 +366,12 @@ const HoleSummaryScreen = () => {
       {/* Action Buttons */}
       <View style={styles.actions}>
         <TouchableOpacity style={styles.smsButton} onPress={sendSMSUpdate}>
-          <Icon name="message" size={20} color="#fff" />
+          <FontAwesome5 name="sms" size={20} color="#fff" />
           <Text style={styles.smsButtonText}>Send SMS Update</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.shareButton} onPress={shareUpdate}>
-          <Icon name="share" size={20} color="#4CAF50" />
+          <Ionicons name="share-social" size={20} color="#4CAF50" />
           <Text style={styles.shareButtonText}>Share</Text>
         </TouchableOpacity>
       </View>
@@ -389,7 +391,7 @@ const HoleSummaryScreen = () => {
             onPress={onNext}
           >
             <Text style={styles.nextButtonText}>Next Hole</Text>
-            <Icon name="arrow-forward" size={20} color="#fff" />
+            <FontAwesome5 name="arrow-right" size={20} color="#fff" />
           </TouchableOpacity>
         )}
       </View>

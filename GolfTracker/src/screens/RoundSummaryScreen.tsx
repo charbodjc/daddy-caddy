@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import DatabaseService from '../services/database';
 import AIService from '../services/ai';
@@ -306,7 +307,7 @@ const RoundSummaryScreen = () => {
       {/* Actions */}
       <View style={styles.actions}>
         <TouchableOpacity style={styles.shareButton} onPress={sendSummary}>
-          <Icon name="send" size={20} color="#fff" />
+          <FontAwesome5 name="sms" size={20} color="#fff" />
           <Text style={styles.shareButtonText}>Send SMS Summary</Text>
         </TouchableOpacity>
         
@@ -314,7 +315,7 @@ const RoundSummaryScreen = () => {
           style={styles.homeButton}
           onPress={() => navigation.navigate('Home' as never)}
         >
-          <Icon name="home" size={20} color="#4CAF50" />
+          <FontAwesome5 name="home" size={20} color="#4CAF50" />
           <Text style={styles.homeButtonText}>Back to Home</Text>
         </TouchableOpacity>
       </View>

@@ -5,17 +5,40 @@ SQLite.enablePromise(true);
 
 class DatabaseService {
   private db: SQLite.SQLiteDatabase | null = null;
+  private initialized: boolean = false;
 
   async init() {
+    if (this.initialized && this.db) {
+      console.log('Database already initialized');
+      return;
+    }
+
     try {
+      console.log('Starting database initialization...');
+      
+      // Enable debug mode for SQLite
+      SQLite.DEBUG(true);
+      
+      // Open database with default location for compatibility
       this.db = await SQLite.openDatabase({
         name: 'GolfTracker.db',
-        location: 'default',
+        location: 'default', // Use default for better compatibility
+        createFromLocation: '~GolfTracker.db',
       });
 
+      console.log('Database opened successfully');
+      
+      // Test the connection
+      await this.db.executeSql('SELECT 1');
+      console.log('Database connection verified');
+      
       await this.createTables();
+      this.initialized = true;
+      console.log('Database tables created/verified');
     } catch (error) {
       console.error('Database initialization error:', error);
+      this.db = null;
+      this.initialized = false;
       throw error;
     }
   }
@@ -86,7 +109,10 @@ class DatabaseService {
 
   // Round operations
   async saveRound(round: GolfRound): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
+    if (!this.db) {
+      await this.init();
+      if (!this.db) throw new Error('Database not initialized');
+    }
 
     const tx = await this.db.transaction();
     try {
@@ -140,7 +166,10 @@ class DatabaseService {
   }
 
   async getRounds(): Promise<GolfRound[]> {
-    if (!this.db) throw new Error('Database not initialized');
+    if (!this.db) {
+      await this.init();
+      if (!this.db) throw new Error('Database not initialized');
+    }
 
     const [results] = await this.db.executeSql(
       'SELECT * FROM rounds ORDER BY date DESC'
@@ -191,7 +220,10 @@ class DatabaseService {
   }
 
   async getRound(id: string): Promise<GolfRound | null> {
-    if (!this.db) throw new Error('Database not initialized');
+    if (!this.db) {
+      await this.init();
+      if (!this.db) throw new Error('Database not initialized');
+    }
 
     const [results] = await this.db.executeSql(
       'SELECT * FROM rounds WHERE id = ?',
@@ -382,6 +414,99 @@ class DatabaseService {
     }
 
     return tournaments;
+  }
+
+  // Backup and restore methods for data persistence
+  async exportData(): Promise<any> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const rounds = await this.getRounds();
+      const tournaments = await this.getTournaments();
+      const contacts = await this.getContacts();
+      
+      // Get all media items
+      const [mediaResult] = await this.db.executeSql(
+        'SELECT * FROM media ORDER BY timestamp DESC'
+      );
+      
+      const media = [];
+      for (let i = 0; i < mediaResult.rows.length; i++) {
+        media.push(mediaResult.rows.item(i));
+      }
+
+      const exportData = {
+        version: '1.0',
+        exportDate: new Date().toISOString(),
+        rounds,
+        tournaments,
+        contacts,
+        media,
+      };
+
+      console.log(`Exported ${rounds.length} rounds, ${tournaments.length} tournaments, ${contacts.length} contacts, ${media.length} media items`);
+      return exportData;
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      throw error;
+    }
+  }
+
+  async importData(data: any): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      // Import contacts
+      if (data.contacts && Array.isArray(data.contacts)) {
+        for (const contact of data.contacts) {
+          await this.saveContact(contact);
+        }
+      }
+
+      // Import tournaments
+      if (data.tournaments && Array.isArray(data.tournaments)) {
+        for (const tournament of data.tournaments) {
+          await this.saveTournament(tournament);
+        }
+      }
+
+      // Import rounds
+      if (data.rounds && Array.isArray(data.rounds)) {
+        for (const round of data.rounds) {
+          await this.saveRound(round);
+        }
+      }
+
+      // Import media
+      if (data.media && Array.isArray(data.media)) {
+        for (const mediaItem of data.media) {
+          await this.saveMedia({
+            ...mediaItem,
+            timestamp: new Date(mediaItem.timestamp),
+          });
+        }
+      }
+
+      console.log('Data import completed successfully');
+    } catch (error) {
+      console.error('Error importing data:', error);
+      throw error;
+    }
+  }
+
+  // Check if database has data
+  async hasData(): Promise<boolean> {
+    if (!this.db) return false;
+
+    try {
+      const [result] = await this.db.executeSql(
+        'SELECT COUNT(*) as count FROM rounds'
+      );
+      return result.rows.item(0).count > 0;
+    } catch (error) {
+      console.error('Error checking for data:', error);
+      return false;
+    }
   }
 }
 

@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import DatabaseService from '../services/database';
 import AIService from '../services/ai';
 import { GolfRound, Statistics } from '../types';
@@ -134,8 +135,8 @@ const StatsScreen = () => {
 
         <View style={styles.overviewCard}>
           <View style={styles.overviewHeader}>
-            <Icon 
-              name={trend === 'improving' ? 'trending-down' : trend === 'declining' ? 'trending-up' : 'trending-flat'} 
+            <FontAwesome5 
+              name={trend === 'improving' ? 'chart-line' : trend === 'declining' ? 'chart-line' : 'minus'} 
               size={20} 
               color={trend === 'improving' ? '#4CAF50' : trend === 'declining' ? '#F44336' : '#FF9800'}
             />

@@ -8,7 +8,10 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import MediaService from '../services/media';
 import {
   GolfHole,
   HoleShotData,
@@ -21,59 +24,77 @@ import {
   PUTT_OPTIONS,
 } from '../types';
 
+interface ShotRow {
+  id: string;
+  selections: string[];
+}
+
 const ShotTrackingScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { hole, onSave } = route.params as { hole: GolfHole; onSave: (hole: GolfHole) => void };
+  const { hole, onSave, roundId } = route.params as { hole: GolfHole; onSave: (hole: GolfHole) => void; roundId?: string };
 
   const [par, setPar] = useState<3 | 4 | 5>(hole.par as 3 | 4 | 5 || 4);
   const [teeShot, setTeeShot] = useState<string>('');
-  const [approach, setApproach] = useState<string>('');
-  const [chip, setChip] = useState<string>('');
-  const [greensideBunker, setGreensideBunker] = useState<string>('');
-  const [fairwayBunker, setFairwayBunker] = useState<string>('');
-  const [troubleShot, setTroubleShot] = useState<string>('');
-  const [putts, setPutts] = useState<string[]>([]);
+  const [approachShots, setApproachShots] = useState<ShotRow[]>([{ id: '1', selections: [] }]);
+  const [chipShots, setChipShots] = useState<ShotRow[]>([{ id: '1', selections: [] }]);
+  const [greensideBunkerShots, setGreensideBunkerShots] = useState<ShotRow[]>([{ id: '1', selections: [] }]);
+  const [fairwayBunkerShots, setFairwayBunkerShots] = useState<ShotRow[]>([{ id: '1', selections: [] }]);
+  const [troubleShots, setTroubleShots] = useState<ShotRow[]>([{ id: '1', selections: [] }]);
+  const [puttShots, setPuttShots] = useState<ShotRow[]>([{ id: '1', selections: [] }]);
   const [totalStrokes, setTotalStrokes] = useState(0);
-  const [activeSection, setActiveSection] = useState<string>('par');
-
-  useEffect(() => {
-    // Load existing shot data if available
-    if (hole.shotData) {
-      setPar(hole.shotData.par);
-      setTeeShot(hole.shotData.teeShot || '');
-      setApproach(hole.shotData.approach || '');
-      setChip(hole.shotData.chip || '');
-      setGreensideBunker(hole.shotData.greensideBunker || '');
-      setFairwayBunker(hole.shotData.fairwayBunker || '');
-      setTroubleShot(hole.shotData.troubleShot || '');
-      setPutts(hole.shotData.putts || []);
-    }
-  }, [hole]);
 
   useEffect(() => {
     // Calculate total strokes
     let strokes = 0;
+    
+    // Tee shot counts as 1 if selected
     if (teeShot) strokes++;
-    if (approach) strokes++;
-    if (chip) strokes++;
-    if (greensideBunker) strokes++;
-    if (fairwayBunker) strokes++;
-    if (troubleShot) strokes++;
-    strokes += putts.length;
+    
+    // Count approach shots (each row with selections counts as 1)
+    approachShots.forEach(shot => {
+      if (shot.selections.length > 0) strokes++;
+    });
+    
+    // Count chip shots
+    chipShots.forEach(shot => {
+      if (shot.selections.length > 0) strokes++;
+    });
+    
+    // Count greenside bunker shots
+    greensideBunkerShots.forEach(shot => {
+      if (shot.selections.length > 0) strokes++;
+    });
+    
+    // Count fairway bunker shots
+    fairwayBunkerShots.forEach(shot => {
+      if (shot.selections.length > 0) strokes++;
+    });
+    
+    // Count trouble shots
+    troubleShots.forEach(shot => {
+      if (shot.selections.length > 0) strokes++;
+    });
+    
+    // Count putts (each row with selections counts as 1)
+    puttShots.forEach(shot => {
+      if (shot.selections.length > 0) strokes++;
+    });
+    
     setTotalStrokes(strokes);
-  }, [teeShot, approach, chip, greensideBunker, fairwayBunker, troubleShot, putts]);
+  }, [teeShot, approachShots, chipShots, greensideBunkerShots, fairwayBunkerShots, troubleShots, puttShots]);
 
   const handleSave = () => {
+    // Convert the new data structure to the old format for compatibility
     const shotData: HoleShotData = {
       par,
       teeShot,
-      approach,
-      chip,
-      greensideBunker,
-      fairwayBunker,
-      troubleShot,
-      putts,
+      approach: approachShots.filter(s => s.selections.length > 0).map(s => s.selections.join(' + ')).join(', '),
+      chip: chipShots.filter(s => s.selections.length > 0).map(s => s.selections.join(' + ')).join(', '),
+      greensideBunker: greensideBunkerShots.filter(s => s.selections.length > 0).map(s => s.selections.join(' + ')).join(', '),
+      fairwayBunker: fairwayBunkerShots.filter(s => s.selections.length > 0).map(s => s.selections.join(' + ')).join(', '),
+      troubleShot: troubleShots.filter(s => s.selections.length > 0).map(s => s.selections.join(' + ')).join(', '),
+      putts: puttShots.filter(s => s.selections.length > 0).map(s => s.selections).flat(),
     };
 
     const updatedHole: GolfHole = {
@@ -81,7 +102,7 @@ const ShotTrackingScreen = () => {
       par,
       strokes: totalStrokes,
       shotData,
-      putts: putts.length,
+      putts: puttShots.filter(s => s.selections.length > 0).length,
       fairwayHit: par > 3 ? teeShot === 'Fairway' : undefined,
       greenInRegulation: calculateGIR(),
     };
@@ -94,12 +115,12 @@ const ShotTrackingScreen = () => {
     const shotData: HoleShotData = {
       par,
       teeShot,
-      approach,
-      chip,
-      greensideBunker,
-      fairwayBunker,
-      troubleShot,
-      putts,
+      approach: approachShots.filter(s => s.selections.length > 0).map(s => s.selections.join(' + ')).join(', '),
+      chip: chipShots.filter(s => s.selections.length > 0).map(s => s.selections.join(' + ')).join(', '),
+      greensideBunker: greensideBunkerShots.filter(s => s.selections.length > 0).map(s => s.selections.join(' + ')).join(', '),
+      fairwayBunker: fairwayBunkerShots.filter(s => s.selections.length > 0).map(s => s.selections.join(' + ')).join(', '),
+      troubleShot: troubleShots.filter(s => s.selections.length > 0).map(s => s.selections.join(' + ')).join(', '),
+      putts: puttShots.filter(s => s.selections.length > 0).map(s => s.selections).flat(),
     };
 
     const updatedHole: GolfHole = {
@@ -107,389 +128,466 @@ const ShotTrackingScreen = () => {
       par,
       strokes: totalStrokes,
       shotData,
-      putts: putts.length,
+      putts: puttShots.filter(s => s.selections.length > 0).length,
       fairwayHit: par > 3 ? teeShot === 'Fairway' : undefined,
       greenInRegulation: calculateGIR(),
     };
 
     onSave(updatedHole);
     
-    // Navigate to hole summary screen
     navigation.navigate('HoleSummary' as never, {
       hole: updatedHole,
-      roundId: (route.params as any)?.roundId,
+      roundId: roundId,
       onNext: () => {
         navigation.goBack();
-        // Logic to move to next hole would go here
       },
     } as never);
   };
 
   const calculateGIR = () => {
-    // Green in Regulation logic
     if (par === 3) {
       return teeShot === 'On Green';
     } else if (par === 4) {
-      return (teeShot && approach === 'Green' && !chip && !greensideBunker);
+      return (teeShot && approachShots[0]?.selections.includes('Green') && chipShots[0]?.selections.length === 0);
     } else if (par === 5) {
-      // For par 5, GIR means on green in 3 shots or less
-      const shotsToGreen = [teeShot, approach].filter(s => s).length;
-      return approach === 'Green' && shotsToGreen <= 2;
+      const hasGreenInApproach = approachShots.some(s => s.selections.includes('Green'));
+      return hasGreenInApproach && chipShots[0]?.selections.length === 0;
     }
     return false;
   };
 
-  const addPutt = (puttResult: string) => {
-    if (puttResult === 'In Hole') {
-      // Final putt
-      setPutts([...putts, puttResult]);
-    } else {
-      // Add putt and allow for another
-      setPutts([...putts, puttResult]);
+  const handleShotSelection = (
+    shotType: 'approach' | 'chip' | 'greensideBunker' | 'fairwayBunker' | 'trouble',
+    rowId: string,
+    option: string
+  ) => {
+    let shots: ShotRow[];
+    let setShots: React.Dispatch<React.SetStateAction<ShotRow[]>>;
+    
+    switch(shotType) {
+      case 'approach':
+        shots = approachShots;
+        setShots = setApproachShots;
+        break;
+      case 'chip':
+        shots = chipShots;
+        setShots = setChipShots;
+        break;
+      case 'greensideBunker':
+        shots = greensideBunkerShots;
+        setShots = setGreensideBunkerShots;
+        break;
+      case 'fairwayBunker':
+        shots = fairwayBunkerShots;
+        setShots = setFairwayBunkerShots;
+        break;
+      case 'trouble':
+        shots = troubleShots;
+        setShots = setTroubleShots;
+        break;
+    }
+    
+    const newShots = [...shots];
+    const rowIndex = newShots.findIndex(s => s.id === rowId);
+    
+    if (rowIndex !== -1) {
+      const row = newShots[rowIndex];
+      const selectionIndex = row.selections.indexOf(option);
+      
+      if (selectionIndex !== -1) {
+        // Remove selection if already selected
+        row.selections.splice(selectionIndex, 1);
+      } else {
+        // Add selection (max 2)
+        if (row.selections.length < 2) {
+          row.selections.push(option);
+        } else {
+          // Replace the oldest selection
+          row.selections = [row.selections[1], option];
+        }
+      }
+      
+      // If this row has selections and is the last row, add a new empty row
+      if (row.selections.length > 0 && rowIndex === newShots.length - 1) {
+        newShots.push({ id: Date.now().toString(), selections: [] });
+      }
+      
+      // Remove empty rows except the last one
+      const filtered = newShots.filter((s, i) => s.selections.length > 0 || i === newShots.length - 1);
+      setShots(filtered.length === 0 ? [{ id: Date.now().toString(), selections: [] }] : filtered);
     }
   };
 
-  const removePutt = () => {
-    if (putts.length > 0) {
-      setPutts(putts.slice(0, -1));
+  const removeShot = (
+    shotType: 'approach' | 'chip' | 'greensideBunker' | 'fairwayBunker' | 'trouble',
+    rowId: string
+  ) => {
+    let shots: ShotRow[];
+    let setShots: React.Dispatch<React.SetStateAction<ShotRow[]>>;
+    
+    switch(shotType) {
+      case 'approach':
+        shots = approachShots;
+        setShots = setApproachShots;
+        break;
+      case 'chip':
+        shots = chipShots;
+        setShots = setChipShots;
+        break;
+      case 'greensideBunker':
+        shots = greensideBunkerShots;
+        setShots = setGreensideBunkerShots;
+        break;
+      case 'fairwayBunker':
+        shots = fairwayBunkerShots;
+        setShots = setFairwayBunkerShots;
+        break;
+      case 'trouble':
+        shots = troubleShots;
+        setShots = setTroubleShots;
+        break;
     }
+    
+    const filtered = shots.filter(s => s.id !== rowId);
+    setShots(filtered.length === 0 ? [{ id: Date.now().toString(), selections: [] }] : filtered);
   };
 
-  const renderOptionButton = (
-    option: string,
-    selected: string,
-    onSelect: (value: string) => void,
-    color: string = '#4CAF50'
-  ) => (
-    <TouchableOpacity
-      key={option}
-      style={[
-        styles.optionButton,
-        selected === option && { backgroundColor: color }
-      ]}
-      onPress={() => onSelect(selected === option ? '' : option)}
-    >
-      <Text style={[
-        styles.optionText,
-        selected === option && styles.selectedOptionText
-      ]}>
-        {option}
-      </Text>
-    </TouchableOpacity>
-  );
-
-  const getTeeOptions = () => {
-    return par === 3 ? TEE_SHOT_OPTIONS_PAR3 : TEE_SHOT_OPTIONS_PAR45;
-  };
+  // Putts now use the dynamic row system like other shot types
 
   const getScoreDisplay = () => {
-    if (totalStrokes === 0) return '-';
+    if (totalStrokes === 0) return '';
     const diff = totalStrokes - par;
     if (diff === 0) return 'Par';
-    if (diff === -3) return 'Albatross';
     if (diff === -2) return 'Eagle';
     if (diff === -1) return 'Birdie';
     if (diff === 1) return 'Bogey';
     if (diff === 2) return 'Double';
     if (diff === 3) return 'Triple';
-    return diff > 0 ? `+${diff}` : diff.toString();
+    if (diff > 3) return `+${diff}`;
+    return `${diff}`;
   };
 
-  const sections = [
-    { id: 'par', label: 'Par', show: true },
-    { id: 'tee', label: 'Tee Shot', show: true },
-    { id: 'approach', label: 'Approach', show: par > 3 },
-    { id: 'chip', label: 'Chip', show: true },
-    { id: 'bunker', label: 'Bunkers', show: true },
-    { id: 'trouble', label: 'Trouble', show: true },
-    { id: 'putts', label: 'Putts', show: true },
-  ];
+  const getIconForOption = (category: string, option: string) => {
+    if (category === 'tee') {
+      switch(option) {
+        case 'Left': return '←';
+        case 'Right': return '→';
+        case 'Fairway': return '⬆';
+        case 'Short': return '⬇';
+        case 'Long': return '⬆';
+        case 'On Green': return '🎯';
+        case 'Bunker': return '⛳';
+        case 'Hazard': return '💧';
+        case 'OB': return '🚫';
+        case 'Lost Ball': return '❌';
+        default: return '•';
+      }
+    }
+    if (category === 'approach' || category === 'chip' || category === 'bunker' || category === 'trouble') {
+      switch(option) {
+        case 'Left': return '←';
+        case 'Right': return '→';
+        case 'Green': return '🎯';
+        case 'Long': return '⬆';
+        case 'Short': return '⬇';
+        case 'On Target': return '🎯';
+        default: return '•';
+      }
+    }
+    if (category === 'putt') {
+      switch(option) {
+        case 'Long': return '⬆';
+        case 'Short': return '⬇';
+        case 'High': return '↗';
+        case 'Low': return '↘';
+        case 'On Target': return '🎯';
+        case 'In Hole': return '🕳';
+        default: return '•';
+      }
+    }
+    return '•';
+  };
+
+  const renderShotRow = (
+    shotType: 'approach' | 'chip' | 'greensideBunker' | 'fairwayBunker' | 'trouble',
+    options: string[],
+    shots: ShotRow[],
+    categoryName: string
+  ) => {
+    return shots.map((row, index) => (
+      <View key={row.id}>
+        <View style={styles.shotRowContainer}>
+          <View style={styles.optionsRow}>
+            {options.map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={[
+                  styles.optionButton,
+                  row.selections.includes(option) && styles.optionButtonActive
+                ]}
+                onPress={() => handleShotSelection(shotType, row.id, option)}
+              >
+                <Text style={[
+                  styles.optionIcon,
+                  row.selections.includes(option) && styles.optionIconActive
+                ]}>
+                  {getIconForOption(categoryName, option)}
+                </Text>
+                <Text style={[
+                  styles.optionLabel,
+                  row.selections.includes(option) && styles.optionLabelActive
+                ]}>
+                  {option === 'On Target' ? 'Target' : option}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {row.selections.length > 0 && index < shots.length - 1 && (
+            <TouchableOpacity 
+              onPress={() => removeShot(shotType, row.id)}
+              style={styles.removeButton}
+            >
+              <Ionicons name="close-circle" size={20} color="#f44336" />
+            </TouchableOpacity>
+          )}
+        </View>
+        {row.selections.length > 0 && (
+          <Text style={styles.selectionSummary}>
+            Shot {index + 1}: {row.selections.join(' + ')}
+          </Text>
+        )}
+      </View>
+    ));
+  };
+
+  const teeOptions = par === 3 ? TEE_SHOT_OPTIONS_PAR3 : TEE_SHOT_OPTIONS_PAR45;
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header with Par Selection */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        
+        <View style={styles.headerCenter}>
           <Text style={styles.holeNumber}>Hole {hole.holeNumber}</Text>
-          <Text style={styles.parText}>Par {par}</Text>
+          
+          <View style={styles.parSelector}>
+            <Text style={styles.parLabel}>Par:</Text>
+            {[3, 4, 5].map((p) => (
+              <TouchableOpacity
+                key={p}
+                style={[styles.parButton, par === p && styles.parButtonActive]}
+                onPress={() => setPar(p as 3 | 4 | 5)}
+              >
+                <Text style={[styles.parButtonText, par === p && styles.parButtonTextActive]}>
+                  {p}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          
+          <View style={styles.mediaButtons}>
+            <TouchableOpacity
+              style={styles.mediaButton}
+              onPress={async () => {
+                if (!roundId) return;
+                try {
+                  const media = await MediaService.capturePhoto(roundId, hole.holeNumber);
+                  if (media) {
+                    Alert.alert('Success', 'Photo saved to album');
+                  }
+                } catch (error) {
+                  Alert.alert('Error', 'Failed to capture photo');
+                }
+              }}
+            >
+              <FontAwesome5 name="camera" size={18} color="#fff" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.mediaButton}
+              onPress={async () => {
+                if (!roundId) return;
+                try {
+                  const media = await MediaService.captureVideo(roundId, hole.holeNumber);
+                  if (media) {
+                    Alert.alert('Success', 'Video saved to album');
+                  }
+                } catch (error) {
+                  Alert.alert('Error', 'Failed to capture video');
+                }
+              }}
+            >
+              <FontAwesome5 name="video" size={18} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
-        <View style={styles.headerRight}>
+        
+        <View style={styles.strokeCounter}>
           <Text style={styles.strokesLabel}>Strokes</Text>
           <Text style={styles.strokesValue}>{totalStrokes || '-'}</Text>
-          <Text style={styles.scoreText}>{getScoreDisplay()}</Text>
+          {totalStrokes > 0 && (
+            <Text style={styles.scoreText}>{getScoreDisplay()}</Text>
+          )}
         </View>
       </View>
 
-      {/* Section Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabContainer}>
-        {sections.filter(s => s.show).map(section => (
-          <TouchableOpacity
-            key={section.id}
-            style={[
-              styles.tab,
-              activeSection === section.id && styles.activeTab
-            ]}
-            onPress={() => setActiveSection(section.id)}
-          >
-            <Text style={[
-              styles.tabText,
-              activeSection === section.id && styles.activeTabText
-            ]}>
-              {section.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Content Area */}
-      <ScrollView style={styles.content}>
-        {/* Par Selection */}
-        {activeSection === 'par' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Select Par for Hole {hole.holeNumber}</Text>
-            <View style={styles.optionsGrid}>
-              {[3, 4, 5].map(p => (
-                <TouchableOpacity
-                  key={p}
-                  style={[
-                    styles.parButton,
-                    par === p && styles.selectedParButton
-                  ]}
-                  onPress={() => setPar(p as 3 | 4 | 5)}
-                >
-                  <Text style={[
-                    styles.parButtonText,
-                    par === p && styles.selectedParButtonText
-                  ]}>
-                    Par {p}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Tee Shot */}
-        {activeSection === 'tee' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Tee Shot Result</Text>
-            <View style={styles.optionsGrid}>
-              {getTeeOptions().map(option =>
-                renderOptionButton(option, teeShot, setTeeShot, '#2196F3')
-              )}
-            </View>
-            {teeShot && (
-              <View style={styles.selectedDisplay}>
-                <Icon name="golf-course" size={20} color="#2196F3" />
-                <Text style={styles.selectedText}>Tee: {teeShot}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Approach */}
-        {activeSection === 'approach' && par > 3 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Approach Shot</Text>
-            <View style={styles.optionsGrid}>
-              {APPROACH_OPTIONS.map(option =>
-                renderOptionButton(option, approach, setApproach, '#4CAF50')
-              )}
-            </View>
-            {approach && (
-              <View style={styles.selectedDisplay}>
-                <Icon name="flag" size={20} color="#4CAF50" />
-                <Text style={styles.selectedText}>Approach: {approach}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Chip */}
-        {activeSection === 'chip' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Chip Shot</Text>
-            <View style={styles.optionsGrid}>
-              {CHIP_OPTIONS.map(option =>
-                renderOptionButton(option, chip, setChip, '#FF9800')
-              )}
-            </View>
-            {chip && (
-              <View style={styles.selectedDisplay}>
-                <Icon name="sports-golf" size={20} color="#FF9800" />
-                <Text style={styles.selectedText}>Chip: {chip}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Bunkers */}
-        {activeSection === 'bunker' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Greenside Bunker</Text>
-            <View style={styles.optionsGrid}>
-              {BUNKER_OPTIONS.map(option =>
-                renderOptionButton(option, greensideBunker, setGreensideBunker, '#F4B400')
-              )}
-            </View>
-            {greensideBunker && (
-              <View style={styles.selectedDisplay}>
-                <Text style={styles.selectedText}>Greenside: {greensideBunker}</Text>
-              </View>
-            )}
-
-            <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Fairway Bunker</Text>
-            <View style={styles.optionsGrid}>
-              {BUNKER_OPTIONS.map(option =>
-                renderOptionButton(option, fairwayBunker, setFairwayBunker, '#DB4437')
-              )}
-            </View>
-            {fairwayBunker && (
-              <View style={styles.selectedDisplay}>
-                <Text style={styles.selectedText}>Fairway: {fairwayBunker}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Trouble Shot */}
-        {activeSection === 'trouble' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Trouble/Recovery Shot</Text>
-            <View style={styles.optionsGrid}>
-              {TROUBLE_SHOT_OPTIONS.map(option =>
-                renderOptionButton(option, troubleShot, setTroubleShot, '#9C27B0')
-              )}
-            </View>
-            {troubleShot && (
-              <View style={styles.selectedDisplay}>
-                <Icon name="warning" size={20} color="#9C27B0" />
-                <Text style={styles.selectedText}>Trouble: {troubleShot}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Putts */}
-        {activeSection === 'putts' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Putting ({putts.length} putts)</Text>
-            
-            {/* Show existing putts */}
-            {putts.length > 0 && (
-              <View style={styles.puttsList}>
-                {putts.map((putt, index) => (
-                  <View key={index} style={styles.puttItem}>
-                    <Text style={styles.puttNumber}>Putt {index + 1}:</Text>
-                    <Text style={styles.puttResult}>{putt}</Text>
-                  </View>
-                ))}
-                <TouchableOpacity style={styles.removePuttButton} onPress={removePutt}>
-                  <Icon name="remove-circle" size={20} color="#F44336" />
-                  <Text style={styles.removePuttText}>Remove Last Putt</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Add new putt if not holed */}
-            {(!putts.length || putts[putts.length - 1] !== 'In Hole') && (
-              <>
-                <Text style={styles.subsectionTitle}>
-                  {putts.length === 0 ? 'First Putt' : `Putt ${putts.length + 1}`}
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Tee Shot Section - Single selection only */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Tee Shot</Text>
+          <View style={styles.optionsRow}>
+            {teeOptions.map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={[styles.optionButton, teeShot === option && styles.optionButtonActive]}
+                onPress={() => setTeeShot(teeShot === option ? '' : option)}
+              >
+                <Text style={[styles.optionIcon, teeShot === option && styles.optionIconActive]}>
+                  {getIconForOption('tee', option)}
                 </Text>
-                <View style={styles.optionsGrid}>
-                  {PUTT_OPTIONS.map(option =>
-                    renderOptionButton(
-                      option,
-                      '',
-                      (value) => addPutt(value),
-                      option === 'In Hole' ? '#4CAF50' : '#0F9D58'
-                    )
-                  )}
-                </View>
-              </>
-            )}
+                <Text style={[styles.optionLabel, teeShot === option && styles.optionLabelActive]}>
+                  {option.replace('Lost Ball', 'Lost')}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
 
-            {putts.includes('In Hole') && (
-              <View style={styles.holedDisplay}>
-                <Icon name="flag" size={24} color="#4CAF50" />
-                <Text style={styles.holedText}>Holed Out!</Text>
-              </View>
-            )}
+        {/* Approach Section - Multiple selections */}
+        {par > 3 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Approach</Text>
+            {renderShotRow('approach', APPROACH_OPTIONS, approachShots, 'approach')}
           </View>
         )}
+
+        {/* Chip Section - Multiple selections */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Chip</Text>
+          {renderShotRow('chip', CHIP_OPTIONS, chipShots, 'chip')}
+        </View>
+
+        {/* Greenside Bunker Section - Multiple selections */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Greenside Bunker</Text>
+          {renderShotRow('greensideBunker', BUNKER_OPTIONS, greensideBunkerShots, 'bunker')}
+        </View>
+
+        {/* Fairway Bunker Section - Multiple selections */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Fairway Bunker</Text>
+          {renderShotRow('fairwayBunker', BUNKER_OPTIONS, fairwayBunkerShots, 'bunker')}
+        </View>
+
+        {/* Trouble Shot Section - Multiple selections */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Trouble Shot</Text>
+          {renderShotRow('trouble', TROUBLE_SHOT_OPTIONS, troubleShots, 'trouble')}
+        </View>
+
+        {/* Putts Section - Multiple selections, dynamic rows */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Putts</Text>
+          {puttShots.map((row, index) => (
+            <View key={row.id}>
+              <View style={styles.shotRowContainer}>
+                <View style={styles.optionsRow}>
+                  {PUTT_OPTIONS.map((option) => (
+                    <TouchableOpacity
+                      key={option}
+                      style={[
+                        styles.optionButton,
+                        row.selections.includes(option) && styles.optionButtonActive
+                      ]}
+                      onPress={() => {
+                        const newSelections = row.selections.includes(option)
+                          ? row.selections.filter(s => s !== option)
+                          : row.selections.length < 2 
+                            ? [...row.selections, option]
+                            : row.selections;
+                        
+                        const newPuttShots = [...puttShots];
+                        newPuttShots[index] = { ...row, selections: newSelections };
+                        
+                        // Add new row if this row has selections and is the last row
+                        if (newSelections.length > 0 && index === puttShots.length - 1) {
+                          newPuttShots.push({ id: Date.now().toString(), selections: [] });
+                        }
+                        
+                        // Remove empty rows except the last one
+                        const filtered = newPuttShots.filter((shot, idx) => 
+                          shot.selections.length > 0 || idx === newPuttShots.length - 1
+                        );
+                        
+                        setPuttShots(filtered.length === 0 ? [{ id: Date.now().toString(), selections: [] }] : filtered);
+                      }}
+                    >
+                      <Text style={[
+                        styles.optionIcon,
+                        row.selections.includes(option) && styles.optionIconActive
+                      ]}>
+                        {getIconForOption('putt', option)}
+                      </Text>
+                      <Text style={[
+                        styles.optionLabel,
+                        row.selections.includes(option) && styles.optionLabelActive
+                      ]}>
+                        {option === 'In Hole' ? 'Hole' : option === 'On Target' ? 'Target' : option}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {row.selections.length > 0 && index < puttShots.length - 1 && (
+                  <TouchableOpacity 
+                    onPress={() => {
+                      const newPuttShots = puttShots.filter(s => s.id !== row.id);
+                      setPuttShots(newPuttShots.length === 0 ? [{ id: Date.now().toString(), selections: [] }] : newPuttShots);
+                    }}
+                    style={styles.removeButton}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#f44336" />
+                  </TouchableOpacity>
+                )}
+              </View>
+              {row.selections.length > 0 && (
+                <Text style={styles.selectionSummary}>
+                  Putt {index + 1}: {row.selections.join(' + ')}
+                </Text>
+              )}
+            </View>
+          ))}
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actions}>
+          <TouchableOpacity 
+            style={styles.cancelButton} 
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.saveButton} 
+            onPress={handleSave}
+          >
+            <Icon name="check" size={20} color="#fff" />
+            <Text style={styles.saveButtonText}>Save</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.saveButton, styles.summaryButton]} 
+            onPress={handleSaveAndSummary}
+            disabled={totalStrokes === 0}
+          >
+            <Icon name="send" size={20} color="#fff" />
+            <Text style={styles.saveButtonText}>Share</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
-
-      {/* Summary Bar */}
-      <View style={styles.summaryBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {teeShot && (
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Tee</Text>
-              <Text style={styles.summaryValue}>{teeShot}</Text>
-            </View>
-          )}
-          {approach && (
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>App</Text>
-              <Text style={styles.summaryValue}>{approach}</Text>
-            </View>
-          )}
-          {chip && (
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Chip</Text>
-              <Text style={styles.summaryValue}>{chip}</Text>
-            </View>
-          )}
-          {(greensideBunker || fairwayBunker) && (
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Bunker</Text>
-              <Text style={styles.summaryValue}>
-                {greensideBunker || fairwayBunker}
-              </Text>
-            </View>
-          )}
-          {troubleShot && (
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Trouble</Text>
-              <Text style={styles.summaryValue}>{troubleShot}</Text>
-            </View>
-          )}
-          {putts.length > 0 && (
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Putts</Text>
-              <Text style={styles.summaryValue}>{putts.length}</Text>
-            </View>
-          )}
-        </ScrollView>
-      </View>
-
-      {/* Action Buttons */}
-      <View style={styles.actions}>
-        <TouchableOpacity 
-          style={styles.cancelButton} 
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.saveButton} 
-          onPress={handleSave}
-        >
-          <Icon name="check" size={20} color="#fff" />
-          <Text style={styles.saveButtonText}>Save</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.saveButton, styles.summaryButton]} 
-          onPress={handleSaveAndSummary}
-          disabled={totalStrokes === 0}
-        >
-          <Icon name="send" size={20} color="#fff" />
-          <Text style={styles.saveButtonText}>Save & Share</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 };
@@ -501,242 +599,236 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#4CAF50',
-    padding: 20,
+    paddingTop: 50,
+    paddingBottom: 15,
+    paddingHorizontal: 15,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
-  headerLeft: {
-    alignItems: 'flex-start',
+  backButton: {
+    padding: 5,
   },
-  headerRight: {
-    alignItems: 'flex-end',
+  headerCenter: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  mediaButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  mediaButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    padding: 8,
+    borderRadius: 20,
   },
   holeNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  parSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  parLabel: {
+    color: '#fff',
+    fontSize: 16,
+    marginRight: 10,
+    fontWeight: '600',
+  },
+  parButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  parButtonActive: {
+    backgroundColor: '#fff',
+  },
+  parButtonText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  parButtonTextActive: {
+    color: '#4CAF50',
+  },
+  strokeCounter: {
+    alignItems: 'center',
+  },
+  strokesLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  strokesValue: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
   },
-  parText: {
-    fontSize: 16,
-    color: '#fff',
-    opacity: 0.9,
-  },
-  strokesLabel: {
-    fontSize: 12,
-    color: '#fff',
-    opacity: 0.8,
-  },
-  strokesValue: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
   scoreText: {
-    fontSize: 14,
-    color: '#fff',
-    fontWeight: '600',
+    fontSize: 12,
+    color: '#FFD700',
+    fontWeight: 'bold',
   },
-  tabContainer: {
-    backgroundColor: '#fff',
-    maxHeight: 50,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  tab: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  activeTab: {
-    borderBottomWidth: 3,
-    borderBottomColor: '#4CAF50',
-  },
-  tabText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '600',
-  },
-  activeTabText: {
-    color: '#4CAF50',
-  },
-  content: {
+  scrollView: {
     flex: 1,
   },
   section: {
-    padding: 20,
+    backgroundColor: '#fff',
+    marginHorizontal: 10,
+    marginTop: 10,
+    borderRadius: 12,
+    padding: 15,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-  },
-  subsectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-    marginTop: 15,
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 10,
   },
-  optionsGrid: {
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  shotRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  optionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    flex: 1,
+    justifyContent: 'space-between',
   },
   optionButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    minWidth: 80,
     alignItems: 'center',
-  },
-  optionText: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-  },
-  selectedOptionText: {
-    color: '#fff',
-  },
-  parButton: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#ddd',
-    alignItems: 'center',
-    marginHorizontal: 5,
-  },
-  selectedParButton: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
-  },
-  parButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#666',
-  },
-  selectedParButtonText: {
-    color: '#fff',
-  },
-  selectedDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 15,
-    padding: 10,
-    backgroundColor: '#E8F5E9',
-    borderRadius: 8,
-  },
-  selectedText: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '600',
-  },
-  puttsList: {
-    marginBottom: 20,
-  },
-  puttItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
     padding: 8,
-    backgroundColor: '#fff',
-    borderRadius: 6,
+    minWidth: 50,
     marginBottom: 5,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+    flex: 1,
+    marginHorizontal: 2,
   },
-  puttNumber: {
-    fontSize: 14,
-    fontWeight: '600',
+  optionButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
+  optionButtonDisabled: {
+    opacity: 0.4,
+  },
+  optionIcon: {
+    fontSize: 20,
+    marginBottom: 2,
+  },
+  optionIconActive: {
+    color: '#fff',
+  },
+  optionIconDisabled: {
+    color: '#999',
+  },
+  optionLabel: {
+    fontSize: 10,
     color: '#666',
   },
-  puttResult: {
-    fontSize: 14,
-    color: '#333',
+  optionLabelActive: {
+    color: '#fff',
+    fontWeight: '600',
   },
-  removePuttButton: {
+  optionLabelDisabled: {
+    color: '#999',
+  },
+  removeButton: {
+    padding: 5,
+    marginLeft: 5,
+  },
+  selectionSummary: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontStyle: 'italic',
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  puttCounter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    marginTop: 10,
-    padding: 8,
   },
-  removePuttText: {
-    fontSize: 14,
-    color: '#F44336',
-  },
-  holedDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    marginTop: 20,
-    padding: 15,
-    backgroundColor: '#E8F5E9',
-    borderRadius: 10,
-  },
-  holedText: {
+  puttCount: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#4CAF50',
+    marginRight: 10,
   },
-  summaryBar: {
-    backgroundColor: '#fff',
-    padding: 10,
+  undoButton: {
+    padding: 5,
+  },
+  puttHistory: {
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#eee',
   },
-  summaryItem: {
-    marginRight: 15,
-    alignItems: 'center',
-  },
-  summaryLabel: {
-    fontSize: 11,
-    color: '#999',
-  },
-  summaryValue: {
+  puttHistoryItem: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
+    color: '#666',
+    marginBottom: 2,
   },
   actions: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     padding: 15,
-    gap: 10,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
+    marginTop: 10,
   },
   cancelButton: {
     flex: 1,
-    padding: 15,
     backgroundColor: '#f5f5f5',
+    padding: 15,
     borderRadius: 10,
+    marginRight: 5,
     alignItems: 'center',
   },
   cancelButtonText: {
-    fontSize: 16,
     color: '#666',
+    fontSize: 16,
     fontWeight: '600',
   },
   saveButton: {
     flex: 1,
-    padding: 15,
     backgroundColor: '#4CAF50',
+    padding: 15,
     borderRadius: 10,
+    marginHorizontal: 5,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
   },
   saveButtonText: {
-    fontSize: 16,
     color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
+    marginLeft: 5,
   },
   summaryButton: {
     backgroundColor: '#2196F3',

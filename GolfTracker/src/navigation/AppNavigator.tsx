@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
 // Import screens
 import HomeScreen from '../screens/HomeScreen';
@@ -86,21 +87,19 @@ const AppNavigator = () => {
       <Tab.Navigator
         screenOptions={({ route }) => ({
           tabBarIcon: ({ focused, color, size }) => {
-            let iconName: string = 'home';
-
             if (route.name === 'Home') {
-              iconName = 'home';
+              return <FontAwesome5 name="home" size={size} color={color} />;
             } else if (route.name === 'Round') {
-              iconName = 'golf-course';
+              return <FontAwesome5 name="golf-ball" size={size} color={color} />;
             } else if (route.name === 'Stats') {
-              iconName = 'bar-chart';
+              return <FontAwesome5 name="chart-line" size={size} color={color} />;
             } else if (route.name === 'Tournaments') {
-              iconName = 'emoji-events';
+              return <FontAwesome5 name="trophy" size={size} color={color} />;
             } else if (route.name === 'Contacts') {
-              iconName = 'people';
+              return <FontAwesome5 name="users" size={size} color={color} />;
             }
 
-            return <Icon name={iconName} size={size} color={color} />;
+            return <Icon name="home" size={size} color={color} />;
           },
           tabBarActiveTintColor: '#4CAF50',
           tabBarInactiveTintColor: 'gray',

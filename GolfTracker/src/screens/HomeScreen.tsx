@@ -6,8 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  ImageBackground,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useNavigation } from '@react-navigation/native';
 import DatabaseService from '../services/database';
 import { GolfRound, Statistics } from '../types';
@@ -25,7 +27,7 @@ const HomeScreen = () => {
 
   const loadData = async () => {
     try {
-      await DatabaseService.init();
+      // Database is now initialized at app level
       const rounds = await DatabaseService.getRounds();
       setRecentRounds(rounds.slice(0, 5)); // Get last 5 rounds
       
@@ -59,10 +61,17 @@ const HomeScreen = () => {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      <View style={styles.header}>
-        <Text style={styles.title}>Golf Tracker</Text>
-        <Text style={styles.subtitle}>Track • Analyze • Improve</Text>
-      </View>
+      <ImageBackground 
+        source={{ uri: 'https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=800' }}
+        style={styles.header}
+        imageStyle={styles.headerImage}
+      >
+        <View style={styles.headerOverlay}>
+            <FontAwesome5 name="golf-ball" size={40} color="#fff" style={styles.headerIcon} />
+            <Text style={styles.title}>Daddy Caddy</Text>
+          <Text style={styles.subtitle}>Track • Analyze • Improve</Text>
+        </View>
+      </ImageBackground>
 
       {/* Quick Actions */}
       <View style={styles.quickActions}>
@@ -70,7 +79,7 @@ const HomeScreen = () => {
           style={[styles.actionButton, styles.primaryButton]}
           onPress={() => navigation.navigate('Round' as never)}
         >
-          <Icon name="add-circle" size={30} color="#fff" />
+          <FontAwesome5 name="plus-circle" size={30} color="#fff" />
           <Text style={styles.actionButtonText}>New Round</Text>
         </TouchableOpacity>
 
@@ -78,7 +87,7 @@ const HomeScreen = () => {
           style={styles.actionButton}
           onPress={() => navigation.navigate('Stats' as never)}
         >
-          <Icon name="bar-chart" size={30} color="#4CAF50" />
+          <FontAwesome5 name="chart-line" size={30} color="#4CAF50" />
           <Text style={styles.actionButtonTextDark}>View Stats</Text>
         </TouchableOpacity>
       </View>
@@ -89,24 +98,28 @@ const HomeScreen = () => {
           <Text style={styles.sectionTitle}>Performance Overview</Text>
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
+              <FontAwesome5 name="flag-checkered" size={20} color="#4CAF50" />
               <Text style={styles.statValue}>
                 {statistics.averageScore.toFixed(1)}
               </Text>
               <Text style={styles.statLabel}>Avg Score</Text>
             </View>
             <View style={styles.statItem}>
+              <FontAwesome5 name="bullseye" size={20} color="#4CAF50" />
               <Text style={styles.statValue}>
                 {statistics.averagePutts.toFixed(1)}
               </Text>
               <Text style={styles.statLabel}>Avg Putts</Text>
             </View>
             <View style={styles.statItem}>
+              <Icon name="terrain" size={20} color="#4CAF50" />
               <Text style={styles.statValue}>
                 {statistics.fairwayAccuracy.toFixed(0)}%
               </Text>
               <Text style={styles.statLabel}>Fairways</Text>
             </View>
             <View style={styles.statItem}>
+              <FontAwesome5 name="map-pin" size={20} color="#4CAF50" />
               <Text style={styles.statValue}>
                 {statistics.girPercentage.toFixed(0)}%
               </Text>
@@ -160,15 +173,15 @@ const HomeScreen = () => {
               </View>
               <View style={styles.roundStats}>
                 <View style={styles.roundStatItem}>
-                  <Icon name="flag" size={16} color="#666" />
+                  <FontAwesome5 name="flag" size={16} color="#666" />
                   <Text style={styles.roundStatText}>
                     Score: {round.totalScore || 'N/A'}
                   </Text>
                 </View>
                 {round.tournamentName && (
                   <View style={styles.roundStatItem}>
-                    <Icon name="emoji-events" size={16} color="#666" />
-                    <Text style={styles.roundStatText}>{round.tournamentName}</Text>
+                  <FontAwesome5 name="trophy" size={16} color="#FFD700" />
+                  <Text style={styles.roundStatText}>{round.tournamentName}</Text>
                   </View>
                 )}
               </View>
@@ -184,7 +197,7 @@ const HomeScreen = () => {
           ))
         ) : (
           <View style={styles.emptyState}>
-            <Icon name="golf-course" size={48} color="#ccc" />
+            <FontAwesome5 name="golf-ball" size={48} color="#ccc" />
             <Text style={styles.emptyStateText}>No rounds recorded yet</Text>
             <Text style={styles.emptyStateSubtext}>
               Start tracking your golf rounds to see statistics here
@@ -202,10 +215,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-    paddingTop: 60,
+    height: 200,
+    justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerImage: {
+    opacity: 0.8,
+  },
+  headerOverlay: {
+    backgroundColor: 'rgba(76, 175, 80, 0.8)',
+    padding: 20,
+    borderRadius: 15,
+    alignItems: 'center',
+  },
+  headerIcon: {
+    marginBottom: 10,
   },
   title: {
     fontSize: 28,

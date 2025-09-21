@@ -88,7 +88,7 @@ export interface Statistics {
 
 // Shot tracking options
 export const TEE_SHOT_OPTIONS_PAR3 = [
-  'Left', 'Right', 'Short', 'Long', 'On Green', 'Bunker', 'Lost Ball', 'OB'
+  'Left', 'Right', 'Short', 'Long', 'On Green', 'Bunker', 'Lost Ball'
 ];
 
 export const TEE_SHOT_OPTIONS_PAR45 = [
