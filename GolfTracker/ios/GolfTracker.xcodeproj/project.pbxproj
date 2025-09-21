@@ -272,6 +272,7 @@
 					"$(inherited)",
 					"-ObjC",
 					"-lc++",
+					"-ld64",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = GolfTracker;
@@ -299,6 +300,7 @@
 					"$(inherited)",
 					"-ObjC",
 					"-lc++",
+					"-ld64",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = GolfTracker;
