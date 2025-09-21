@@ -52,6 +52,11 @@ target 'GolfTracker' do
         # Suppress deprecation warnings
         config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
         config.build_settings['SWIFT_SUPPRESS_WARNINGS'] = 'YES'
+        
+        # Fix Swift standard libraries warning for static libraries
+        if target.respond_to?(:product_type) and target.product_type == "com.apple.product-type.library.static"
+          config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
+        end
       end
     end
   end
