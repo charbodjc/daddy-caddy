@@ -31,5 +31,16 @@ target 'GolfTracker' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+    
+    # Remove duplicate font resources
+    installer.pods_project.targets.each do |target|
+      if target.name == 'RNVectorIcons'
+        target.resources_build_phase.files.each do |file|
+          if file.file_ref && file.file_ref.path && file.file_ref.path.end_with?('.ttf')
+            file.remove_from_project
+          end
+        end
+      end
+    end
   end
 end
