@@ -191,7 +191,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\n\nexport SKIP_BUNDLING_METRO_IP=1\n\n# Copy pre-bundled JavaScript to app bundle\ncp \"${SRCROOT}/main.jsbundle\" \"${CONFIGURATION_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/main.jsbundle\" 2>/dev/null || echo \"Bundle not found, will use Metro\"\n\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$REACT_NATIVE_PATH/scripts/react-native-xcode.sh\"\n\n/bin/sh -c \"$WITH_ENVIRONMENT $REACT_NATIVE_XCODE\"\n";
+			shellScript = "set -e\n\n# Copy pre-bundled JavaScript to app bundle\necho \"Copying pre-bundled main.jsbundle to app...\"\ncp \"${SRCROOT}/main.jsbundle\" \"${CONFIGURATION_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\" || exit 1\necho \"Bundle copied successfully\"\n";
 		};
 		4369F350CA53B27A69269994 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
