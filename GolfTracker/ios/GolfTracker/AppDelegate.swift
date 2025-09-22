@@ -39,10 +39,7 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
   }
 
   override func bundleURL() -> URL? {
-#if DEBUG
-    RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
-#else
+    // Always use bundled JavaScript to avoid Metro connection issues
     Bundle.main.url(forResource: "main", withExtension: "jsbundle")
-#endif
   }
 }
