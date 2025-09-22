@@ -35,12 +35,12 @@
 	<string>Daddy Caddy needs access to your camera to capture photos and videos of your golf shots.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Daddy Caddy uses your location to track your position on the golf course and provide accurate distance measurements.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Daddy Caddy needs access to your microphone to record audio with videos.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Daddy Caddy needs permission to save photos and videos to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Daddy Caddy needs access to your photo library to save golf photos and videos.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Daddy Caddy needs access to your microphone to record audio with videos.</string>
 	<key>RCTNewArchEnabled</key>
 	<false/>
 	<key>UIAppFonts</key>
