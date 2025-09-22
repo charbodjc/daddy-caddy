@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Modal,
   Alert,
   TouchableWithoutFeedback,
   Keyboard,
