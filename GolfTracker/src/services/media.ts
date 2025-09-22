@@ -108,8 +108,8 @@ class MediaService {
 
     const options: CameraOptions = {
       mediaType: 'video',
-      videoQuality: 'high',
-      durationLimit: 60, // 60 seconds max
+      videoQuality: 'medium',
+      durationLimit: 30,
       saveToPhotos: true, // Automatically save to photo album
     };
 
@@ -122,6 +122,11 @@ class MediaService {
         
         if (response.errorMessage) {
           reject(new Error(response.errorMessage));
+          return;
+        }
+
+        if (response.errorCode) {
+          reject(new Error(`Camera error: ${response.errorCode}`));
           return;
         }
 

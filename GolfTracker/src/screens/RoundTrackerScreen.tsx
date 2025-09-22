@@ -17,7 +17,7 @@ import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import DatabaseService from '../services/database';
 import MediaService from '../services/media';
-import { GolfRound, GolfHole } from '../types';
+import { GolfRound, GolfHole, Tournament } from '../types';
 
 const RoundTrackerScreen = () => {
   const navigation = useNavigation();
@@ -31,10 +31,15 @@ const RoundTrackerScreen = () => {
   const [isStarted, setIsStarted] = useState(false);
   const [roundId, setRoundId] = useState<string>('');
   const [activeRound, setActiveRound] = useState<GolfRound | null>(null);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string | undefined>(tournamentId);
+  const [selectedTournamentName, setSelectedTournamentName] = useState<string | undefined>(tournamentName);
+  const [tournamentPickerVisible, setTournamentPickerVisible] = useState(false);
+  const [tournamentsList, setTournamentsList] = useState<Tournament[]>([]);
 
   useEffect(() => {
     initializeHoles();
     loadActiveRound();
+    loadTournaments();
   }, []);
 
   const loadActiveRound = async () => {
@@ -85,6 +90,15 @@ const RoundTrackerScreen = () => {
     setHoles(initialHoles);
   };
 
+  const loadTournaments = async () => {
+    try {
+      const list = await DatabaseService.getTournaments();
+      setTournamentsList(list);
+    } catch (e) {
+      // noop
+    }
+  };
+
   const startRound = async () => {
     if (!courseName.trim()) {
       Alert.alert('Error', 'Please enter a course name');
@@ -102,8 +116,8 @@ const RoundTrackerScreen = () => {
       // Create a preliminary round in the database
       const newRound: GolfRound = {
         id: newRoundId,
-        tournamentId,
-        tournamentName,
+        tournamentId: selectedTournamentId,
+        tournamentName: selectedTournamentName,
         courseName: courseName.trim(),
         date: new Date(),
         holes,
@@ -123,13 +137,34 @@ const RoundTrackerScreen = () => {
   };
 
   const updateHole = (holeNumber: number, updates: Partial<GolfHole>) => {
-    setHoles(prevHoles => 
-      prevHoles.map(hole => 
-        hole.holeNumber === holeNumber 
-          ? { ...hole, ...updates }
-          : hole
-      )
-    );
+    setHoles(prevHoles => {
+      const newHoles = prevHoles.map(hole =>
+        hole.holeNumber === holeNumber ? { ...hole, ...updates } : hole
+      );
+
+      // Persist progress to DB (autosave)
+      if (roundId) {
+        const partialRound: GolfRound = {
+          id: roundId,
+          tournamentId,
+          tournamentName,
+          courseName,
+          date: new Date(),
+          holes: newHoles,
+          totalScore: undefined,
+          totalPutts: undefined,
+          fairwaysHit: undefined,
+          greensInRegulation: undefined,
+          createdAt: activeRound?.createdAt || new Date(),
+          updatedAt: new Date(),
+        };
+        DatabaseService.saveRound(partialRound).catch(err => {
+          console.error('Autosave round error:', err);
+        });
+      }
+
+      return newHoles;
+    });
   };
 
   const navigateToHoleDetails = (holeNumber: number) => {
@@ -175,8 +210,8 @@ const RoundTrackerScreen = () => {
             try {
               const round: GolfRound = {
                 id: roundId,
-                tournamentId,
-                tournamentName,
+                tournamentId: selectedTournamentId,
+                tournamentName: selectedTournamentName,
                 courseName,
                 date: new Date(),
                 holes: holes.filter(h => h.strokes > 0),
@@ -215,8 +250,8 @@ const RoundTrackerScreen = () => {
             try {
               // Clear the active round preference
               await DatabaseService.setPreference('active_round_id', '');
-              // Delete the round if it was saved
-              if (activeRound) {
+              // Delete the round if we have an id
+              if (roundId) {
                 await DatabaseService.deleteRound(roundId);
               }
               // Navigate back to home
@@ -263,12 +298,15 @@ const RoundTrackerScreen = () => {
             <View style={styles.setupContent}>
               <Text style={styles.setupTitle}>New Round Setup</Text>
               
-              {tournamentName && (
-                <View style={styles.tournamentInfo}>
-                  <Icon name="emoji-events" size={20} color="#4CAF50" />
-                  <Text style={styles.tournamentText}>{tournamentName}</Text>
-                </View>
-              )}
+              <TouchableOpacity
+                style={styles.tournamentSelect}
+                onPress={() => setTournamentPickerVisible(true)}
+              >
+                <Icon name="emoji-events" size={20} color="#4CAF50" />
+                <Text style={styles.tournamentText}>
+                  {selectedTournamentName ? selectedTournamentName : 'Select Tournament (optional)'}
+                </Text>
+              </TouchableOpacity>
 
               <TextInput
                 style={styles.input}
@@ -286,6 +324,64 @@ const RoundTrackerScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Tournament Picker Modal */}
+          <Modal
+            animationType="slide"
+            transparent
+            visible={tournamentPickerVisible}
+            onRequestClose={() => setTournamentPickerVisible(false)}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={styles.modalOverlay}>
+                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                  <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalContent}>
+                    <View style={styles.modalHeader}>
+                      <Text style={styles.modalTitle}>Select Tournament</Text>
+                      <TouchableOpacity onPress={() => setTournamentPickerVisible(false)}>
+                        <Icon name="close" size={24} color="#666" />
+                      </TouchableOpacity>
+                    </View>
+                    <ScrollView contentContainerStyle={styles.modalForm}>
+                      {tournamentsList.length === 0 ? (
+                        <Text style={{ color: '#666' }}>No tournaments. Create one in Tournaments tab.</Text>
+                      ) : (
+                        tournamentsList.map(t => (
+                          <TouchableOpacity
+                            key={t.id}
+                            style={styles.tournamentItem}
+                            onPress={() => {
+                              setSelectedTournamentId(t.id);
+                              setSelectedTournamentName(t.name);
+                              setTournamentPickerVisible(false);
+                            }}
+                          >
+                            <Icon name="emoji-events" size={18} color="#4CAF50" />
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontWeight: '600', color: '#333' }}>{t.name}</Text>
+                              <Text style={{ color: '#666', fontSize: 12 }}>{t.courseName}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))
+                      )}
+                      {selectedTournamentId && (
+                        <TouchableOpacity
+                          style={[styles.cancelButton, { marginTop: 10 }]}
+                          onPress={() => {
+                            setSelectedTournamentId(undefined);
+                            setSelectedTournamentName(undefined);
+                            setTournamentPickerVisible(false);
+                          }}
+                        >
+                          <Text style={styles.cancelButtonText}>Clear Selection</Text>
+                        </TouchableOpacity>
+                      )}
+                    </ScrollView>
+                  </KeyboardAvoidingView>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
     );
@@ -431,6 +527,17 @@ const styles = StyleSheet.create({
   setupContent: {
     width: '100%',
   },
+  tournamentSelect: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
   setupTitle: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -472,6 +579,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  tournamentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
   headerButtons: {
     flexDirection: 'row',

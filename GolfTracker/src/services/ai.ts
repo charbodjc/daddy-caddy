@@ -1,4 +1,3 @@
-import OpenAI from 'openai';
 import { GolfRound, GolfHole, Statistics } from '../types';
 import Config from 'react-native-config';
 
@@ -6,11 +5,16 @@ class AIService {
   private openai: OpenAI | null = null;
 
   constructor() {
-    // Initialize with API key from environment
-    if (Config.OPENAI_API_KEY) {
-      this.openai = new OpenAI({
-        apiKey: Config.OPENAI_API_KEY,
-      });
+    // Initialize with API key from environment (guarded dynamic require)
+    try {
+      if (Config.OPENAI_API_KEY) {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const OpenAI = require('openai').default;
+        this.openai = new OpenAI({ apiKey: Config.OPENAI_API_KEY });
+      }
+    } catch (err) {
+      console.error('OpenAI init error (disabled):', err);
+      this.openai = null;
     }
   }
 
@@ -49,7 +53,7 @@ class AIService {
       `;
 
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4',
+        model: (Config.OPENAI_MODEL || 'gpt-5') as any,
         messages: [
           {
             role: 'system',
@@ -177,7 +181,7 @@ class AIService {
       `;
 
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: (Config.OPENAI_MODEL || 'gpt-5') as any,
         messages: [
           {
             role: 'system',

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ImageBackground,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
@@ -38,6 +39,28 @@ const HomeScreen = () => {
     } catch (error) {
       console.error('Error loading data:', error);
     }
+  };
+
+  const confirmDeleteRound = (round: GolfRound) => {
+    Alert.alert(
+      'Delete Round?',
+      `Delete round at ${round.courseName} from ${formatDate(round.date)}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await DatabaseService.deleteRound(round.id);
+              await loadData();
+            } catch (e) {
+              // noop
+            }
+          },
+        },
+      ]
+    );
   };
 
   const onRefresh = async () => {
@@ -169,7 +192,12 @@ const HomeScreen = () => {
             >
               <View style={styles.roundHeader}>
                 <Text style={styles.courseName}>{round.courseName}</Text>
-                <Text style={styles.roundDate}>{formatDate(round.date)}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Text style={styles.roundDate}>{formatDate(round.date)}</Text>
+                  <TouchableOpacity onPress={() => confirmDeleteRound(round)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Icon name="delete" size={20} color="#F44336" />
+                  </TouchableOpacity>
+                </View>
               </View>
               <View style={styles.roundStats}>
                 <View style={styles.roundStatItem}>

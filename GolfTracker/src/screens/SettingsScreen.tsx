@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, KeyboardAvo
 import Icon from 'react-native-vector-icons/FontAwesome5';
 import DatabaseService from '../services/database';
 
-const ContactsScreen = () => {
+const SettingsScreen = () => {
   const [groupRecipients, setGroupRecipients] = useState('');
   const [savedValue, setSavedValue] = useState('');
 
@@ -91,4 +91,6 @@ const styles = StyleSheet.create({
   saveText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });
 
-export default ContactsScreen;
+export default SettingsScreen;
+
+

@@ -9,9 +9,20 @@ cd /Users/dancharbonneau/projects/daddy-caddy/GolfTracker/ios
 echo "🧹 Cleaning build artifacts..."
 rm -rf ~/Library/Developer/Xcode/DerivedData/GolfTracker-*
 
-# Get the device ID
-echo "📱 Finding connected iPhone..."
-DEVICE_ID=$(xcrun xctrace list devices 2>&1 | grep -v "Simulator" | grep "iPhone" | head -1 | grep -oE '[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}')
+# Get the device ID (handle custom device names; exclude simulators, watches, and Macs)
+echo "📱 Finding connected iOS device..."
+DEVICE_LINE=$(xcrun xctrace list devices 2>&1 \
+  | grep -v "Simulator" \
+  | grep -v "Watch" \
+  | grep -v "MacBook" \
+  | grep -v "Mac mini" \
+  | grep -v "Mac Pro" \
+  | grep -v "Mac Studio" \
+  | grep -E "\\([0-9]+(\\.[0-9]+)+\\)" \
+  | head -1)
+
+# Extract the UDID inside the last parentheses on the line
+DEVICE_ID=$(echo "$DEVICE_LINE" | sed -E 's/.*\(([^()]+)\)$/\1/')
 
 if [ -z "$DEVICE_ID" ]; then
     echo "❌ No iPhone found. Please connect your iPhone and make sure it's trusted."
@@ -24,20 +35,15 @@ fi
 
 echo "✅ Found iPhone with ID: $DEVICE_ID"
 
-# Build and install using xcodebuild
-echo "🔨 Building and installing app..."
-xcodebuild -workspace GolfTracker.xcworkspace \
+# Build the app
+echo "🔨 Building app..."
+if ! xcodebuild -workspace GolfTracker.xcworkspace \
     -scheme GolfTracker \
     -configuration Debug \
     -destination "id=$DEVICE_ID" \
     -allowProvisioningUpdates \
     -allowProvisioningDeviceRegistration \
-    clean build
-
-if [ $? -eq 0 ]; then
-    echo "✅ App successfully deployed to your iPhone!"
-    echo "📱 Check your iPhone for the Golf Tracker app"
-else
+    clean build | cat; then
     echo "❌ Build failed. Opening Xcode for manual deployment..."
     echo ""
     echo "📝 Manual deployment steps:"
@@ -48,4 +54,24 @@ else
     echo "   - Toggle it ON and restart your phone"
     echo ""
     open GolfTracker.xcworkspace
+    exit 1
+fi
+
+# Locate the built .app
+APP_PATH=$(ls -d ~/Library/Developer/Xcode/DerivedData/GolfTracker-*/Build/Products/Debug-iphoneos/GolfTracker.app 2>/dev/null | head -1)
+
+if [ -z "$APP_PATH" ]; then
+  echo "❌ Could not locate built .app. Check the build logs."
+  exit 1
+fi
+
+# Install the app to device
+echo "📲 Installing app to device $DEVICE_ID..."
+if xcrun devicectl device install app --device "$DEVICE_ID" "$APP_PATH" | cat; then
+  echo "✅ App successfully deployed to your iPhone!"
+  echo "📱 Check your iPhone for the Golf Tracker app"
+else
+  echo "❌ Installation failed via devicectl. Opening Xcode for manual deployment..."
+  open GolfTracker.xcworkspace
+  exit 1
 fi

@@ -12,7 +12,7 @@ import HoleDetailsScreen from '../screens/HoleDetailsScreen';
 import ShotTrackingScreen from '../screens/ShotTrackingScreen';
 import HoleSummaryScreen from '../screens/HoleSummaryScreen';
 import StatsScreen from '../screens/StatsScreen';
-import ContactsScreen from '../screens/ContactsScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 import TournamentsScreen from '../screens/TournamentsScreen';
 import RoundSummaryScreen from '../screens/RoundSummaryScreen';
 import CameraScreen from '../screens/CameraScreen';
@@ -95,8 +95,8 @@ const AppNavigator = () => {
               return <FontAwesome5 name="chart-line" size={size} color={color} />;
             } else if (route.name === 'Tournaments') {
               return <FontAwesome5 name="trophy" size={size} color={color} />;
-            } else if (route.name === 'Contacts') {
-              return <FontAwesome5 name="users" size={size} color={color} />;
+            } else if (route.name === 'Settings') {
+              return <FontAwesome5 name="cog" size={size} color={color} />;
             }
 
             return <Icon name="home" size={size} color={color} />;
@@ -110,7 +110,7 @@ const AppNavigator = () => {
         <Tab.Screen name="Round" component={RoundStack} />
         <Tab.Screen name="Stats" component={StatsScreen} />
         <Tab.Screen name="Tournaments" component={TournamentStack} />
-        <Tab.Screen name="Contacts" component={ContactsScreen} />
+        <Tab.Screen name="Settings" component={SettingsScreen} />
       </Tab.Navigator>
     </NavigationContainer>
   );

@@ -27,10 +27,10 @@ class DatabaseService {
 
       console.log('Database opened successfully');
       
-      // Skip table creation for now to avoid freeze
-      // await this.createTables();
+      // Ensure tables exist
+      await this.createTables();
       this.initialized = true;
-      console.log('Database initialized (tables skipped for now)');
+      console.log('Database initialized');
     } catch (error) {
       console.error('Database initialization error:', error);
       // Don't throw error, just log it
@@ -114,52 +114,53 @@ class DatabaseService {
       if (!this.db) throw new Error('Database not initialized');
     }
 
-    const tx = await this.db.transaction();
     try {
-      // Insert round
-      await tx.executeSql(
-        `INSERT OR REPLACE INTO rounds 
-         (id, tournamentId, tournamentName, courseName, date, totalScore, totalPutts, 
-          fairwaysHit, greensInRegulation, aiAnalysis, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          round.id,
-          round.tournamentId || null,
-          round.tournamentName || null,
-          round.courseName,
-          round.date.getTime(),
-          round.totalScore || null,
-          round.totalPutts || null,
-          round.fairwaysHit || null,
-          round.greensInRegulation || null,
-          round.aiAnalysis || null,
-          round.createdAt.getTime(),
-          round.updatedAt.getTime(),
-        ]
-      );
-
-      // Delete existing holes for this round
-      await tx.executeSql('DELETE FROM holes WHERE roundId = ?', [round.id]);
-
-      // Insert holes
-      for (const hole of round.holes) {
+      await this.db.transaction(async (tx) => {
+        // Insert round
         await tx.executeSql(
-          `INSERT INTO holes 
-           (roundId, holeNumber, par, strokes, fairwayHit, greenInRegulation, putts, notes, shotData)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT OR REPLACE INTO rounds 
+           (id, tournamentId, tournamentName, courseName, date, totalScore, totalPutts, 
+            fairwaysHit, greensInRegulation, aiAnalysis, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             round.id,
-            hole.holeNumber,
-            hole.par,
-            hole.strokes,
-            hole.fairwayHit ? 1 : 0,
-            hole.greenInRegulation ? 1 : 0,
-            hole.putts || null,
-            hole.notes || null,
-            hole.shotData ? JSON.stringify(hole.shotData) : null,
+            round.tournamentId || null,
+            round.tournamentName || null,
+            round.courseName,
+            round.date.getTime(),
+            round.totalScore ?? null,
+            round.totalPutts ?? null,
+            round.fairwaysHit ?? null,
+            round.greensInRegulation ?? null,
+            round.aiAnalysis ?? null,
+            round.createdAt.getTime(),
+            round.updatedAt.getTime(),
           ]
         );
-      }
+
+        // Delete existing holes for this round
+        await tx.executeSql('DELETE FROM holes WHERE roundId = ?', [round.id]);
+
+        // Insert holes
+        for (const hole of round.holes) {
+          await tx.executeSql(
+            `INSERT INTO holes 
+             (roundId, holeNumber, par, strokes, fairwayHit, greenInRegulation, putts, notes, shotData)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              round.id,
+              hole.holeNumber,
+              hole.par,
+              hole.strokes,
+              hole.fairwayHit ? 1 : 0,
+              hole.greenInRegulation ? 1 : 0,
+            hole.putts ?? null,
+            hole.notes ?? null,
+            hole.shotData ? JSON.stringify(hole.shotData) : null,
+            ]
+          );
+        }
+      });
     } catch (error) {
       throw error;
     }
@@ -228,11 +229,45 @@ class DatabaseService {
     try {
       // Delete holes first
       await this.db.executeSql('DELETE FROM holes WHERE roundId = ?', [id]);
+      // Delete media for this round
+      await this.db.executeSql('DELETE FROM media WHERE roundId = ?', [id]);
       // Delete the round
       await this.db.executeSql('DELETE FROM rounds WHERE id = ?', [id]);
       console.log('Round deleted successfully');
     } catch (error) {
       console.error('Error deleting round:', error);
+      throw error;
+    }
+  }
+
+  async deleteTournament(id: string): Promise<void> {
+    if (!this.db) {
+      await this.init();
+      if (!this.db) throw new Error('Database not initialized');
+    }
+
+    try {
+      // Find rounds for this tournament
+      const [roundIdsResult] = await this.db.executeSql(
+        'SELECT id FROM rounds WHERE tournamentId = ?',
+        [id]
+      );
+
+      const roundIds: string[] = [];
+      for (let i = 0; i < roundIdsResult.rows.length; i++) {
+        roundIds.push(roundIdsResult.rows.item(i).id);
+      }
+
+      // Delete each round (cleans up holes and media)
+      for (const roundId of roundIds) {
+        await this.deleteRound(roundId);
+      }
+
+      // Finally delete the tournament
+      await this.db.executeSql('DELETE FROM tournaments WHERE id = ?', [id]);
+      console.log('Tournament deleted successfully');
+    } catch (error) {
+      console.error('Error deleting tournament:', error);
       throw error;
     }
   }
@@ -356,6 +391,31 @@ class DatabaseService {
     const [results] = await this.db.executeSql(
       'SELECT * FROM media WHERE roundId = ? ORDER BY timestamp DESC',
       [roundId]
+    );
+
+    const mediaItems: MediaItem[] = [];
+    for (let i = 0; i < results.rows.length; i++) {
+      const row = results.rows.item(i);
+      mediaItems.push({
+        id: row.id,
+        uri: row.uri,
+        type: row.type as 'photo' | 'video',
+        roundId: row.roundId,
+        holeNumber: row.holeNumber,
+        timestamp: new Date(row.timestamp),
+        description: row.description,
+      });
+    }
+
+    return mediaItems;
+  }
+
+  async getMediaForHole(roundId: string, holeNumber: number): Promise<MediaItem[]> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const [results] = await this.db.executeSql(
+      'SELECT * FROM media WHERE roundId = ? AND holeNumber = ? ORDER BY timestamp DESC',
+      [roundId, holeNumber]
     );
 
     const mediaItems: MediaItem[] = [];

@@ -1,11 +1,11 @@
 import { Linking, Platform } from 'react-native';
-import { GolfRound, Contact, MediaItem } from '../types';
+import { GolfRound, MediaItem } from '../types';
 import AIService from './ai';
+import DatabaseService from './database';
 
 class SMSService {
   async sendRoundSummary(
     round: GolfRound,
-    contacts: Contact[],
     mediaItems: MediaItem[]
   ): Promise<{ success: boolean; errors: string[] }> {
     const errors: string[] = [];
@@ -20,8 +20,8 @@ class SMSService {
       // Create message content
       const message = this.formatMessage(round, stats, aiAnalysis, mediaItems);
 
-      // Create recipients string
-      const recipients = contacts.map(c => c.phoneNumber).join(',');
+      // Load default recipients list from settings (comma or newline separated)
+      const recipients = await this.getDefaultRecipients();
 
       // Open native SMS app with pre-filled message
       const success = await this.openSMS(recipients, message);
@@ -47,18 +47,13 @@ class SMSService {
       let url: string;
       
       if (Platform.OS === 'ios') {
-        // On iOS, if no recipients or single recipient, use the standard approach
-        // For multiple recipients, open without pre-selected recipients to let user choose
-        const recipientList = recipients.split(',').filter(r => r.trim());
-        
-        if (recipientList.length <= 1) {
-          // Single recipient or no recipient - works fine
-          url = `sms:${recipients}&body=${encodeURIComponent(body)}`;
-        } else {
-          // Multiple recipients - let user select in Messages app
-          // This allows them to use existing groups or select multiple contacts
-          url = `sms:&body=${encodeURIComponent(body)}`;
-        }
+        // Try the iOS "open with addresses" scheme; if it fails, fall back
+        const addressesParam = recipients
+          .split(/[\n,;]/)
+          .map(r => r.trim())
+          .filter(Boolean)
+          .join(',');
+        url = `sms:/open?addresses=${encodeURIComponent(addressesParam)}&body=${encodeURIComponent(body)}`;
       } else {
         // Android handles multiple recipients better
         url = `sms:${recipients}?body=${encodeURIComponent(body)}`;
@@ -70,6 +65,13 @@ class SMSService {
         await Linking.openURL(url);
         return true;
       } else {
+        // Fallback: open composer without recipients
+        const fallback = `sms:&body=${encodeURIComponent(body)}`;
+        const canOpenFallback = await Linking.canOpenURL(fallback);
+        if (canOpenFallback) {
+          await Linking.openURL(fallback);
+          return true;
+        }
         console.warn('SMS app is not available');
         return false;
       }
@@ -192,14 +194,12 @@ class SMSService {
   }
 
   async sendQuickUpdate(
-    message: string,
-    contacts: Contact[]
+    message: string
   ): Promise<{ success: boolean; errors: string[] }> {
     const errors: string[] = [];
 
     try {
-      // Create recipients string
-      const recipients = contacts.map(c => c.phoneNumber).join(',');
+      const recipients = await this.getDefaultRecipients();
 
       // Open native SMS app with pre-filled message
       const success = await this.openSMS(recipients, message);
@@ -224,17 +224,15 @@ class SMSService {
     hole: number,
     score: string,
     notes: string,
-    contacts: Contact[]
   ): Promise<{ success: boolean; errors: string[] }> {
     const message = `⛳ Hole ${hole} Update\n🏌️ Score: ${score}\n${notes ? `📝 ${notes}` : ''}`;
-    return this.sendQuickUpdate(message, contacts);
+    return this.sendQuickUpdate(message);
   }
 
   async sendHoleSummary(
     hole: any,
     aiSummary: string,
     mediaCount: { photos: number; videos: number },
-    contacts: Contact[],
     letUserSelectRecipients: boolean = false
   ): Promise<{ success: boolean; errors: string[] }> {
     // Create message with AI summary
@@ -271,10 +269,22 @@ class SMSService {
     
     if (letUserSelectRecipients) {
       // Open SMS without pre-selected recipients
-      return this.sendQuickUpdate(message, []);
-    } else {
-      return this.sendQuickUpdate(message, contacts);
+      const errors: string[] = [];
+      const fallback = await this.openSMS('', message);
+      return { success: fallback, errors: fallback ? [] : ['Failed to open SMS app'] };
     }
+    return this.sendQuickUpdate(message);
+  }
+
+  private async getDefaultRecipients(): Promise<string> {
+    const raw = await DatabaseService.getPreference('default_sms_group');
+    if (!raw) return '';
+    // Normalize separators to commas
+    return raw
+      .split(/[\n,;]/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .join(',');
   }
 }
 

@@ -39,12 +39,8 @@ const RoundSummaryScreen = () => {
         setRound(roundData);
         
         // Load contacts and media
-        const [contactsList, media] = await Promise.all([
-          DatabaseService.getContacts(),
-          DatabaseService.getMediaForRound(roundId),
-        ]);
+        const media = await DatabaseService.getMediaForRound(roundId);
         
-        setContacts(contactsList);
         setMediaItems(media);
 
         // Generate AI analysis if not already present
@@ -81,16 +77,7 @@ const RoundSummaryScreen = () => {
   const sendSummary = async () => {
     if (!round) return;
 
-    if (contacts.length === 0) {
-      Alert.alert(
-        'No Contacts',
-        'Please add contacts in the Contacts tab before sending summaries.',
-        [{ text: 'Go to Contacts', onPress: () => navigation.navigate('Contacts' as never) }]
-      );
-      return;
-    }
-
-    const result = await SMSService.sendRoundSummary(round, contacts, mediaItems);
+    const result = await SMSService.sendRoundSummary(round, mediaItems);
     
     if (result.success) {
       Alert.alert('Success', 'SMS app opened with your round summary');

@@ -10,6 +10,8 @@ import {
   Modal,
   TouchableWithoutFeedback,
   Keyboard,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
@@ -102,6 +104,28 @@ const TournamentsScreen = () => {
     return `${startStr} - ${endStr}`;
   };
 
+  const deleteTournament = (t: Tournament) => {
+    Alert.alert(
+      'Delete Tournament?',
+      `Delete ${t.name} and all its rounds and media?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await DatabaseService.deleteTournament(t.id);
+              loadTournaments();
+            } catch (e) {
+              Alert.alert('Error', 'Failed to delete tournament');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderTournament = ({ item }: { item: Tournament }) => {
     const isActive = new Date() >= item.startDate && new Date() <= item.endDate;
     const isPast = new Date() > item.endDate;
@@ -147,13 +171,21 @@ const TournamentsScreen = () => {
           )}
         </View>
 
-        <TouchableOpacity
-          style={styles.playButton}
-          onPress={() => startRound(item)}
-        >
-          <Icon name="play-arrow" size={20} color="#fff" />
-          <Text style={styles.playButtonText}>Track Round</Text>
-        </TouchableOpacity>
+        <View style={styles.cardActions}>
+          <TouchableOpacity
+            style={styles.playButton}
+            onPress={() => startRound(item)}
+          >
+            <Icon name="play-arrow" size={20} color="#fff" />
+            <Text style={styles.playButtonText}>Track Round</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => deleteTournament(item)}
+          >
+            <Icon name="delete" size={20} color="#F44336" />
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -202,8 +234,11 @@ const TournamentsScreen = () => {
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback>
-                <View style={styles.modalContent}>
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <KeyboardAvoidingView
+                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                  style={styles.modalContent}
+                >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>New Tournament</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
@@ -211,7 +246,10 @@ const TournamentsScreen = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalForm}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.modalForm}
+            >
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Tournament Name</Text>
                 <TextInput
@@ -302,8 +340,8 @@ const TournamentsScreen = () => {
                   <Text style={styles.saveButtonText}>Create</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-                </View>
+            </ScrollView>
+                </KeyboardAvoidingView>
               </TouchableWithoutFeedback>
             </View>
           </TouchableWithoutFeedback>
@@ -376,6 +414,12 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 15,
   },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+    marginTop: 12,
+  },
   statBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -420,8 +464,8 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 12,
     borderRadius: 8,
-    marginTop: 15,
   },
+  deleteButton: { padding: 8 },
   playButtonText: {
     color: '#fff',
     fontSize: 14,
@@ -487,6 +531,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     width: '90%',
     maxWidth: 400,
+    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -503,6 +548,7 @@ const styles = StyleSheet.create({
   },
   modalForm: {
     padding: 20,
+    paddingBottom: 30,
   },
   inputGroup: {
     marginBottom: 20,

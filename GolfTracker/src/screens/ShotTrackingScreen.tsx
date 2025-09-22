@@ -14,6 +14,8 @@ import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import MediaService from '../services/media';
+import Share from 'react-native-share';
+import AIHoleAnalysisService from '../services/aiHoleAnalysis';
 import { GolfHole, MediaItem } from '../types';
 
 // Shot types - organized into 3 rows for better layout
@@ -175,7 +177,7 @@ const ShotTrackingScreen = () => {
 
   // Removed auto-confirm to allow manual confirmation with checkmark
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Calculate total strokes including any in-progress shot
     const totalStrokes = shots.length > 0 ? shots.length : (currentStroke - 1);
     
@@ -197,7 +199,49 @@ const ShotTrackingScreen = () => {
     };
 
     onSave(updatedHole);
-    navigation.goBack();
+
+    // Prompt to share after save
+    Alert.alert(
+      'Share Hole?',
+      'Would you like to share a quick summary with photos/videos?',
+      [
+        { text: 'Not now', style: 'cancel', onPress: () => navigation.goBack() },
+        {
+          text: 'Share',
+          style: 'default',
+          onPress: async () => {
+            try {
+              // Ensure we have latest media
+              let media = capturedMedia;
+              if ((!media || media.length === 0) && roundId) {
+                media = await MediaService.getMediaForHole(roundId, hole.holeNumber);
+              }
+
+              // Build AI summary
+              const ai = new AIHoleAnalysisService();
+              const summary = await ai.analyzeHoleWithMedia(updatedHole, media || []);
+
+              // Prepare share content
+              const urls = (media || [])
+                .map(m => m.uri)
+                .filter(Boolean);
+
+              await Share.open({
+                title: `Hole ${updatedHole.holeNumber} Summary`,
+                message: summary,
+                urls,
+                failOnCancel: false,
+              });
+            } catch (e) {
+              console.error('Share error:', e);
+              Alert.alert('Share Error', 'Unable to open share sheet.');
+            } finally {
+              navigation.goBack();
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleMediaCapture = async (type: 'photo' | 'video') => {
