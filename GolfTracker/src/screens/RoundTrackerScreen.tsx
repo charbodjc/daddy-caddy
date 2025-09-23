@@ -12,6 +12,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
@@ -25,6 +26,7 @@ const RoundTrackerScreen = () => {
   const route = useRoute();
   const tournamentId = (route.params as any)?.tournamentId;
   const tournamentName = (route.params as any)?.tournamentName;
+  const routeRoundId = (route.params as any)?.roundId as string | undefined;
 
   const [courseName, setCourseName] = useState('');
   const [currentHole, setCurrentHole] = useState(1);
@@ -36,39 +38,67 @@ const RoundTrackerScreen = () => {
   const [selectedTournamentName, setSelectedTournamentName] = useState<string | undefined>(tournamentName);
   const [tournamentPickerVisible, setTournamentPickerVisible] = useState(false);
   const [tournamentsList, setTournamentsList] = useState<Tournament[]>([]);
+  const [parSelectionModal, setParSelectionModal] = useState(false);
+  const [selectedHoleNumber, setSelectedHoleNumber] = useState<number>(1);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    initializeHoles();
+    // Always initialize holes first
+    if (holes.length === 0) {
+      initializeHoles();
+    }
     loadActiveRound();
     loadTournaments();
-  }, []);
+  }, [routeRoundId]); // Reload when roundId changes
 
   const loadActiveRound = async () => {
     try {
-      // Check for saved active round
-      const savedRoundId = await DatabaseService.getPreference('active_round_id');
-      if (savedRoundId) {
-        const round = await DatabaseService.getRound(savedRoundId);
-        if (round && !round.totalScore) { // Only load if round is not finished
+      setIsLoading(true);
+      // Prefer an explicitly requested round
+      const preferRoundId = routeRoundId || await DatabaseService.getPreference('active_round_id');
+      console.log('Loading round with ID:', preferRoundId);
+      
+      if (preferRoundId) {
+        const round = await DatabaseService.getRound(preferRoundId);
+        console.log('Loaded round:', round);
+        
+        if (round) {
           setRoundId(round.id);
-          setCourseName(round.courseName);
+          setCourseName(round.courseName || 'Unknown Course');
           setIsStarted(true);
           setActiveRound(round);
-          if (round.holes) {
+          
+          // Always ensure we have holes data
+          if (round.holes && round.holes.length > 0) {
             setHoles(round.holes);
             // Find the next unplayed hole
             const nextHole = round.holes.find(h => h.strokes === 0);
             if (nextHole) {
               setCurrentHole(nextHole.holeNumber);
             }
+          } else {
+            // Initialize holes if they don't exist
+            const newHoles = initializeHoles();
+            // Save the initialized holes to the round
+            if (round.id) {
+              const updatedRound = { ...round, holes: newHoles };
+              await DatabaseService.saveRound(updatedRound);
+            }
           }
-        } else {
-          // Clear the preference if round is finished or not found
+          
+          // Set as active round if it was explicitly requested via route
+          if (routeRoundId) {
+            await DatabaseService.setPreference('active_round_id', round.id);
+          }
+        } else if (!routeRoundId) {
+          // Only clear preference if not explicitly requested via route
           await DatabaseService.setPreference('active_round_id', '');
         }
       }
     } catch (error) {
       console.error('Error loading active round:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -89,6 +119,7 @@ const RoundTrackerScreen = () => {
       });
     }
     setHoles(initialHoles);
+    return initialHoles;
   };
 
   const loadTournaments = async () => {
@@ -137,45 +168,75 @@ const RoundTrackerScreen = () => {
     }
   };
 
-  const updateHole = (holeNumber: number, updates: Partial<GolfHole>) => {
-    setHoles(prevHoles => {
-      const newHoles = prevHoles.map(hole =>
-        hole.holeNumber === holeNumber ? { ...hole, ...updates } : hole
-      );
+  const updateHole = async (holeNumber: number, updates: Partial<GolfHole>) => {
+    const newHoles = holes.map(hole =>
+      hole.holeNumber === holeNumber ? { ...hole, ...updates } : hole
+    );
+    setHoles(newHoles);
 
-      // Persist progress to DB (autosave)
-      if (roundId) {
-        const partialRound: GolfRound = {
-          id: roundId,
-          tournamentId,
-          tournamentName,
-          courseName,
-          date: new Date(),
-          holes: newHoles,
-          totalScore: undefined,
-          totalPutts: undefined,
-          fairwaysHit: undefined,
-          greensInRegulation: undefined,
-          createdAt: activeRound?.createdAt || new Date(),
-          updatedAt: new Date(),
-        };
-        DatabaseService.saveRound(partialRound).catch(err => {
-          console.error('Autosave round error:', err);
-        });
+    // Persist progress to DB (autosave)
+    if (roundId || activeRound?.id) {
+      const completedHoles = newHoles.filter(h => h.strokes > 0);
+      const partialRound: GolfRound = {
+        id: roundId || activeRound!.id,
+        tournamentId: activeRound?.tournamentId || tournamentId,
+        tournamentName: activeRound?.tournamentName || tournamentName,
+        courseName: activeRound?.courseName || courseName,
+        date: activeRound?.date || new Date(),
+        holes: newHoles,
+        totalScore: completedHoles.reduce((sum, h) => sum + (h.strokes || 0), 0),
+        totalPutts: completedHoles.reduce((sum, h) => sum + (h.putts || 0), 0),
+        fairwaysHit: newHoles.filter(h => h.fairwayHit === true).length,
+        greensInRegulation: newHoles.filter(h => h.greenInRegulation === true).length,
+        createdAt: activeRound?.createdAt || new Date(),
+        updatedAt: new Date(),
+      };
+      try {
+        await DatabaseService.saveRound(partialRound);
+      } catch (err) {
+        console.error('Autosave round error:', err);
       }
-
-      return newHoles;
-    });
+    }
   };
 
-  const navigateToHoleDetails = (holeNumber: number) => {
+  const navigateToHoleDetails = (holeNumber: number, par: number) => {
+    // Update the hole with the selected par
+    const updatedHoles = [...holes];
+    updatedHoles[holeNumber - 1].par = par;
+    setHoles(updatedHoles);
+    
+    // Navigate to shot tracking with pre-selected shot type
     navigation.navigate('ShotTracking' as never, {
-      hole: holes[holeNumber - 1],
+      hole: updatedHoles[holeNumber - 1],
       roundId: roundId,
-      onSave: (updatedHole: GolfHole) => {
-        updateHole(holeNumber, updatedHole);
+      preselectedShotType: par === 3 ? 'Approach' : 'Tee Shot',
+      onSave: async (updatedHole: GolfHole) => {
+        await updateHole(holeNumber, updatedHole);
       },
     } as never);
+  };
+  
+  const showParSelection = (holeNumber: number) => {
+    const hole = holes[holeNumber - 1];
+    // Only show par selection if the hole hasn't been played yet
+    if (hole && hole.strokes === 0) {
+      setSelectedHoleNumber(holeNumber);
+      setParSelectionModal(true);
+    } else {
+      // If hole has been played, go directly to shot tracking
+      navigation.navigate('ShotTracking' as never, {
+        hole: hole,
+        roundId: roundId,
+        onSave: async (updatedHole: GolfHole) => {
+          await updateHole(holeNumber, updatedHole);
+        },
+      } as never);
+    }
+  };
+  
+  const selectPar = (par: number) => {
+    setParSelectionModal(false);
+    navigateToHoleDetails(selectedHoleNumber, par);
   };
 
   const calculateScore = () => {
@@ -288,7 +349,18 @@ const RoundTrackerScreen = () => {
     }
   };
 
-  if (!isStarted) {
+  // Show loading indicator while loading
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text style={{ marginTop: 10, color: '#666' }}>Loading round...</Text>
+      </View>
+    );
+  }
+
+  // Only show setup screen if not started AND no round is being loaded
+  if (!isStarted && !routeRoundId) {
     return (
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <KeyboardAvoidingView 
@@ -475,7 +547,7 @@ const RoundTrackerScreen = () => {
                 ]}
                 onPress={() => {
                   setCurrentHole(hole.holeNumber);
-                  navigateToHoleDetails(hole.holeNumber);
+                  showParSelection(hole.holeNumber);
                 }}
               >
                 <Text style={styles.holeNumber}>{hole.holeNumber}</Text>
@@ -510,6 +582,56 @@ const RoundTrackerScreen = () => {
           })}
         </View>
       </ScrollView>
+      
+      {/* Par Selection Modal */}
+      <Modal
+        animationType="slide"
+        transparent
+        visible={parSelectionModal}
+        onRequestClose={() => setParSelectionModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.parModalContent}>
+            <Text style={styles.parModalTitle}>Select Par for Hole {selectedHoleNumber}</Text>
+            
+            <View style={styles.parButtonsContainer}>
+              <TouchableOpacity
+                style={styles.parButton}
+                onPress={() => selectPar(3)}
+              >
+                <Text style={styles.parButtonNumber}>3</Text>
+                <Text style={styles.parButtonLabel}>Par 3</Text>
+                <Text style={styles.parButtonHint}>Approach Shot</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.parButton}
+                onPress={() => selectPar(4)}
+              >
+                <Text style={styles.parButtonNumber}>4</Text>
+                <Text style={styles.parButtonLabel}>Par 4</Text>
+                <Text style={styles.parButtonHint}>Tee Shot</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.parButton}
+                onPress={() => selectPar(5)}
+              >
+                <Text style={styles.parButtonNumber}>5</Text>
+                <Text style={styles.parButtonLabel}>Par 5</Text>
+                <Text style={styles.parButtonHint}>Tee Shot</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity
+              style={styles.parCancelButton}
+              onPress={() => setParSelectionModal(false)}
+            >
+              <Text style={styles.parCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       </View>
     </TouchableWithoutFeedback>
   );
@@ -822,6 +944,66 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  parModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+  },
+  parModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  parButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  parButton: {
+    flex: 1,
+    backgroundColor: '#4CAF50',
+    borderRadius: 12,
+    padding: 20,
+    marginHorizontal: 5,
+    alignItems: 'center',
+  },
+  parButtonNumber: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 5,
+  },
+  parButtonLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 5,
+  },
+  parButtonHint: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    fontStyle: 'italic',
+  },
+  parCancelButton: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  parCancelText: {
+    fontSize: 16,
+    color: '#666',
   },
 });
 

@@ -10,65 +10,27 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import DatabaseService from '../services/database';
-import AIService from '../services/ai';
-import { GolfRound, Statistics } from '../types';
+import { GolfRound, Tournament } from '../types';
 
 const StatsScreen = () => {
-  const [rounds, setRounds] = useState<GolfRound[]>([]);
-  const [statistics, setStatistics] = useState<Statistics | null>(null);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [selectedRound, setSelectedRound] = useState<GolfRound | null>(null);
   const [loading, setLoading] = useState(true);
-  const [timeFilter, setTimeFilter] = useState<'all' | '30days' | '90days'>('all');
 
   useEffect(() => {
-    loadStatistics();
-  }, [timeFilter]);
+    loadData();
+  }, []);
 
-  const loadStatistics = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const allRounds = await DatabaseService.getRounds();
-      
-      // Apply time filter
-      const filteredRounds = filterRoundsByTime(allRounds);
-      setRounds(filteredRounds);
-
-      if (filteredRounds.length > 0) {
-        const stats = AIService.calculateStatistics(filteredRounds);
-        setStatistics(stats);
-      } else {
-        setStatistics(null);
-      }
+      const ts = await DatabaseService.getTournaments();
+      setTournaments(ts);
     } catch (error) {
-      console.error('Error loading statistics:', error);
+      console.error('Error loading stats data:', error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const filterRoundsByTime = (rounds: GolfRound[]): GolfRound[] => {
-    if (timeFilter === 'all') return rounds;
-    
-    const now = new Date();
-    const daysAgo = timeFilter === '30days' ? 30 : 90;
-    const cutoffDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
-    
-    return rounds.filter(round => round.date >= cutoffDate);
-  };
-
-  const getImprovementTrend = (): 'improving' | 'declining' | 'stable' => {
-    if (rounds.length < 3) return 'stable';
-    
-    const recentRounds = rounds.slice(0, 3);
-    const olderRounds = rounds.slice(3, 6);
-    
-    if (olderRounds.length === 0) return 'stable';
-    
-    const recentAvg = recentRounds.reduce((sum, r) => sum + (r.totalScore || 0), 0) / recentRounds.length;
-    const olderAvg = olderRounds.reduce((sum, r) => sum + (r.totalScore || 0), 0) / olderRounds.length;
-    
-    if (recentAvg < olderAvg - 1) return 'improving';
-    if (recentAvg > olderAvg + 1) return 'declining';
-    return 'stable';
   };
 
   if (loading) {
@@ -79,203 +41,102 @@ const StatsScreen = () => {
     );
   }
 
-  if (!statistics || rounds.length === 0) {
+  if (!selectedRound) {
     return (
-      <View style={styles.emptyContainer}>
-        <Icon name="bar-chart" size={64} color="#ccc" />
-        <Text style={styles.emptyText}>No statistics available</Text>
-        <Text style={styles.emptySubtext}>Play some rounds to see your statistics</Text>
-      </View>
+      <ScrollView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Statistics by Round</Text>
+        </View>
+        
+        {tournaments.length === 0 ? (
+          <View style={styles.emptyState}>
+            <FontAwesome5 name="chart-line" size={64} color="#ccc" />
+            <Text style={styles.emptyStateText}>No statistics yet</Text>
+            <Text style={styles.emptyStateSubtext}>
+              Create a tournament and track rounds to see statistics
+            </Text>
+          </View>
+        ) : (
+        <>
+        {tournaments.map(t => (
+          <View key={t.id} style={styles.section}>
+            <Text style={styles.sectionTitle}>{t.name}</Text>
+            {t.rounds.map(r => (
+              <TouchableOpacity key={r.id} style={styles.roundRow} onPress={() => setSelectedRound(r)}>
+                <Icon name="bar-chart" size={18} color="#4CAF50" />
+                <Text style={styles.roundName}>{r.courseName} — {new Date(r.date).toLocaleDateString()}</Text>
+              </TouchableOpacity>
+            ))}
+            {t.rounds.length === 0 && (
+              <Text style={{ color: '#999' }}>No rounds yet</Text>
+            )}
+          </View>
+        ))}
+        </>
+        )}
+      </ScrollView>
     );
   }
 
-  const trend = getImprovementTrend();
+  // Per-round shot stats
+  const holes = selectedRound.holes || [];
+  // Aggregate across all shot types present in shotData.shots if JSON string
+  const extract = (h: any) => {
+    try {
+      if (typeof h.shotData === 'string') return JSON.parse(h.shotData);
+      return h.shotData;
+    } catch { return h.shotData; }
+  };
+
+  const teeLeft = holes.filter(h => extract(h)?.teeShot === 'Left' || (extract(h)?.shots||[]).some((s:any)=>(s.type==='Tee' || s.type==='Tee Shot') && s.results?.includes('left'))).length;
+  const teeRight = holes.filter(h => extract(h)?.teeShot === 'Right' || (extract(h)?.shots||[]).some((s:any)=>(s.type==='Tee' || s.type==='Tee Shot') && s.results?.includes('right'))).length;
+  const teeFair = holes.filter(h => extract(h)?.teeShot === 'Fairway' || (extract(h)?.shots||[]).some((s:any)=>(s.type==='Tee' || s.type==='Tee Shot') && s.results?.includes('target'))).length;
+
+  const appLeftShort = holes.filter(h => (extract(h)?.shots||[]).some((s:any)=>s.type==='Approach' && (s.results?.includes('left') || s.results?.includes('down')))).length;
+  const appLeftLong = holes.filter(h => (extract(h)?.shots||[]).some((s:any)=>s.type==='Approach' && (s.results?.includes('left') || s.results?.includes('up')))).length;
+  const appRightShort = holes.filter(h => (extract(h)?.shots||[]).some((s:any)=>s.type==='Approach' && (s.results?.includes('right') || s.results?.includes('down')))).length;
+  const appRightLong = holes.filter(h => (extract(h)?.shots||[]).some((s:any)=>s.type==='Approach' && (s.results?.includes('right') || s.results?.includes('up')))).length;
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Performance Statistics</Text>
-        <View style={styles.filterButtons}>
-          <TouchableOpacity
-            style={[styles.filterButton, timeFilter === 'all' && styles.filterButtonActive]}
-            onPress={() => setTimeFilter('all')}
-          >
-            <Text style={[styles.filterButtonText, timeFilter === 'all' && styles.filterButtonTextActive]}>
-              All Time
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterButton, timeFilter === '30days' && styles.filterButtonActive]}
-            onPress={() => setTimeFilter('30days')}
-          >
-            <Text style={[styles.filterButtonText, timeFilter === '30days' && styles.filterButtonTextActive]}>
-              30 Days
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterButton, timeFilter === '90days' && styles.filterButtonActive]}
-            onPress={() => setTimeFilter('90days')}
-          >
-            <Text style={[styles.filterButtonText, timeFilter === '90days' && styles.filterButtonTextActive]}>
-              90 Days
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={() => setSelectedRound(null)}>
+          <Icon name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={[styles.title, { marginTop: 10 }]}>Round Stats</Text>
+        <Text style={{ color: '#fff' }}>{selectedRound.courseName} • {new Date(selectedRound.date).toLocaleDateString()}</Text>
       </View>
 
-      {/* Overview Cards */}
-      <View style={styles.overviewCards}>
-        <View style={styles.overviewCard}>
-          <View style={styles.overviewHeader}>
-            <Icon name="sports-golf" size={20} color="#4CAF50" />
-            <Text style={styles.overviewLabel}>Rounds Played</Text>
-          </View>
-          <Text style={styles.overviewValue}>{statistics.totalRounds}</Text>
-        </View>
-
-        <View style={styles.overviewCard}>
-          <View style={styles.overviewHeader}>
-            <FontAwesome5 
-              name={trend === 'improving' ? 'chart-line' : trend === 'declining' ? 'chart-line' : 'minus'} 
-              size={20} 
-              color={trend === 'improving' ? '#4CAF50' : trend === 'declining' ? '#F44336' : '#FF9800'}
-            />
-            <Text style={styles.overviewLabel}>Trend</Text>
-          </View>
-          <Text style={[
-            styles.overviewValue,
-            { color: trend === 'improving' ? '#4CAF50' : trend === 'declining' ? '#F44336' : '#FF9800' }
-          ]}>
-            {trend === 'improving' ? 'Improving' : trend === 'declining' ? 'Declining' : 'Stable'}
-          </Text>
-        </View>
-      </View>
-
-      {/* Scoring Statistics */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Scoring</Text>
+        <Text style={styles.sectionTitle}>Tee Shots</Text>
         <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{statistics.averageScore.toFixed(1)}</Text>
-            <Text style={styles.statLabel}>Average Score</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{statistics.bestRound}</Text>
-            <Text style={styles.statLabel}>Best Round</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{statistics.worstRound}</Text>
-            <Text style={styles.statLabel}>Worst Round</Text>
-          </View>
+          <View style={styles.statCard}><Text style={styles.statValue}>{teeLeft}</Text><Text style={styles.statLabel}>Miss Left</Text></View>
+          <View style={styles.statCard}><Text style={styles.statValue}>{teeFair}</Text><Text style={styles.statLabel}>On Target</Text></View>
+          <View style={styles.statCard}><Text style={styles.statValue}>{teeRight}</Text><Text style={styles.statLabel}>Miss Right</Text></View>
         </View>
       </View>
 
-      {/* Shot Statistics */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Shot Accuracy</Text>
-        <View style={styles.accuracyStats}>
-          <View style={styles.accuracyStat}>
-            <View style={styles.accuracyHeader}>
-              <Icon name="golf-course" size={16} color="#666" />
-              <Text style={styles.accuracyLabel}>Fairway Accuracy</Text>
-            </View>
-            <View style={styles.progressBar}>
-              <View 
-                style={[styles.progressFill, { width: `${statistics.fairwayAccuracy}%` }]}
-              />
-            </View>
-            <Text style={styles.accuracyValue}>{statistics.fairwayAccuracy.toFixed(1)}%</Text>
-          </View>
-
-          <View style={styles.accuracyStat}>
-            <View style={styles.accuracyHeader}>
-              <Icon name="flag" size={16} color="#666" />
-              <Text style={styles.accuracyLabel}>Greens in Regulation</Text>
-            </View>
-            <View style={styles.progressBar}>
-              <View 
-                style={[styles.progressFill, { width: `${statistics.girPercentage}%` }]}
-              />
-            </View>
-            <Text style={styles.accuracyValue}>{statistics.girPercentage.toFixed(1)}%</Text>
-          </View>
+        <Text style={styles.sectionTitle}>Approach</Text>
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}><Text style={styles.statValue}>{appLeftShort}</Text><Text style={styles.statLabel}>Left/Short</Text></View>
+          <View style={styles.statCard}><Text style={styles.statValue}>{appRightShort}</Text><Text style={styles.statLabel}>Right/Short</Text></View>
+          <View style={styles.statCard}><Text style={styles.statValue}>{appLeftLong}</Text><Text style={styles.statLabel}>Left/Long</Text></View>
+          <View style={styles.statCard}><Text style={styles.statValue}>{appRightLong}</Text><Text style={styles.statLabel}>Right/Long</Text></View>
         </View>
       </View>
 
-      {/* Putting Statistics */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Putting</Text>
-        <View style={styles.puttingCard}>
-          <Icon name="sports-golf" size={32} color="#4CAF50" />
-          <View style={styles.puttingStats}>
-            <Text style={styles.puttingValue}>{statistics.averagePutts.toFixed(1)}</Text>
-            <Text style={styles.puttingLabel}>Average Putts per Round</Text>
-          </View>
+        <Text style={styles.sectionTitle}>Short Game & Trouble</Text>
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}><Text style={styles.statValue}>{holes.filter(h => (extract(h)?.shots||[]).some((s:any)=>s.type==='Chip' || s.type==='Chip/Pitch')).length}</Text><Text style={styles.statLabel}>Chips</Text></View>
+          <View style={styles.statCard}><Text style={styles.statValue}>{holes.filter(h => (extract(h)?.shots||[]).some((s:any)=>s.type?.includes('Bunker'))).length}</Text><Text style={styles.statLabel}>Bunker</Text></View>
+          <View style={styles.statCard}><Text style={styles.statValue}>{holes.filter(h => (extract(h)?.shots||[]).some((s:any)=>s.type==='Trouble' || s.type==='Recovery' || s.type==='Hazard' || s.type==='Penalty' || s.results?.includes('hazard') || s.results?.includes('ob'))).length}</Text><Text style={styles.statLabel}>Trouble</Text></View>
         </View>
-      </View>
-
-      {/* Score Distribution */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Score Distribution</Text>
-        <View style={styles.distributionContainer}>
-          {statistics.eaglesOrBetter > 0 && (
-            <View style={styles.distributionBar}>
-              <View style={[styles.bar, styles.eagleBar, { height: (statistics.eaglesOrBetter / rounds.length) * 100 }]} />
-              <Text style={styles.barLabel}>Eagle-</Text>
-              <Text style={styles.barValue}>{statistics.eaglesOrBetter}</Text>
-            </View>
-          )}
-          <View style={styles.distributionBar}>
-            <View style={[styles.bar, styles.birdieBar, { height: (statistics.birdies / (rounds.length * 18)) * 300 }]} />
-            <Text style={styles.barLabel}>Birdie</Text>
-            <Text style={styles.barValue}>{statistics.birdies}</Text>
-          </View>
-          <View style={styles.distributionBar}>
-            <View style={[styles.bar, styles.parBar, { height: (statistics.pars / (rounds.length * 18)) * 300 }]} />
-            <Text style={styles.barLabel}>Par</Text>
-            <Text style={styles.barValue}>{statistics.pars}</Text>
-          </View>
-          <View style={styles.distributionBar}>
-            <View style={[styles.bar, styles.bogeyBar, { height: (statistics.bogeys / (rounds.length * 18)) * 300 }]} />
-            <Text style={styles.barLabel}>Bogey</Text>
-            <Text style={styles.barValue}>{statistics.bogeys}</Text>
-          </View>
-          <View style={styles.distributionBar}>
-            <View style={[styles.bar, styles.doubleBar, { height: (statistics.doubleBogeyOrWorse / (rounds.length * 18)) * 300 }]} />
-            <Text style={styles.barLabel}>Double+</Text>
-            <Text style={styles.barValue}>{statistics.doubleBogeyOrWorse}</Text>
-          </View>
         </View>
-      </View>
-
-      {/* Recent Rounds Chart */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recent Scores</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.chartContainer}>
-            {rounds.slice(0, 10).reverse().map((round, index) => (
-              <View key={round.id} style={styles.chartBar}>
-                <Text style={styles.chartScore}>{round.totalScore || '-'}</Text>
-                <View 
-                  style={[
-                    styles.chartBarFill,
-                    { 
-                      height: ((round.totalScore || 72) - 60) * 3,
-                      backgroundColor: round.totalScore && round.totalScore < statistics.averageScore ? '#4CAF50' : '#FF9800'
-                    }
-                  ]}
-                />
-                <Text style={styles.chartDate}>
-                  {round.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-    </ScrollView>
-  );
-};
+      </ScrollView>
+    );
+  };
 
 const styles = StyleSheet.create({
   container: {
@@ -306,14 +167,33 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#4CAF50',
-    padding: 20,
     paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 15,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 100,
+  },
+  emptyStateText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#666',
+    marginTop: 20,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 10,
+    textAlign: 'center',
+    paddingHorizontal: 40,
   },
   filterButtons: {
     flexDirection: 'row',
@@ -371,16 +251,24 @@ const styles = StyleSheet.create({
   },
   section: {
     backgroundColor: '#fff',
-    margin: 15,
-    marginTop: 0,
-    padding: 15,
+    margin: 12,
+    padding: 12,
     borderRadius: 10,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 15,
+    marginBottom: 8,
+  },
+  roundRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+  },
+  roundName: {
+    color: '#333',
   },
   statsGrid: {
     flexDirection: 'row',

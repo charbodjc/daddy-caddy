@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,13 +16,23 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import MediaService from '../services/media';
 import Share from 'react-native-share';
 import AIHoleAnalysisService from '../services/aiHoleAnalysis';
+import DatabaseService from '../services/database';
 import { GolfHole, MediaItem } from '../types';
 
-// Shot types - organized into 3 rows for better layout
+// Shot types with icons - organized into 2 rows of 4
 const SHOT_TYPES = {
-  ROW1: ['Tee', 'Approach', 'Chip'],
-  ROW2: ['Putt', 'Fairway Bunker', 'Greenside Bunker'],
-  ROW3: ['Trouble', 'Recovery', 'Penalty'],
+  ROW1: [
+    { id: 'tee', label: 'Tee Shot', icon: 'golf-course' },
+    { id: 'approach', label: 'Approach', icon: 'flag' },
+    { id: 'chip', label: 'Chip/Pitch', icon: 'terrain' },
+    { id: 'putt', label: 'Putt', icon: 'radio-button-unchecked' },
+  ],
+  ROW2: [
+    { id: 'bunker', label: 'Bunker', icon: 'beach-access' },
+    { id: 'hazard', label: 'Hazard', icon: 'warning' },
+    { id: 'recovery', label: 'Recovery', icon: 'undo' },
+    { id: 'penalty', label: 'Penalty', icon: 'close-circle-outline' },
+  ],
 };
 
 // Shot results - will be shown as icons
@@ -50,7 +60,8 @@ interface Shot {
 const ShotTrackingScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { hole, onSave, roundId } = route.params as { hole: GolfHole; onSave: (hole: GolfHole) => void; roundId?: string };
+  const scrollViewRef = useRef<ScrollView>(null);
+  const { hole, onSave, roundId, preselectedShotType } = route.params as { hole: GolfHole; onSave: (hole: GolfHole) => Promise<void>; roundId?: string; preselectedShotType?: string };
 
   // Initialize state from saved data if available
   const loadSavedShotData = () => {
@@ -77,11 +88,84 @@ const ShotTrackingScreen = () => {
   
   const [par, setPar] = useState<3 | 4 | 5>(initialData.par as 3 | 4 | 5);
   const [shots, setShots] = useState<Shot[]>(initialData.shots);
-  const [currentShotType, setCurrentShotType] = useState<string>('');
+  const [currentShotType, setCurrentShotType] = useState<string>(preselectedShotType || '');
   const [currentShotResults, setCurrentShotResults] = useState<string[]>([]);
   const [currentStroke, setCurrentStroke] = useState(initialData.currentStroke);
   const [mediaCount, setMediaCount] = useState({ photos: 0, videos: 0 });
   const [capturedMedia, setCapturedMedia] = useState<MediaItem[]>([]);
+
+  const autoSave = async (currentShots: Shot[], currentPar: number = par) => {
+    const totalStrokes = currentShots.length;
+    
+    const shotData = {
+      par: currentPar,
+      shots: currentShots.map(s => ({
+        stroke: s.stroke,
+        type: s.type,
+        results: s.results,
+      })),
+      currentStroke: currentShots.length + 1,
+    };
+
+    const updatedHole: GolfHole = {
+      ...hole,
+      par: currentPar,
+      strokes: totalStrokes,
+      shotData: JSON.stringify(shotData),
+    };
+
+    await onSave(updatedHole);
+  };
+
+  const handleSave = async () => {
+    // Save the hole data
+    await autoSave(shots, par);
+    
+    // Prompt to share
+    Alert.alert(
+      'Share Hole Summary?',
+      'Would you like to share this hole summary?',
+      [
+        {
+          text: 'No',
+          style: 'cancel',
+          onPress: () => navigation.goBack(),
+        },
+        {
+          text: 'Yes',
+          onPress: async () => {
+            try {
+              // Generate AI summary
+              const aiService = new AIHoleAnalysisService();
+              const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
+              const summary = await aiService.analyzeHoleWithMedia({
+                ...hole,
+                par,
+                strokes: shots.length,
+                shotData: JSON.stringify({ par, shots }),
+              }, media);
+              
+              // Prepare media for sharing
+              const mediaUrls = media.map(m => m.uri).filter(uri => uri);
+              
+              // Share using react-native-share
+              await Share.open({
+                title: `Hole ${hole.holeNumber} Summary`,
+                message: summary,
+                urls: mediaUrls,
+              });
+              
+              navigation.goBack();
+            } catch (error) {
+              console.error('Share error:', error);
+              navigation.goBack();
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const [isCapturing, setIsCapturing] = useState(false);
 
   useEffect(() => {
@@ -158,6 +242,11 @@ const ShotTrackingScreen = () => {
       setCurrentStroke(currentStroke + 1);
       setCurrentShotType('');
       setCurrentShotResults([]);
+      
+      // Auto-scroll to show all buttons
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      }, 100);
     }
   };
 
@@ -172,77 +261,17 @@ const ShotTrackingScreen = () => {
       setCurrentStroke(currentStroke + 1);
       setCurrentShotType('');
       setCurrentShotResults([]);
+      
+      // Auto-scroll to show all buttons
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      }, 100);
     }
   };
 
   // Removed auto-confirm to allow manual confirmation with checkmark
 
-  const handleSave = async () => {
-    // Calculate total strokes including any in-progress shot
-    const totalStrokes = shots.length > 0 ? shots.length : (currentStroke - 1);
-    
-    // Convert shots to a format for saving
-    const shotData = {
-      par,
-      shots: shots.map(s => ({
-        stroke: s.stroke,
-        type: s.type,
-        results: s.results,
-      })),
-    };
-
-    const updatedHole: GolfHole = {
-      ...hole,
-      par,
-      strokes: totalStrokes,
-      shotData: JSON.stringify(shotData),
-    };
-
-    onSave(updatedHole);
-
-    // Prompt to share after save
-    Alert.alert(
-      'Share Hole?',
-      'Would you like to share a quick summary with photos/videos?',
-      [
-        { text: 'Not now', style: 'cancel', onPress: () => navigation.goBack() },
-        {
-          text: 'Share',
-          style: 'default',
-          onPress: async () => {
-            try {
-              // Ensure we have latest media
-              let media = capturedMedia;
-              if ((!media || media.length === 0) && roundId) {
-                media = await MediaService.getMediaForHole(roundId, hole.holeNumber);
-              }
-
-              // Build AI summary
-              const ai = new AIHoleAnalysisService();
-              const summary = await ai.analyzeHoleWithMedia(updatedHole, media || []);
-
-              // Prepare share content
-              const urls = (media || [])
-                .map(m => m.uri)
-                .filter(Boolean);
-
-              await Share.open({
-                title: `Hole ${updatedHole.holeNumber} Summary`,
-                message: summary,
-                urls,
-                failOnCancel: false,
-              });
-            } catch (e) {
-              console.error('Share error:', e);
-              Alert.alert('Share Error', 'Unable to open share sheet.');
-            } finally {
-              navigation.goBack();
-            }
-          }
-        }
-      ]
-    );
-  };
+  
 
   const handleMediaCapture = async (type: 'photo' | 'video') => {
     if (!roundId) {
@@ -321,35 +350,19 @@ const ShotTrackingScreen = () => {
           <Ionicons name="arrow-back" size={20} color="#fff" />
         </TouchableOpacity>
         
-        <Text style={styles.holeLabel}>H{hole.holeNumber}</Text>
-        
-        <View style={styles.parButtons}>
-          {[3, 4, 5].map((p) => (
-            <TouchableOpacity
-              key={p}
-              style={[styles.parButton, par === p && styles.parButtonActive]}
-              onPress={() => setPar(p as 3 | 4 | 5)}
-            >
-              <Text style={[styles.parButtonText, par === p && styles.parButtonTextActive]}>
-                P{p}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        
-        <Text style={styles.strokeCount}>{currentStroke - 1}</Text>
+        <Text style={styles.holeLabel}>Hole {hole.holeNumber}</Text>
         
         <View style={styles.mediaButtons}>
           <TouchableOpacity 
             onPress={() => handleMediaCapture('photo')} 
-            style={styles.mediaButton}
+            style={styles.mediaButtonLarge}
             disabled={isCapturing}
           >
             {isCapturing ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Ionicons name="camera" size={16} color="#fff" />
+                <Ionicons name="camera" size={24} color="#fff" />
                 {mediaCount.photos > 0 && (
                   <View style={styles.mediaBadge}>
                     <Text style={styles.mediaBadgeText}>{mediaCount.photos}</Text>
@@ -361,14 +374,14 @@ const ShotTrackingScreen = () => {
           
           <TouchableOpacity 
             onPress={() => handleMediaCapture('video')} 
-            style={styles.mediaButton}
+            style={styles.mediaButtonLarge}
             disabled={isCapturing}
           >
             {isCapturing ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Ionicons name="videocam" size={16} color="#fff" />
+                <Ionicons name="videocam" size={24} color="#fff" />
                 {mediaCount.videos > 0 && (
                   <View style={styles.mediaBadge}>
                     <Text style={styles.mediaBadgeText}>{mediaCount.videos}</Text>
@@ -380,7 +393,7 @@ const ShotTrackingScreen = () => {
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollViewRef} style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Saved Data Indicator */}
         {hole.shotData && shots.length > 0 && (
           <View style={styles.savedDataIndicator}>
@@ -456,41 +469,34 @@ const ShotTrackingScreen = () => {
         {!currentShotType ? (
           // Show Shot Type buttons
           <View style={styles.buttonSection}>
-            <View style={styles.buttonRow}>
+            <View style={styles.buttonRowFour}>
               {SHOT_TYPES.ROW1.map((type) => (
                 <TouchableOpacity
-                  key={type}
-                  style={styles.typeButton}
-                  onPress={() => handleShotTypeSelection(type)}
+                  key={type.id}
+                  style={styles.typeButtonSquare}
+                  onPress={() => handleShotTypeSelection(type.label)}
                 >
-                  <Text style={styles.typeButtonText} numberOfLines={2} adjustsFontSizeToFit>
-                    {type}
+                  <Icon name={type.icon} size={24} color="#333" />
+                  <Text style={styles.typeButtonLabel} numberOfLines={2} adjustsFontSizeToFit>
+                    {type.label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <View style={styles.buttonRow}>
+            <View style={styles.buttonRowFour}>
               {SHOT_TYPES.ROW2.map((type) => (
                 <TouchableOpacity
-                  key={type}
-                  style={styles.typeButton}
-                  onPress={() => handleShotTypeSelection(type)}
+                  key={type.id}
+                  style={styles.typeButtonSquare}
+                  onPress={() => handleShotTypeSelection(type.label)}
                 >
-                  <Text style={styles.typeButtonText} numberOfLines={2} adjustsFontSizeToFit>
-                    {type}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={styles.buttonRow}>
-              {SHOT_TYPES.ROW3.map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  style={styles.typeButton}
-                  onPress={() => handleShotTypeSelection(type)}
-                >
-                  <Text style={styles.typeButtonText} numberOfLines={2} adjustsFontSizeToFit>
-                    {type}
+                  {type.icon === 'close-circle-outline' ? (
+                    <Ionicons name={type.icon} size={24} color="#333" />
+                  ) : (
+                    <Icon name={type.icon} size={24} color="#333" />
+                  )}
+                  <Text style={styles.typeButtonLabel} numberOfLines={2} adjustsFontSizeToFit>
+                    {type.label}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -542,43 +548,49 @@ const ShotTrackingScreen = () => {
                   )}
                 </TouchableOpacity>
               ))}
-              
-              {/* Confirm button */}
-              <TouchableOpacity
-                style={[
-                  styles.confirmButton,
-                  currentShotResults.length === 0 && styles.confirmButtonDisabled
-                ]}
-                onPress={confirmShotWithResults}
-                disabled={currentShotResults.length === 0}
-              >
-                <Icon 
-                  name="check" 
-                  size={24} 
-                  color={currentShotResults.length > 0 ? '#fff' : '#999'} 
-                />
-              </TouchableOpacity>
             </View>
             
             {/* Instruction text */}
             <Text style={styles.instructionText}>
-              Select up to 2 results, then tap ✓ to confirm
+              Select up to 2 results
               {currentShotResults.length > 0 && ` (${currentShotResults.length} selected)`}
             </Text>
+            
+            {/* Confirm button - full width and green */}
+            <TouchableOpacity
+              style={[
+                styles.confirmButtonFull,
+                currentShotResults.length === 0 && styles.confirmButtonDisabled
+              ]}
+              onPress={confirmShotWithResults}
+              disabled={currentShotResults.length === 0}
+            >
+              <View style={styles.confirmButtonContent}>
+                <Icon 
+                  name="check-circle" 
+                  size={24} 
+                  color={currentShotResults.length > 0 ? '#fff' : '#999'} 
+                />
+                <Text style={[
+                  styles.confirmButtonText,
+                  currentShotResults.length === 0 && { color: '#999' }
+                ]}>
+                  Confirm Shot
+                </Text>
+              </View>
+            </TouchableOpacity>
+            
+            {/* Cancel button */}
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => {
+                setCurrentShotType('');
+                setCurrentShotResults([]);
+              }}
+            >
+              <Text style={styles.cancelButtonText}>Cancel Shot</Text>
+            </TouchableOpacity>
           </View>
-        )}
-
-        {/* Clear/Reset button */}
-        {currentShotType && (
-          <TouchableOpacity
-            style={styles.resetButton}
-            onPress={() => {
-              setCurrentShotType('');
-              setCurrentShotResults([]);
-            }}
-          >
-            <Text style={styles.resetButtonText}>Cancel Shot</Text>
-          </TouchableOpacity>
         )}
       </ScrollView>
 
@@ -615,10 +627,14 @@ const ShotTrackingScreen = () => {
         </View>
       )}
 
-      {/* Save Button */}
+      {/* Done Button */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>Save Hole ({currentStroke - 1} strokes)</Text>
+        <TouchableOpacity 
+          style={styles.saveButton} 
+          onPress={handleSave}
+        >
+          <Icon name="save" size={20} color="#fff" />
+          <Text style={styles.saveButtonText}>Save Hole</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -682,13 +698,23 @@ const styles = StyleSheet.create({
   },
   mediaButtons: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
   },
   mediaButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     padding: 6,
     borderRadius: 15,
     position: 'relative',
+  },
+  mediaButtonLarge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 12,
+    borderRadius: 20,
+    position: 'relative',
+    minWidth: 50,
+    minHeight: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mediaBadge: {
     position: 'absolute',
@@ -783,6 +809,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
+  buttonRowFour: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 5,
+    gap: 8,
+  },
   typeButton: {
     backgroundColor: '#f0f0f0',
     paddingVertical: 10,
@@ -795,11 +827,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 45,
   },
+  typeButtonSquare: {
+    backgroundColor: '#f0f0f0',
+    padding: 10,
+    borderRadius: 8,
+    flex: 1,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 75,
+  },
   typeButtonText: {
     fontSize: 13,
     fontWeight: '600',
     color: '#333',
     textAlign: 'center',
+  },
+  typeButtonLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
+    marginTop: 4,
   },
   resultButton: {
     backgroundColor: '#f0f0f0',
@@ -820,8 +869,38 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  confirmButtonFull: {
+    backgroundColor: '#4CAF50',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 10,
+    marginHorizontal: 0,
+  },
+  confirmButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  confirmButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   confirmButtonDisabled: {
     backgroundColor: '#e0e0e0',
+  },
+  cancelButton: {
+    backgroundColor: '#ff6b6b',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   instructionText: {
     textAlign: 'center',

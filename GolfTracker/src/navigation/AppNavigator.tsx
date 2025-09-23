@@ -12,8 +12,9 @@ import HoleDetailsScreen from '../screens/HoleDetailsScreen';
 import ShotTrackingScreen from '../screens/ShotTrackingScreen';
 import HoleSummaryScreen from '../screens/HoleSummaryScreen';
 import StatsScreen from '../screens/StatsScreen';
-import SettingsScreen from '../screens/SettingsScreen';
+import MediaScreen from '../screens/MediaScreen';
 import TournamentsScreen from '../screens/TournamentsScreen';
+import TournamentRoundsScreen from '../screens/TournamentRoundsScreen';
 import RoundSummaryScreen from '../screens/RoundSummaryScreen';
 import CameraScreen from '../screens/CameraScreen';
 
@@ -23,7 +24,12 @@ const Stack = createStackNavigator();
 // Stack navigator for Round tracking flow
 const RoundStack = () => {
   return (
-    <Stack.Navigator>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: true,
+        headerBackTitleVisible: false,
+      }}
+    >
       <Stack.Screen 
         name="RoundTracker" 
         component={RoundTrackerScreen}
@@ -65,12 +71,27 @@ const TournamentStack = () => {
       <Stack.Screen 
         name="TournamentsList" 
         component={TournamentsScreen}
-        options={{ title: 'Tournaments' }}
+        options={{ title: 'Tournaments', headerShown: false }}
+      />
+      <Stack.Screen 
+        name="TournamentRounds" 
+        component={TournamentRoundsScreen}
+        options={{ title: 'Tournament Rounds', headerShown: false }}
       />
       <Stack.Screen 
         name="RoundTracker" 
         component={RoundTrackerScreen}
         options={{ title: 'Track Round' }}
+      />
+      <Stack.Screen 
+        name="ShotTracking" 
+        component={ShotTrackingScreen}
+        options={{ title: 'Shot Tracking' }}
+      />
+      <Stack.Screen 
+        name="RoundSummary" 
+        component={RoundSummaryScreen}
+        options={{ title: 'Round Summary' }}
       />
       <Stack.Screen 
         name="HoleDetails" 
@@ -95,8 +116,8 @@ const AppNavigator = () => {
               return <FontAwesome5 name="chart-line" size={size} color={color} />;
             } else if (route.name === 'Tournaments') {
               return <FontAwesome5 name="trophy" size={size} color={color} />;
-            } else if (route.name === 'Settings') {
-              return <FontAwesome5 name="cog" size={size} color={color} />;
+            } else if (route.name === 'Media') {
+              return <FontAwesome5 name="images" size={size} color={color} />;
             }
 
             return <Icon name="home" size={size} color={color} />;
@@ -107,10 +128,9 @@ const AppNavigator = () => {
         })}
       >
         <Tab.Screen name="Home" component={HomeScreen} />
-        <Tab.Screen name="Round" component={RoundStack} />
-        <Tab.Screen name="Stats" component={StatsScreen} />
         <Tab.Screen name="Tournaments" component={TournamentStack} />
-        <Tab.Screen name="Settings" component={SettingsScreen} />
+        <Tab.Screen name="Stats" component={StatsScreen} />
+        <Tab.Screen name="Media" component={MediaScreen} />
       </Tab.Navigator>
     </NavigationContainer>
   );

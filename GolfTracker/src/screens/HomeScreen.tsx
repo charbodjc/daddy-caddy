@@ -8,36 +8,72 @@ import {
   RefreshControl,
   ImageBackground,
   Alert,
+  Modal,
+  TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useNavigation } from '@react-navigation/native';
 import DatabaseService from '../services/database';
-import { GolfRound, Statistics } from '../types';
-import AIService from '../services/ai';
+import { GolfRound } from '../types';
 
 const HomeScreen = () => {
   const navigation = useNavigation();
+  const [activeRound, setActiveRound] = useState<GolfRound | null>(null);
   const [recentRounds, setRecentRounds] = useState<GolfRound[]>([]);
-  const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [newRoundModal, setNewRoundModal] = useState(false);
+  const [roundName, setRoundName] = useState('');
+  const [courseName, setCourseName] = useState('');
+  const [tournaments, setTournaments] = useState<any[]>([]);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string | null>(null);
+  const [showTournamentPicker, setShowTournamentPicker] = useState(false);
+  const [selectedRoundNumber, setSelectedRoundNumber] = useState<string>('Round 1');
+  const [showRoundPicker, setShowRoundPicker] = useState(false);
 
   useEffect(() => {
     loadData();
+    loadTournaments();
+    loadRecentRounds();
   }, []);
 
   const loadData = async () => {
     try {
       // Database is now initialized at app level
-      const rounds = await DatabaseService.getRounds();
-      setRecentRounds(rounds.slice(0, 5)); // Get last 5 rounds
-      
-      if (rounds.length > 0) {
-        const stats = AIService.calculateStatistics(rounds);
-        setStatistics(stats);
+      const activeRoundId = await DatabaseService.getPreference('active_round_id');
+      if (activeRoundId) {
+        const round = await DatabaseService.getRound(activeRoundId);
+        if (round && !round.totalScore) {
+          setActiveRound(round);
+        } else {
+          setActiveRound(null);
+        }
+      } else {
+        setActiveRound(null);
       }
     } catch (error) {
       console.error('Error loading data:', error);
+    }
+  };
+
+  const loadTournaments = async () => {
+    try {
+      const tournamentsData = await DatabaseService.getTournaments();
+      setTournaments(tournamentsData || []);
+    } catch (error) {
+      console.error('Error loading tournaments:', error);
+      setTournaments([]);
+    }
+  };
+
+  const loadRecentRounds = async () => {
+    try {
+      const rounds = await DatabaseService.getRounds();
+      // Get the 10 most recent rounds
+      setRecentRounds(rounds.slice(0, 10));
+    } catch (error) {
+      console.error('Error loading recent rounds:', error);
+      setRecentRounds([]);
     }
   };
 
@@ -53,7 +89,11 @@ const HomeScreen = () => {
           onPress: async () => {
             try {
               await DatabaseService.deleteRound(round.id);
+              if (round.id === activeRound?.id) {
+                await DatabaseService.setPreference('active_round_id', '');
+              }
               await loadData();
+              await loadRecentRounds();
             } catch (e) {
               // noop
             }
@@ -66,7 +106,32 @@ const HomeScreen = () => {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
+    await loadTournaments();
+    await loadRecentRounds();
     setRefreshing(false);
+  };
+
+  const openRound = (roundId: string) => {
+    // Set as active round and navigate to tracker
+    DatabaseService.setPreference('active_round_id', roundId);
+    navigation.navigate('Tournaments' as never, { 
+      screen: 'RoundTracker', 
+      params: { roundId } 
+    } as never);
+  };
+
+  const calculateScoreToPar = (round: GolfRound): string => {
+    if (!round.holes || round.holes.length === 0) return 'E';
+    
+    const completedHoles = round.holes.filter(h => h.strokes > 0);
+    if (completedHoles.length === 0) return 'E';
+    
+    const totalStrokes = completedHoles.reduce((sum, h) => sum + (h.strokes || 0), 0);
+    const totalPar = completedHoles.reduce((sum, h) => sum + (h.par || 4), 0);
+    const diff = totalStrokes - totalPar;
+    
+    if (diff === 0) return 'E';
+    return diff > 0 ? `+${diff}` : `${diff}`;
   };
 
   const formatDate = (date: Date) => {
@@ -92,147 +157,254 @@ const HomeScreen = () => {
         <View style={styles.headerOverlay}>
             <FontAwesome5 name="golf-ball" size={40} color="#fff" style={styles.headerIcon} />
             <Text style={styles.title}>Daddy Caddy</Text>
-          <Text style={styles.subtitle}>Track • Analyze • Improve</Text>
+          <Text style={styles.subtitle}>Track, Analyze, Report</Text>
         </View>
       </ImageBackground>
 
-      {/* Quick Actions */}
-      <View style={styles.quickActions}>
+      {/* Recent Rounds */}
+      <View style={styles.statsOverview}>
+        {/* New Round Button */}
         <TouchableOpacity
-          style={[styles.actionButton, styles.primaryButton]}
-          onPress={() => navigation.navigate('Round' as never)}
+          style={[styles.actionButton, styles.primaryButton, styles.fullWidthButton, { marginBottom: 20 }]}
+          onPress={() => setNewRoundModal(true)}
         >
-          <FontAwesome5 name="plus-circle" size={30} color="#fff" />
+          <FontAwesome5 name="plus-circle" size={24} color="#fff" />
           <Text style={styles.actionButtonText}>New Round</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation.navigate('Stats' as never)}
-        >
-          <FontAwesome5 name="chart-line" size={30} color="#4CAF50" />
-          <Text style={styles.actionButtonTextDark}>View Stats</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Statistics Overview */}
-      {statistics && (
-        <View style={styles.statsOverview}>
-          <Text style={styles.sectionTitle}>Performance Overview</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <FontAwesome5 name="flag-checkered" size={20} color="#4CAF50" />
-              <Text style={styles.statValue}>
-                {statistics.averageScore.toFixed(1)}
-              </Text>
-              <Text style={styles.statLabel}>Avg Score</Text>
-            </View>
-            <View style={styles.statItem}>
-              <FontAwesome5 name="bullseye" size={20} color="#4CAF50" />
-              <Text style={styles.statValue}>
-                {statistics.averagePutts.toFixed(1)}
-              </Text>
-              <Text style={styles.statLabel}>Avg Putts</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Icon name="terrain" size={20} color="#4CAF50" />
-              <Text style={styles.statValue}>
-                {statistics.fairwayAccuracy.toFixed(0)}%
-              </Text>
-              <Text style={styles.statLabel}>Fairways</Text>
-            </View>
-            <View style={styles.statItem}>
-              <FontAwesome5 name="map-pin" size={20} color="#4CAF50" />
-              <Text style={styles.statValue}>
-                {statistics.girPercentage.toFixed(0)}%
-              </Text>
-              <Text style={styles.statLabel}>GIR</Text>
-            </View>
-          </View>
-
-          <View style={styles.scoreDistribution}>
-            <Text style={styles.subsectionTitle}>Score Distribution</Text>
-            <View style={styles.scoreGrid}>
-              {statistics.eaglesOrBetter > 0 && (
-                <View style={styles.scoreItem}>
-                  <Text style={styles.scoreCount}>{statistics.eaglesOrBetter}</Text>
-                  <Text style={styles.scoreLabel}>Eagles</Text>
-                </View>
-              )}
-              <View style={styles.scoreItem}>
-                <Text style={styles.scoreCount}>{statistics.birdies}</Text>
-                <Text style={styles.scoreLabel}>Birdies</Text>
-              </View>
-              <View style={styles.scoreItem}>
-                <Text style={styles.scoreCount}>{statistics.pars}</Text>
-                <Text style={styles.scoreLabel}>Pars</Text>
-              </View>
-              <View style={styles.scoreItem}>
-                <Text style={styles.scoreCount}>{statistics.bogeys}</Text>
-                <Text style={styles.scoreLabel}>Bogeys</Text>
-              </View>
-              <View style={styles.scoreItem}>
-                <Text style={styles.scoreCount}>{statistics.doubleBogeyOrWorse}</Text>
-                <Text style={styles.scoreLabel}>Double+</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Recent Rounds */}
-      <View style={styles.recentRounds}>
+        
         <Text style={styles.sectionTitle}>Recent Rounds</Text>
         {recentRounds.length > 0 ? (
-          recentRounds.map((round) => (
-            <TouchableOpacity
-              key={round.id}
-              style={styles.roundCard}
-              onPress={() => navigation.navigate('RoundSummary' as never, { roundId: round.id } as never)}
-            >
-              <View style={styles.roundHeader}>
-                <Text style={styles.courseName}>{round.courseName}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Text style={styles.roundDate}>{formatDate(round.date)}</Text>
-                  <TouchableOpacity onPress={() => confirmDeleteRound(round)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Icon name="delete" size={20} color="#F44336" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-              <View style={styles.roundStats}>
-                <View style={styles.roundStatItem}>
-                  <FontAwesome5 name="flag" size={16} color="#666" />
-                  <Text style={styles.roundStatText}>
-                    Score: {round.totalScore || 'N/A'}
-                  </Text>
-                </View>
-                {round.tournamentName && (
-                  <View style={styles.roundStatItem}>
-                  <FontAwesome5 name="trophy" size={16} color="#FFD700" />
-                  <Text style={styles.roundStatText}>{round.tournamentName}</Text>
+          <View>
+            {recentRounds.map((round) => {
+              const completedHoles = round.holes?.filter(h => h.strokes > 0).length || 0;
+              const scoreToPar = calculateScoreToPar(round);
+              
+              return (
+                <TouchableOpacity
+                  key={round.id}
+                  style={styles.roundCard}
+                  onPress={() => openRound(round.id)}
+                >
+                  <View style={styles.roundHeader}>
+                    <View style={{ flex: 1 }}>
+                      {round.tournamentName && (
+                        <Text style={styles.tournamentName}>{round.tournamentName}</Text>
+                      )}
+                      <Text style={styles.courseName}>
+                        {round.name || 'Round'} • {round.courseName}
+                      </Text>
+                      <Text style={styles.roundDate}>{formatDate(round.date)}</Text>
+                    </View>
+                    <TouchableOpacity 
+                      onPress={() => confirmDeleteRound(round)} 
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Icon name="delete" size={20} color="#F44336" />
+                    </TouchableOpacity>
                   </View>
-                )}
-              </View>
-              {round.aiAnalysis && (
-                <View style={styles.aiInsight}>
-                  <Icon name="psychology" size={16} color="#4CAF50" />
-                  <Text style={styles.aiInsightText} numberOfLines={2}>
-                    {round.aiAnalysis}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))
+                  <View style={styles.roundStats}>
+                    <View style={styles.roundStatItem}>
+                      <FontAwesome5 name="flag" size={14} color="#666" />
+                      <Text style={styles.roundStatText}>{completedHoles}/18</Text>
+                    </View>
+                    <View style={[styles.scoreBox, 
+                      scoreToPar.startsWith('+') ? styles.overPar : 
+                      scoreToPar.startsWith('-') ? styles.underPar : 
+                      styles.evenPar
+                    ]}>
+                      <Text style={styles.scoreText}>{scoreToPar}</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         ) : (
           <View style={styles.emptyState}>
             <FontAwesome5 name="golf-ball" size={48} color="#ccc" />
-            <Text style={styles.emptyStateText}>No rounds recorded yet</Text>
-            <Text style={styles.emptyStateSubtext}>
-              Start tracking your golf rounds to see statistics here
-            </Text>
+            <Text style={styles.emptyStateText}>No rounds yet</Text>
+            <Text style={styles.emptyStateSubtext}>Tap New Round to begin tracking</Text>
           </View>
         )}
       </View>
+
+      {/* New Round Modal */}
+      <Modal visible={newRoundModal} transparent animationType="slide" onRequestClose={() => setNewRoundModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.newRoundCard}>
+            <Text style={styles.sectionTitle}>Create New Round</Text>
+            
+            {/* Tournament Selector */}
+            <TouchableOpacity 
+              style={styles.dropdownButton}
+              onPress={() => setShowTournamentPicker(!showTournamentPicker)}
+            >
+              <Text style={styles.dropdownButtonText}>
+                {selectedTournamentId === 'none' 
+                  ? 'No Tournament' 
+                  : selectedTournamentId 
+                    ? tournaments.find(t => t.id === selectedTournamentId)?.name || 'Select Tournament'
+                    : 'Select Tournament'}
+              </Text>
+              <Icon name={showTournamentPicker ? 'arrow-drop-up' : 'arrow-drop-down'} size={24} color="#666" />
+            </TouchableOpacity>
+            
+            {/* Tournament Picker Dropdown */}
+            {showTournamentPicker && (
+              <View style={styles.dropdownList}>
+                <ScrollView style={{ maxHeight: 200 }}>
+                  {tournaments.map(tournament => (
+                    <TouchableOpacity
+                      key={tournament.id}
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setSelectedTournamentId(tournament.id);
+                        setShowTournamentPicker(false);
+                      }}
+                    >
+                      <Text style={styles.dropdownItemText}>{tournament.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    style={[styles.dropdownItem, { borderTopWidth: 1, borderTopColor: '#eee' }]}
+                    onPress={() => {
+                      setSelectedTournamentId('none');
+                      setShowTournamentPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.dropdownItemText, { fontStyle: 'italic' }]}>No Tournament</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+            )}
+            
+            {/* Course Name Input - Only show for No Tournament */}
+            {selectedTournamentId === 'none' && (
+              <TextInput
+                style={styles.input}
+                placeholder="Course Name (required)"
+                placeholderTextColor="#666"
+                value={courseName}
+                onChangeText={setCourseName}
+              />
+            )}
+            
+            {/* Round Name/Number Selection */}
+            {selectedTournamentId === 'none' ? (
+              <TextInput
+                style={styles.input}
+                placeholder="Round Name (optional)"
+                placeholderTextColor="#666"
+                value={roundName}
+                onChangeText={setRoundName}
+              />
+            ) : selectedTournamentId ? (
+              <TouchableOpacity 
+                style={styles.dropdownButton}
+                onPress={() => setShowRoundPicker(!showRoundPicker)}
+              >
+                <Text style={styles.dropdownButtonText}>{selectedRoundNumber}</Text>
+                <Icon name={showRoundPicker ? 'arrow-drop-up' : 'arrow-drop-down'} size={24} color="#666" />
+              </TouchableOpacity>
+            ) : null}
+            
+            {/* Round Number Picker */}
+            {showRoundPicker && selectedTournamentId && selectedTournamentId !== 'none' && (
+              <View style={styles.dropdownList}>
+                {['Round 1', 'Round 2', 'Round 3', 'Round 4'].map(roundNum => (
+                  <TouchableOpacity
+                    key={roundNum}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setSelectedRoundNumber(roundNum);
+                      setShowRoundPicker(false);
+                    }}
+                  >
+                    <Text style={styles.dropdownItemText}>{roundNum}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            
+            {/* Action Buttons */}
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 15 }}>
+              <TouchableOpacity 
+                style={[styles.saveButton, { flex: 1, backgroundColor: '#4CAF50' }]} 
+                onPress={async () => {
+                  // Validate inputs
+                  if (selectedTournamentId === 'none' && !courseName.trim()) {
+                    Alert.alert('Course Name Required', 'Please enter a course name');
+                    return;
+                  }
+                  
+                  // Create round and associate with tournament
+                  const id = Date.now().toString();
+                  const selectedTournament = selectedTournamentId && selectedTournamentId !== 'none' 
+                    ? tournaments.find(t => t.id === selectedTournamentId)
+                    : null;
+                  
+                  const round: GolfRound = {
+                    id,
+                    courseName: selectedTournament?.courseName || courseName.trim() || 'Unknown Course',
+                    date: new Date(),
+                    holes: [],
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    tournamentId: selectedTournament?.id || undefined,
+                    tournamentName: selectedTournament?.name || undefined,
+                  } as any;
+                  
+                  // Set round name based on selection
+                  if (selectedTournamentId === 'none') {
+                    // For no tournament, use custom name if provided
+                    if (roundName.trim()) {
+                      (round as any).name = roundName.trim();
+                    }
+                  } else if (selectedTournament) {
+                    // For tournament rounds, use the selected round number
+                    (round as any).name = selectedRoundNumber;
+                  }
+                  
+                  await DatabaseService.saveRound({ ...round, holes: [] });
+                  await DatabaseService.setPreference('active_round_id', id);
+                  
+                  // Reset modal state
+                  setNewRoundModal(false);
+                  setRoundName('');
+                  setCourseName('');
+                  setSelectedTournamentId(null);
+                  setSelectedRoundNumber('Round 1');
+                  setShowTournamentPicker(false);
+                  setShowRoundPicker(false);
+                  
+                  // Reload data to show new round
+                  await loadData();
+                  
+                  // Navigate to round tracker
+                  navigation.navigate('Tournaments' as never, { screen: 'RoundTracker', params: { roundId: id } } as never);
+                }}
+              >
+                <Text style={styles.saveButtonText}>Start Round</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.saveButton, { flex: 1 }]} 
+                onPress={() => {
+                  setNewRoundModal(false);
+                  setRoundName('');
+                  setCourseName('');
+                  setSelectedTournamentId(null);
+                  setSelectedRoundNumber('Round 1');
+                  setShowTournamentPicker(false);
+                  setShowRoundPicker(false);
+                }}
+              >
+                <Text style={styles.saveButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -270,17 +442,15 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     marginTop: 5,
   },
-  quickActions: {
-    flexDirection: 'row',
-    padding: 20,
-    gap: 15,
-  },
   actionButton: {
-    flex: 1,
     backgroundColor: '#fff',
-    padding: 20,
     borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -289,6 +459,9 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     backgroundColor: '#4CAF50',
+  },
+  fullWidthButton: {
+    width: '100%',
   },
   actionButtonText: {
     color: '#fff',
@@ -313,6 +486,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  newRoundCard: {
+    backgroundColor: '#fff',
+    width: '90%',
+    maxWidth: 420,
+    borderRadius: 12,
+    padding: 16,
   },
   sectionTitle: {
     fontSize: 20,
@@ -392,9 +578,34 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
   },
+  tournamentName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4CAF50',
+    marginBottom: 2,
+  },
   roundDate: {
     fontSize: 14,
     color: '#666',
+  },
+  scoreBox: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginLeft: 'auto',
+  },
+  overPar: {
+    backgroundColor: '#ffebee',
+  },
+  underPar: {
+    backgroundColor: '#e8f5e9',
+  },
+  evenPar: {
+    backgroundColor: '#f5f5f5',
+  },
+  scoreText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   roundStats: {
     flexDirection: 'row',
@@ -426,20 +637,64 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     alignItems: 'center',
-    padding: 40,
-    backgroundColor: '#fff',
-    borderRadius: 10,
+    paddingVertical: 30,
   },
   emptyStateText: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 18,
+    color: '#999',
     marginTop: 15,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#999',
+    color: '#aaa',
     marginTop: 5,
-    textAlign: 'center',
+  },
+  saveButton: {
+    backgroundColor: '#f44336',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 10,
+    fontSize: 16,
+  },
+  dropdownButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 10,
+  },
+  dropdownButtonText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  dropdownList: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginBottom: 10,
+    backgroundColor: '#fff',
+  },
+  dropdownItem: {
+    padding: 12,
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    color: '#333',
   },
 });
 

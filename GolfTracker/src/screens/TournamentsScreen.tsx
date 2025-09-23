@@ -14,7 +14,7 @@ import {
   ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import DatabaseService from '../services/database';
 import { Tournament } from '../types';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -23,6 +23,7 @@ import { Platform } from 'react-native';
 const TournamentsScreen = () => {
   const navigation = useNavigation();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [rounds, setRounds] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [name, setName] = useState('');
   const [courseName, setCourseName] = useState('');
@@ -33,7 +34,16 @@ const TournamentsScreen = () => {
 
   useEffect(() => {
     loadTournaments();
+    loadRounds();
   }, []);
+
+  // Reload data when screen is focused (e.g., after round deletion)
+  useFocusEffect(
+    React.useCallback(() => {
+      loadTournaments();
+      loadRounds();
+    }, [])
+  );
 
   const loadTournaments = async () => {
     try {
@@ -41,6 +51,15 @@ const TournamentsScreen = () => {
       setTournaments(tournamentsList);
     } catch (error) {
       console.error('Error loading tournaments:', error);
+    }
+  };
+
+  const loadRounds = async () => {
+    try {
+      const roundsList = await DatabaseService.getRounds();
+      setRounds(roundsList);
+    } catch (error) {
+      console.error('Error loading rounds:', error);
     }
   };
 
@@ -75,22 +94,73 @@ const TournamentsScreen = () => {
         updatedAt: new Date(),
       };
 
+      // Save immediately and make visible
       await DatabaseService.saveTournament(tournament);
-      setModalVisible(false);
-      loadTournaments();
       
-      Alert.alert('Success', 'Tournament created successfully');
+      // Reset form and close modal
+      setName('');
+      setCourseName('');
+      setStartDate(new Date());
+      setEndDate(new Date());
+      setModalVisible(false);
+      
+      // Reload tournaments to show the new one immediately
+      await loadTournaments();
     } catch (error) {
       Alert.alert('Error', 'Failed to save tournament');
       console.error('Save tournament error:', error);
     }
   };
 
-  const startRound = (tournament: Tournament) => {
+  const viewTournamentRounds = (tournament: Tournament) => {
+    navigation.navigate('TournamentRounds' as never, {
+      tournament: tournament,
+    } as never);
+  };
+
+  const trackRound = async (tournament: Tournament, roundNumber: number) => {
+    // Check if round exists
+    const roundName = `Round ${roundNumber}`;
+    const existingRound = rounds.find(
+      r => r.tournamentId === tournament.id && r.name === roundName
+    );
+
+    let roundId: string;
+    
+    if (existingRound) {
+      roundId = existingRound.id;
+    } else {
+      // Create new round
+      const newRound = {
+        id: Date.now().toString(),
+        name: roundName,
+        courseName: tournament.courseName,
+        date: new Date(),
+        holes: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        tournamentId: tournament.id,
+        tournamentName: tournament.name,
+      };
+      
+      await DatabaseService.saveRound(newRound);
+      roundId = newRound.id;
+      
+      // Reload rounds
+      await loadRounds();
+    }
+
+    // Set as active round and navigate
+    await DatabaseService.setPreference('active_round_id', roundId);
     navigation.navigate('RoundTracker' as never, {
+      roundId,
       tournamentId: tournament.id,
       tournamentName: tournament.name,
     } as never);
+  };
+
+  const getRoundsForTournament = (tournamentId: string) => {
+    return rounds.filter(r => r.tournamentId === tournamentId);
   };
 
   const formatDateRange = (start: Date, end: Date) => {
@@ -129,56 +199,80 @@ const TournamentsScreen = () => {
   const renderTournament = ({ item }: { item: Tournament }) => {
     const isActive = new Date() >= item.startDate && new Date() <= item.endDate;
     const isPast = new Date() > item.endDate;
+    const tournamentRounds = getRoundsForTournament(item.id);
+    
+    // Determine which rounds exist
+    const hasRound1 = tournamentRounds.some(r => r.name === 'Round 1');
+    const hasRound2 = tournamentRounds.some(r => r.name === 'Round 2');
+    const hasRound3 = tournamentRounds.some(r => r.name === 'Round 3');
+    const hasRound4 = tournamentRounds.some(r => r.name === 'Round 4');
+    
+    // Determine how many round buttons to show
+    const maxRoundToShow = hasRound4 ? 4 : hasRound3 ? 4 : hasRound2 ? 3 : hasRound1 ? 2 : 1;
     
     return (
-      <TouchableOpacity
-        style={styles.tournamentCard}
-        onPress={() => startRound(item)}
-      >
-        <View style={styles.tournamentHeader}>
-          <Icon 
-            name="emoji-events" 
-            size={24} 
-            color={isActive ? '#4CAF50' : isPast ? '#999' : '#FF9800'}
-          />
-          <View style={styles.tournamentInfo}>
-            <Text style={styles.tournamentName}>{item.name}</Text>
-            <Text style={styles.courseName}>{item.courseName}</Text>
-            <Text style={styles.dateRange}>{formatDateRange(item.startDate, item.endDate)}</Text>
-          </View>
-        </View>
-        
-        <View style={styles.tournamentStats}>
-          <View style={styles.statBadge}>
-            <Text style={styles.statCount}>{item.rounds.length}</Text>
-            <Text style={styles.statLabel}>Rounds</Text>
+      <View style={styles.tournamentCard}>
+        <TouchableOpacity onPress={() => viewTournamentRounds(item)}>
+          <View style={styles.tournamentHeader}>
+            <Icon 
+              name="emoji-events" 
+              size={24} 
+              color={isActive ? '#4CAF50' : isPast ? '#999' : '#FF9800'}
+            />
+            <View style={styles.tournamentInfo}>
+              <Text style={styles.tournamentName}>{item.name}</Text>
+              <Text style={styles.courseName}>{item.courseName}</Text>
+              <Text style={styles.dateRange}>{formatDateRange(item.startDate, item.endDate)}</Text>
+            </View>
           </View>
           
-          {isActive && (
-            <View style={[styles.statusBadge, styles.activeBadge]}>
-              <Text style={styles.statusText}>Active</Text>
+          <View style={styles.tournamentStats}>
+            <View style={styles.statBadge}>
+              <Text style={styles.statCount}>{tournamentRounds.length}</Text>
+              <Text style={styles.statLabel}>Rounds</Text>
             </View>
-          )}
-          {!isActive && !isPast && (
-            <View style={[styles.statusBadge, styles.upcomingBadge]}>
-              <Text style={styles.statusText}>Upcoming</Text>
-            </View>
-          )}
-          {isPast && (
-            <View style={[styles.statusBadge, styles.completedBadge]}>
-              <Text style={styles.statusText}>Completed</Text>
-            </View>
-          )}
+            
+            {isActive && (
+              <View style={[styles.statusBadge, styles.activeBadge]}>
+                <Text style={styles.statusText}>Active</Text>
+              </View>
+            )}
+            {!isActive && !isPast && (
+              <View style={[styles.statusBadge, styles.upcomingBadge]}>
+                <Text style={styles.statusText}>Upcoming</Text>
+              </View>
+            )}
+            {isPast && (
+              <View style={[styles.statusBadge, styles.completedBadge]}>
+                <Text style={styles.statusText}>Completed</Text>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+
+        <View style={styles.roundButtons}>
+          {[1, 2, 3, 4].slice(0, maxRoundToShow).map(roundNum => {
+            const hasRound = tournamentRounds.some(r => r.name === `Round ${roundNum}`);
+            return (
+              <TouchableOpacity
+                key={roundNum}
+                style={[styles.roundButton, hasRound && styles.roundButtonExists]}
+                onPress={() => trackRound(item, roundNum)}
+              >
+                <Icon 
+                  name={hasRound ? "edit" : "play-arrow"} 
+                  size={16} 
+                  color="#fff" 
+                />
+                <Text style={styles.roundButtonText}>
+                  {hasRound ? `Edit` : `Track`} Round {roundNum}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <View style={styles.cardActions}>
-          <TouchableOpacity
-            style={styles.playButton}
-            onPress={() => startRound(item)}
-          >
-            <Icon name="play-arrow" size={20} color="#fff" />
-            <Text style={styles.playButtonText}>Track Round</Text>
-          </TouchableOpacity>
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => deleteTournament(item)}
@@ -186,7 +280,7 @@ const TournamentsScreen = () => {
             <Icon name="delete" size={20} color="#F44336" />
           </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -277,7 +371,10 @@ const TournamentsScreen = () => {
                   <Text style={styles.inputLabel}>Start Date</Text>
                   <TouchableOpacity
                     style={styles.dateButton}
-                    onPress={() => setShowStartPicker(true)}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setShowStartPicker(true);
+                    }}
                   >
                     <Icon name="calendar-today" size={20} color="#666" />
                     <Text style={styles.dateText}>
@@ -290,7 +387,10 @@ const TournamentsScreen = () => {
                   <Text style={styles.inputLabel}>End Date</Text>
                   <TouchableOpacity
                     style={styles.dateButton}
-                    onPress={() => setShowEndPicker(true)}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setShowEndPicker(true);
+                    }}
                   >
                     <Icon name="calendar-today" size={20} color="#666" />
                     <Text style={styles.dateText}>
@@ -301,27 +401,33 @@ const TournamentsScreen = () => {
               </View>
 
               {showStartPicker && Platform.OS === 'ios' && (
-                <DateTimePicker
-                  value={startDate}
-                  mode="date"
-                  display="spinner"
-                  onChange={(event, date) => {
-                    setShowStartPicker(false);
-                    if (date) setStartDate(date);
-                  }}
-                />
+                <View style={{ backgroundColor: '#fff', borderRadius: 12 }}>
+                  <DateTimePicker
+                    value={startDate}
+                    mode="date"
+                    display="spinner"
+                    themeVariant="light"
+                    onChange={(event, date) => {
+                      setShowStartPicker(false);
+                      if (date) setStartDate(date);
+                    }}
+                  />
+                </View>
               )}
 
               {showEndPicker && Platform.OS === 'ios' && (
-                <DateTimePicker
-                  value={endDate}
-                  mode="date"
-                  display="spinner"
-                  onChange={(event, date) => {
-                    setShowEndPicker(false);
-                    if (date) setEndDate(date);
-                  }}
-                />
+                <View style={{ backgroundColor: '#fff', borderRadius: 12 }}>
+                  <DateTimePicker
+                    value={endDate}
+                    mode="date"
+                    display="spinner"
+                    themeVariant="light"
+                    onChange={(event, date) => {
+                      setShowEndPicker(false);
+                      if (date) setEndDate(date);
+                    }}
+                  />
+                </View>
               )}
 
               <View style={styles.modalActions}>
@@ -469,6 +575,32 @@ const styles = StyleSheet.create({
   playButtonText: {
     color: '#fff',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  roundButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  roundButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    gap: 6,
+  },
+  roundButtonExists: {
+    backgroundColor: '#2196F3',
+  },
+  roundButtonText: {
+    color: '#fff',
+    fontSize: 13,
     fontWeight: '600',
   },
   emptyState: {
