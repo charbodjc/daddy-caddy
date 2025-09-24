@@ -33,7 +33,12 @@ const TournamentRoundsScreen = () => {
   const loadRounds = async () => {
     try {
       const allRounds = await DatabaseService.getRounds();
-      const tournamentRounds = allRounds.filter(r => r.tournamentId === tournament.id);
+      // Only show rounds that have at least one scored hole
+      const tournamentRounds = allRounds.filter(r => 
+        r.tournamentId === tournament.id && 
+        r.holes && 
+        r.holes.some(h => h.strokes > 0)
+      );
       setRounds(tournamentRounds);
     } catch (error) {
       console.error('Error loading rounds:', error);

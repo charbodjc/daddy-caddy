@@ -49,7 +49,27 @@ const RoundTrackerScreen = () => {
     }
     loadActiveRound();
     loadTournaments();
-  }, [routeRoundId]); // Reload when roundId changes
+  }, [routeRoundId]);
+
+  // Save round data when leaving the screen
+  useEffect(() => {
+    return () => {
+      if (isStarted && (roundId || activeRound?.id) && holes.length > 0) {
+        const completedHoles = holes.filter(h => h.strokes > 0);
+        const partialRound: GolfRound = {
+          id: roundId || activeRound!.id,
+          tournamentId: activeRound?.tournamentId || tournamentId,
+          tournamentName: activeRound?.tournamentName || tournamentName,
+          courseName: activeRound?.courseName || courseName,
+          date: activeRound?.date || new Date(),
+          holes: holes,
+          totalScore: completedHoles.reduce((sum, h) => sum + h.strokes, 0),
+          isFinished: false,
+        };
+        DatabaseService.saveRound(partialRound);
+      }
+    };
+  }, [isStarted, roundId, activeRound, holes, tournamentId, tournamentName, courseName]); // Reload when roundId changes
 
   const loadActiveRound = async () => {
     try {
@@ -250,6 +270,31 @@ const RoundTrackerScreen = () => {
       score,
       completedHoles: completedHoles.length,
     };
+  };
+
+  const viewSummary = () => {
+    const stats = calculateScore();
+    
+    if (stats.completedHoles === 0) {
+      Alert.alert('No Scores', 'Please record scores for at least one hole before viewing summary');
+      return;
+    }
+
+    // Navigate to summary without marking as finished
+    const currentRound: GolfRound = {
+      id: roundId || activeRound?.id || Date.now().toString(),
+      courseName: courseName || activeRound?.courseName || 'Unknown Course',
+      date: activeRound?.date || new Date(),
+      holes: holes,
+      totalScore: stats.totalStrokes,
+      isFinished: false,
+      tournamentId: selectedTournamentId || activeRound?.tournamentId || tournamentId,
+      tournamentName: selectedTournamentName || activeRound?.tournamentName || tournamentName,
+    };
+
+    navigation.navigate('RoundSummary' as never, {
+      roundId: currentRound.id,
+    } as never);
   };
 
   const finishRound = async () => {
@@ -465,31 +510,43 @@ const RoundTrackerScreen = () => {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={styles.container}>
-      {/* Header with score */}
+      {/* Custom Header */}
+      <View style={styles.customHeader}>
+        <Text style={styles.headerTitle}>{courseName || 'Golf Course'}</Text>
+        {tournamentName && (
+          <Text style={styles.headerSubtitle}>{tournamentName}</Text>
+        )}
+      </View>
+      
+      {/* Action Bar */}
+      <View style={styles.actionBar}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Icon name="arrow-back" size={20} color="#333" />
+          <Text style={styles.actionButtonText}>Back</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={deleteRound}
+        >
+          <Icon name="delete" size={20} color="#ff6b6b" />
+          <Text style={[styles.actionButtonText, { color: '#ff6b6b' }]}>Delete Round</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={viewSummary}
+        >
+          <Icon name="bar-chart" size={20} color="#4CAF50" />
+          <Text style={[styles.actionButtonText, { color: '#4CAF50' }]}>View Summary</Text>
+        </TouchableOpacity>
+      </View>
+      
+      {/* Score Info */}
       <View style={styles.header}>
-        <View style={styles.courseInfo}>
-          <Text style={styles.courseName}>{courseName}</Text>
-          {tournamentName && (
-            <Text style={styles.tournamentName}>{tournamentName}</Text>
-          )}
-        </View>
-        
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={deleteRound}
-          >
-            <Icon name="delete" size={24} color="#ff6b6b" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={finishRound}
-          >
-            <Icon name="check-circle" size={24} color="#4CAF50" />
-          </TouchableOpacity>
-        </View>
-        
         <View style={styles.mediaButtons}>
           <TouchableOpacity
             style={styles.mediaButton}
@@ -534,7 +591,6 @@ const RoundTrackerScreen = () => {
 
       {/* Hole Grid */}
       <ScrollView style={styles.holesContainer}>
-        <Text style={styles.sectionTitle}>All Holes</Text>
         <View style={styles.holesGrid}>
           {holes.map((hole) => {
             const status = getHoleStatus(hole);
@@ -601,7 +657,6 @@ const RoundTrackerScreen = () => {
               >
                 <Text style={styles.parButtonNumber}>3</Text>
                 <Text style={styles.parButtonLabel}>Par 3</Text>
-                <Text style={styles.parButtonHint}>Approach Shot</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -610,7 +665,6 @@ const RoundTrackerScreen = () => {
               >
                 <Text style={styles.parButtonNumber}>4</Text>
                 <Text style={styles.parButtonLabel}>Par 4</Text>
-                <Text style={styles.parButtonHint}>Tee Shot</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -619,7 +673,6 @@ const RoundTrackerScreen = () => {
               >
                 <Text style={styles.parButtonNumber}>5</Text>
                 <Text style={styles.parButtonLabel}>Par 5</Text>
-                <Text style={styles.parButtonHint}>Tee Shot</Text>
               </TouchableOpacity>
             </View>
             
@@ -641,6 +694,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  customHeader: {
+    backgroundColor: '#4CAF50',
+    paddingTop: 50,
+    paddingBottom: 15,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 4,
+  },
+  actionBar: {
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
   },
   setupContainer: {
     flex: 1,

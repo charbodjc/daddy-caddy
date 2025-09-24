@@ -52,6 +52,7 @@ export interface Tournament {
   rounds: GolfRound[];
   createdAt: Date;
   updatedAt: Date;
+  isComplete?: boolean;
 }
 
 export interface Contact {

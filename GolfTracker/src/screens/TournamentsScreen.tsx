@@ -118,6 +118,31 @@ const TournamentsScreen = () => {
     } as never);
   };
 
+  const markTournamentComplete = async (tournament: Tournament) => {
+    Alert.alert(
+      'Complete Tournament?',
+      'Mark this tournament as complete? You won\'t be able to add new rounds after this.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete',
+          style: 'default',
+          onPress: async () => {
+            try {
+              // Update tournament with isComplete flag
+              const updatedTournament = { ...tournament, isComplete: true };
+              await DatabaseService.saveTournament(updatedTournament);
+              await loadTournaments();
+            } catch (error) {
+              console.error('Error marking tournament complete:', error);
+              Alert.alert('Error', 'Failed to update tournament');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const trackRound = async (tournament: Tournament, roundNumber: number) => {
     // Check if round exists
     const roundName = `Round ${roundNumber}`;
@@ -207,8 +232,28 @@ const TournamentsScreen = () => {
     const hasRound3 = tournamentRounds.some(r => r.name === 'Round 3');
     const hasRound4 = tournamentRounds.some(r => r.name === 'Round 4');
     
-    // Determine how many round buttons to show
-    const maxRoundToShow = hasRound4 ? 4 : hasRound3 ? 4 : hasRound2 ? 3 : hasRound1 ? 2 : 1;
+    // If tournament is complete, show only existing rounds
+    // Otherwise, show existing rounds plus the next available round button
+    let roundsToShow: number[] = [];
+    if (item.isComplete) {
+      // Show only existing rounds
+      if (hasRound1) roundsToShow.push(1);
+      if (hasRound2) roundsToShow.push(2);
+      if (hasRound3) roundsToShow.push(3);
+      if (hasRound4) roundsToShow.push(4);
+    } else {
+      // Always show Round 1
+      roundsToShow.push(1);
+      
+      // Show Round 2 if Round 1 exists or add it as next available
+      if (hasRound1) roundsToShow.push(2);
+      
+      // Show Round 3 if Round 2 exists
+      if (hasRound2) roundsToShow.push(3);
+      
+      // Show Round 4 if Round 3 exists
+      if (hasRound3) roundsToShow.push(4);
+    }
     
     return (
       <View style={styles.tournamentCard}>
@@ -251,7 +296,7 @@ const TournamentsScreen = () => {
         </TouchableOpacity>
 
         <View style={styles.roundButtons}>
-          {[1, 2, 3, 4].slice(0, maxRoundToShow).map(roundNum => {
+          {roundsToShow.map(roundNum => {
             const hasRound = tournamentRounds.some(r => r.name === `Round ${roundNum}`);
             return (
               <TouchableOpacity
@@ -265,11 +310,21 @@ const TournamentsScreen = () => {
                   color="#fff" 
                 />
                 <Text style={styles.roundButtonText}>
-                  {hasRound ? `Edit` : `Track`} Round {roundNum}
+                  Track Round {roundNum}
                 </Text>
               </TouchableOpacity>
             );
           })}
+          
+          {!item.isComplete && tournamentRounds.length > 0 && (
+            <TouchableOpacity
+              style={[styles.roundButton, styles.completeButton]}
+              onPress={() => markTournamentComplete(item)}
+            >
+              <Icon name="check-circle" size={16} color="#fff" />
+              <Text style={styles.roundButtonText}>Tournament Complete</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.cardActions}>
@@ -597,6 +652,9 @@ const styles = StyleSheet.create({
   },
   roundButtonExists: {
     backgroundColor: '#2196F3',
+  },
+  completeButton: {
+    backgroundColor: '#4CAF50',
   },
   roundButtonText: {
     color: '#fff',

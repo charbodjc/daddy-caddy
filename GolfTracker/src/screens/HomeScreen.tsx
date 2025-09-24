@@ -23,7 +23,6 @@ const HomeScreen = () => {
   const [recentRounds, setRecentRounds] = useState<GolfRound[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [newRoundModal, setNewRoundModal] = useState(false);
-  const [roundName, setRoundName] = useState('');
   const [courseName, setCourseName] = useState('');
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [selectedTournamentId, setSelectedTournamentId] = useState<string | null>(null);
@@ -163,15 +162,6 @@ const HomeScreen = () => {
 
       {/* Recent Rounds */}
       <View style={styles.statsOverview}>
-        {/* New Round Button */}
-        <TouchableOpacity
-          style={[styles.actionButton, styles.primaryButton, styles.fullWidthButton, { marginBottom: 20 }]}
-          onPress={() => setNewRoundModal(true)}
-        >
-          <FontAwesome5 name="plus-circle" size={24} color="#fff" />
-          <Text style={styles.actionButtonText}>New Round</Text>
-        </TouchableOpacity>
-        
         <Text style={styles.sectionTitle}>Recent Rounds</Text>
         {recentRounds.length > 0 ? (
           <View>
@@ -191,9 +181,11 @@ const HomeScreen = () => {
                         <Text style={styles.tournamentName}>{round.tournamentName}</Text>
                       )}
                       <Text style={styles.courseName}>
-                        {round.name || 'Round'} • {round.courseName}
+                        {round.courseName}
                       </Text>
-                      <Text style={styles.roundDate}>{formatDate(round.date)}</Text>
+                      <Text style={styles.roundInfo}>
+                        {round.name || 'Practice Round'} • {formatDate(round.date)}
+                      </Text>
                     </View>
                     <TouchableOpacity 
                       onPress={() => confirmDeleteRound(round)} 
@@ -223,7 +215,7 @@ const HomeScreen = () => {
           <View style={styles.emptyState}>
             <FontAwesome5 name="golf-ball" size={48} color="#ccc" />
             <Text style={styles.emptyStateText}>No rounds yet</Text>
-            <Text style={styles.emptyStateSubtext}>Tap New Round to begin tracking</Text>
+            <Text style={styles.emptyStateSubtext}>Create a tournament to get started</Text>
           </View>
         )}
       </View>
@@ -289,16 +281,8 @@ const HomeScreen = () => {
               />
             )}
             
-            {/* Round Name/Number Selection */}
-            {selectedTournamentId === 'none' ? (
-              <TextInput
-                style={styles.input}
-                placeholder="Round Name (optional)"
-                placeholderTextColor="#666"
-                value={roundName}
-                onChangeText={setRoundName}
-              />
-            ) : selectedTournamentId ? (
+            {/* Round Number Selection - Always use standard naming */}
+            {selectedTournamentId ? (
               <TouchableOpacity 
                 style={styles.dropdownButton}
                 onPress={() => setShowRoundPicker(!showRoundPicker)}
@@ -309,7 +293,7 @@ const HomeScreen = () => {
             ) : null}
             
             {/* Round Number Picker */}
-            {showRoundPicker && selectedTournamentId && selectedTournamentId !== 'none' && (
+            {showRoundPicker && selectedTournamentId && (
               <View style={styles.dropdownList}>
                 {['Round 1', 'Round 2', 'Round 3', 'Round 4'].map(roundNum => (
                   <TouchableOpacity
@@ -354,23 +338,14 @@ const HomeScreen = () => {
                     tournamentName: selectedTournament?.name || undefined,
                   } as any;
                   
-                  // Set round name based on selection
-                  if (selectedTournamentId === 'none') {
-                    // For no tournament, use custom name if provided
-                    if (roundName.trim()) {
-                      (round as any).name = roundName.trim();
-                    }
-                  } else if (selectedTournament) {
-                    // For tournament rounds, use the selected round number
-                    (round as any).name = selectedRoundNumber;
-                  }
+                  // Always use standard round naming
+                  (round as any).name = selectedRoundNumber;
                   
                   await DatabaseService.saveRound({ ...round, holes: [] });
                   await DatabaseService.setPreference('active_round_id', id);
                   
                   // Reset modal state
                   setNewRoundModal(false);
-                  setRoundName('');
                   setCourseName('');
                   setSelectedTournamentId(null);
                   setSelectedRoundNumber('Round 1');
@@ -391,7 +366,6 @@ const HomeScreen = () => {
                 style={[styles.saveButton, { flex: 1 }]} 
                 onPress={() => {
                   setNewRoundModal(false);
-                  setRoundName('');
                   setCourseName('');
                   setSelectedTournamentId(null);
                   setSelectedRoundNumber('Round 1');
@@ -577,6 +551,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+  },
+  roundInfo: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
   },
   tournamentName: {
     fontSize: 14,

@@ -156,8 +156,11 @@ const ShotTrackingScreen = () => {
               });
               
               navigation.goBack();
-            } catch (error) {
-              console.error('Share error:', error);
+            } catch (error: any) {
+              // Silently handle user cancellation
+              if (error?.message !== 'User did not share') {
+                console.error('Share error:', error);
+              }
               navigation.goBack();
             }
           },

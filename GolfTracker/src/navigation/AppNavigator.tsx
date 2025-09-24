@@ -33,7 +33,7 @@ const RoundStack = () => {
       <Stack.Screen 
         name="RoundTracker" 
         component={RoundTrackerScreen}
-        options={{ title: 'Track Round' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen 
         name="HoleDetails" 
@@ -81,7 +81,7 @@ const TournamentStack = () => {
       <Stack.Screen 
         name="RoundTracker" 
         component={RoundTrackerScreen}
-        options={{ title: 'Track Round' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen 
         name="ShotTracking" 
