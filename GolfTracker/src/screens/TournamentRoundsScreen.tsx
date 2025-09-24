@@ -46,12 +46,15 @@ const TournamentRoundsScreen = () => {
   };
 
   const selectRound = (round: GolfRound) => {
-    // Set as active round and navigate to tracker
+    // Set as active round and navigate to scoring tab
     DatabaseService.setPreference('active_round_id', round.id);
-    navigation.navigate('RoundTracker' as never, {
-      roundId: round.id,
-      tournamentId: tournament.id,
-      tournamentName: tournament.name,
+    navigation.getParent()?.navigate('Scoring' as never, {
+      screen: 'RoundTracker',
+      params: {
+        roundId: round.id,
+        tournamentId: tournament.id,
+        tournamentName: tournament.name,
+      }
     } as never);
   };
 
@@ -86,10 +89,13 @@ const TournamentRoundsScreen = () => {
   };
 
   const createNewRound = () => {
-    // Navigate to round tracker with tournament info
-    navigation.navigate('RoundTracker' as never, {
-      tournamentId: tournament.id,
-      tournamentName: tournament.name,
+    // Navigate to scoring tab with tournament info
+    navigation.getParent()?.navigate('Scoring' as never, {
+      screen: 'RoundTracker',
+      params: {
+        tournamentId: tournament.id,
+        tournamentName: tournament.name,
+      }
     } as never);
   };
 

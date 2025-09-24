@@ -21,8 +21,8 @@ import CameraScreen from '../screens/CameraScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-// Stack navigator for Round tracking flow
-const RoundStack = () => {
+// Stack navigator for Scoring/Round tracking flow
+const ScoringStack = () => {
   return (
     <Stack.Navigator
       screenOptions={{
@@ -79,24 +79,9 @@ const TournamentStack = () => {
         options={{ title: 'Tournament Rounds', headerShown: false }}
       />
       <Stack.Screen 
-        name="RoundTracker" 
-        component={RoundTrackerScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen 
-        name="ShotTracking" 
-        component={ShotTrackingScreen}
-        options={{ title: 'Shot Tracking' }}
-      />
-      <Stack.Screen 
         name="RoundSummary" 
         component={RoundSummaryScreen}
         options={{ title: 'Round Summary' }}
-      />
-      <Stack.Screen 
-        name="HoleDetails" 
-        component={HoleDetailsScreen}
-        options={{ title: 'Hole Details' }}
       />
     </Stack.Navigator>
   );
@@ -110,12 +95,12 @@ const AppNavigator = () => {
           tabBarIcon: ({ focused, color, size }) => {
             if (route.name === 'Home') {
               return <FontAwesome5 name="home" size={size} color={color} />;
-            } else if (route.name === 'Round') {
+            } else if (route.name === 'Scoring') {
               return <FontAwesome5 name="golf-ball" size={size} color={color} />;
-            } else if (route.name === 'Stats') {
-              return <FontAwesome5 name="chart-line" size={size} color={color} />;
             } else if (route.name === 'Tournaments') {
               return <FontAwesome5 name="trophy" size={size} color={color} />;
+            } else if (route.name === 'Stats') {
+              return <FontAwesome5 name="chart-line" size={size} color={color} />;
             } else if (route.name === 'Media') {
               return <FontAwesome5 name="images" size={size} color={color} />;
             }
@@ -128,6 +113,7 @@ const AppNavigator = () => {
         })}
       >
         <Tab.Screen name="Home" component={HomeScreen} />
+        <Tab.Screen name="Scoring" component={ScoringStack} />
         <Tab.Screen name="Tournaments" component={TournamentStack} />
         <Tab.Screen name="Stats" component={StatsScreen} />
         <Tab.Screen name="Media" component={MediaScreen} />

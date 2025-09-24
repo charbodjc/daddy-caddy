@@ -19,7 +19,8 @@ import { GolfRound, Contact, MediaItem } from '../types';
 const RoundSummaryScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { roundId } = route.params as { roundId: string };
+  const params = route.params as { roundId?: string } | undefined;
+  const roundId = params?.roundId;
 
   const [round, setRound] = useState<GolfRound | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -29,13 +30,26 @@ const RoundSummaryScreen = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadRoundData();
+    if (roundId) {
+      loadRoundData();
+    } else {
+      console.error('No roundId provided to RoundSummaryScreen');
+      setLoading(false);
+    }
   }, [roundId]);
 
   const loadRoundData = async () => {
     try {
+      console.log('Loading round data for ID:', roundId);
       const roundData = await DatabaseService.getRound(roundId);
       if (roundData) {
+        console.log('Loaded round data:', {
+          id: roundData.id,
+          courseName: roundData.courseName,
+          holesCount: roundData.holes.length,
+          holesWithStrokes: roundData.holes.filter(h => h.strokes > 0).length,
+          totalScore: roundData.totalScore,
+        });
         setRound(roundData);
         
         // Load contacts and media
@@ -75,14 +89,29 @@ const RoundSummaryScreen = () => {
   };
 
   const sendSummary = async () => {
-    if (!round) return;
+    if (!round) {
+      Alert.alert('Error', 'No round data available');
+      return;
+    }
 
-    const result = await SMSService.sendRoundSummary(round, mediaItems);
-    
-    if (result.success) {
-      Alert.alert('Success', 'SMS app opened with your round summary');
-    } else {
-      Alert.alert('Error', result.errors.join('\n'));
+    try {
+      console.log('Sending summary for round:', {
+        id: round.id,
+        courseName: round.courseName,
+        holesCount: round.holes?.length || 0,
+        playedHoles: round.holes?.filter(h => h.strokes > 0).length || 0,
+      });
+
+      const result = await SMSService.sendRoundSummary(round, mediaItems);
+      
+      if (result.success) {
+        Alert.alert('Success', 'SMS app opened with your round summary');
+      } else {
+        Alert.alert('Error', result.errors.join('\n'));
+      }
+    } catch (error) {
+      console.error('Error sending summary:', error);
+      Alert.alert('Error', `Failed to send summary: ${error}`);
     }
   };
 
@@ -94,17 +123,43 @@ const RoundSummaryScreen = () => {
     );
   }
 
+  if (!roundId) {
+    return (
+      <View style={styles.errorContainer}>
+        <Icon name="error-outline" size={48} color="#666" />
+        <Text style={styles.errorText}>No round selected</Text>
+        <Text style={styles.errorSubtext}>Please select a round from your history</Text>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   if (!round) {
     return (
       <View style={styles.errorContainer}>
+        <Icon name="error-outline" size={48} color="#666" />
         <Text style={styles.errorText}>Round not found</Text>
+        <Text style={styles.errorSubtext}>The round data could not be loaded</Text>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   const calculateStats = () => {
-    const totalPar = round.holes.reduce((sum, h) => sum + h.par, 0);
-    const totalStrokes = round.holes.reduce((sum, h) => sum + h.strokes, 0);
+    // Only calculate stats for holes that have been played (strokes > 0)
+    const playedHoles = round.holes.filter(h => h.strokes > 0);
+    const totalPar = playedHoles.reduce((sum, h) => sum + h.par, 0);
+    const totalStrokes = playedHoles.reduce((sum, h) => sum + h.strokes, 0);
     const score = totalStrokes - totalPar;
     
     let eagles = 0;
@@ -113,7 +168,7 @@ const RoundSummaryScreen = () => {
     let bogeys = 0;
     let doubleBogeys = 0;
 
-    round.holes.forEach(hole => {
+    playedHoles.forEach(hole => {
       const holeScore = hole.strokes - hole.par;
       if (holeScore <= -2) eagles++;
       else if (holeScore === -1) birdies++;
@@ -122,7 +177,7 @@ const RoundSummaryScreen = () => {
       else if (holeScore >= 2) doubleBogeys++;
     });
 
-    return { totalPar, totalStrokes, score, eagles, birdies, pars, bogeys, doubleBogeys };
+    return { totalPar, totalStrokes, score, eagles, birdies, pars, bogeys, doubleBogeys, playedHoles: playedHoles.length };
   };
 
   const stats = calculateStats();
@@ -203,19 +258,19 @@ const RoundSummaryScreen = () => {
           <View style={styles.statRow}>
             <Text style={styles.statName}>Fairways Hit</Text>
             <Text style={styles.statValue}>
-              {round.fairwaysHit || 0} / 14 ({Math.round(((round.fairwaysHit || 0) / 14) * 100)}%)
+              {round.fairwaysHit || 0} / {Math.min(14, stats.playedHoles)} ({Math.round(((round.fairwaysHit || 0) / Math.max(1, Math.min(14, stats.playedHoles))) * 100)}%)
             </Text>
           </View>
           <View style={styles.statRow}>
             <Text style={styles.statName}>Greens in Regulation</Text>
             <Text style={styles.statValue}>
-              {round.greensInRegulation || 0} / 18 ({Math.round(((round.greensInRegulation || 0) / 18) * 100)}%)
+              {round.greensInRegulation || 0} / {stats.playedHoles} ({Math.round(((round.greensInRegulation || 0) / Math.max(1, stats.playedHoles)) * 100)}%)
             </Text>
           </View>
           <View style={styles.statRow}>
             <Text style={styles.statName}>Average Putts per Hole</Text>
             <Text style={styles.statValue}>
-              {((round.totalPutts || 0) / round.holes.length).toFixed(1)}
+              {((round.totalPutts || 0) / Math.max(1, stats.playedHoles)).toFixed(1)}
             </Text>
           </View>
         </View>
@@ -243,7 +298,7 @@ const RoundSummaryScreen = () => {
           <View style={styles.scorecard}>
             <View style={styles.scorecardRow}>
               <Text style={styles.scorecardLabel}>Hole</Text>
-              {round.holes.map(hole => (
+              {round.holes.filter(h => h.strokes > 0).map(hole => (
                 <Text key={hole.holeNumber} style={styles.scorecardCell}>
                   {hole.holeNumber}
                 </Text>
@@ -251,7 +306,7 @@ const RoundSummaryScreen = () => {
             </View>
             <View style={styles.scorecardRow}>
               <Text style={styles.scorecardLabel}>Par</Text>
-              {round.holes.map(hole => (
+              {round.holes.filter(h => h.strokes > 0).map(hole => (
                 <Text key={hole.holeNumber} style={styles.scorecardCell}>
                   {hole.par}
                 </Text>
@@ -259,7 +314,7 @@ const RoundSummaryScreen = () => {
             </View>
             <View style={styles.scorecardRow}>
               <Text style={styles.scorecardLabel}>Score</Text>
-              {round.holes.map(hole => {
+              {round.holes.filter(h => h.strokes > 0).map(hole => {
                 const diff = hole.strokes - hole.par;
                 let color = '#333';
                 if (diff <= -2) color = '#FFD700';
@@ -324,10 +379,31 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   errorText: {
-    fontSize: 16,
+    fontSize: 18,
+    color: '#333',
+    fontWeight: '600',
+    marginTop: 16,
+  },
+  errorSubtext: {
+    fontSize: 14,
     color: '#666',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  backButton: {
+    marginTop: 24,
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   header: {
     backgroundColor: '#4CAF50',

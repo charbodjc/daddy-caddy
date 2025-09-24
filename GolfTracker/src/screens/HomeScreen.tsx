@@ -111,9 +111,9 @@ const HomeScreen = () => {
   };
 
   const openRound = (roundId: string) => {
-    // Set as active round and navigate to tracker
+    // Set as active round and navigate to scoring tab
     DatabaseService.setPreference('active_round_id', roundId);
-    navigation.navigate('Tournaments' as never, { 
+    navigation.navigate('Scoring' as never, { 
       screen: 'RoundTracker', 
       params: { roundId } 
     } as never);
@@ -355,8 +355,8 @@ const HomeScreen = () => {
                   // Reload data to show new round
                   await loadData();
                   
-                  // Navigate to round tracker
-                  navigation.navigate('Tournaments' as never, { screen: 'RoundTracker', params: { roundId: id } } as never);
+                  // Navigate to scoring tab
+                  navigation.navigate('Scoring' as never, { screen: 'RoundTracker', params: { roundId: id } } as never);
                 }}
               >
                 <Text style={styles.saveButtonText}>Start Round</Text>

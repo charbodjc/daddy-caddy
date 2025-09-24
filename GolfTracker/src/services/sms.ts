@@ -82,8 +82,26 @@ class SMSService {
   }
 
   private calculateRoundStats(round: GolfRound) {
-    const totalPar = round.holes.reduce((sum, hole) => sum + hole.par, 0);
-    const totalStrokes = round.holes.reduce((sum, hole) => sum + hole.strokes, 0);
+    // Only calculate stats for holes that have been played (strokes > 0)
+    const playedHoles = round.holes.filter(hole => hole.strokes > 0);
+    
+    if (playedHoles.length === 0) {
+      return {
+        totalScore: 0,
+        scoreVsPar: 'E',
+        eagles: 0,
+        birdies: 0,
+        pars: 0,
+        bogeys: 0,
+        doubleBogeys: 0,
+        fairwaysHit: 0,
+        greensInRegulation: 0,
+        totalPutts: 0,
+      };
+    }
+
+    const totalPar = playedHoles.reduce((sum, hole) => sum + hole.par, 0);
+    const totalStrokes = playedHoles.reduce((sum, hole) => sum + hole.strokes, 0);
     const score = totalStrokes - totalPar;
 
     let eagles = 0;
@@ -92,7 +110,7 @@ class SMSService {
     let bogeys = 0;
     let doubleBogeys = 0;
 
-    round.holes.forEach(hole => {
+    playedHoles.forEach(hole => {
       const holeScore = hole.strokes - hole.par;
       if (holeScore <= -2) eagles++;
       else if (holeScore === -1) birdies++;
@@ -103,7 +121,7 @@ class SMSService {
 
     return {
       totalScore: totalStrokes,
-      scoreVsPar: score > 0 ? `+${score}` : score.toString(),
+      scoreVsPar: score > 0 ? `+${score}` : score === 0 ? 'E' : score.toString(),
       eagles,
       birdies,
       pars,
@@ -112,6 +130,7 @@ class SMSService {
       fairwaysHit: round.fairwaysHit || 0,
       greensInRegulation: round.greensInRegulation || 0,
       totalPutts: round.totalPutts || 0,
+      playedHoles: playedHoles.length,
     };
   }
 
@@ -141,8 +160,14 @@ class SMSService {
     if (stats.doubleBogeys > 0) message += `😔 Double+: ${stats.doubleBogeys}\n`;
     
     message += `\n`;
-    message += `🎯 Fairways: ${stats.fairwaysHit}/14\n`;
-    message += `🟢 GIR: ${stats.greensInRegulation}/18\n`;
+    const holesPlayed = stats.playedHoles || round.holes.filter(h => h.strokes > 0).length;
+    const par3Count = round.holes.filter(h => h.par === 3 && h.strokes > 0).length;
+    const fairwayHoles = Math.max(0, holesPlayed - par3Count);
+    
+    if (fairwayHoles > 0) {
+      message += `🎯 Fairways: ${stats.fairwaysHit}/${fairwayHoles}\n`;
+    }
+    message += `🟢 GIR: ${stats.greensInRegulation}/${holesPlayed}\n`;
     message += `🏌️ Putts: ${stats.totalPutts}\n`;
     
     if (mediaCount > 0) {
@@ -162,22 +187,26 @@ class SMSService {
       }
     }
 
-    // Add hole-by-hole highlights
-    const bestHole = round.holes.reduce((best, hole) => {
-      const score = hole.strokes - hole.par;
-      const bestScore = best.strokes - best.par;
-      return score < bestScore ? hole : best;
-    });
+    // Add hole-by-hole highlights only for played holes
+    const playedHoles = round.holes.filter(hole => hole.strokes > 0);
+    
+    if (playedHoles.length > 0) {
+      const bestHole = playedHoles.reduce((best, hole) => {
+        const score = hole.strokes - hole.par;
+        const bestScore = best.strokes - best.par;
+        return score < bestScore ? hole : best;
+      });
 
-    const worstHole = round.holes.reduce((worst, hole) => {
-      const score = hole.strokes - hole.par;
-      const worstScore = worst.strokes - worst.par;
-      return score > worstScore ? hole : worst;
-    });
+      const worstHole = playedHoles.reduce((worst, hole) => {
+        const score = hole.strokes - hole.par;
+        const worstScore = worst.strokes - worst.par;
+        return score > worstScore ? hole : worst;
+      });
 
-    message += `\n`;
-    message += `🌟 Best Hole: #${bestHole.holeNumber} (${this.getScoreName(bestHole.strokes - bestHole.par)})\n`;
-    message += `😅 Tough Hole: #${worstHole.holeNumber} (${this.getScoreName(worstHole.strokes - worstHole.par)})\n`;
+      message += `\n`;
+      message += `🌟 Best Hole: #${bestHole.holeNumber} (${this.getScoreName(bestHole.strokes - bestHole.par)})\n`;
+      message += `😅 Tough Hole: #${worstHole.holeNumber} (${this.getScoreName(worstHole.strokes - worstHole.par)})\n`;
+    }
 
     return message;
   }

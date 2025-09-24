@@ -117,6 +117,52 @@ const ShotTrackingScreen = () => {
     await onSave(updatedHole);
   };
 
+  const generateDetailedShotDescription = (shots: Shot[], par: number): string => {
+    if (shots.length === 0) return 'No shots recorded yet';
+    
+    const scoreName = (() => {
+      const diff = shots.length - par;
+      if (diff <= -3) return 'Albatross! 🦅🦅';
+      if (diff === -2) return 'Eagle! 🦅';
+      if (diff === -1) return 'Birdie 🐦';
+      if (diff === 0) return 'Par ✅';
+      if (diff === 1) return 'Bogey';
+      if (diff === 2) return 'Double Bogey';
+      if (diff === 3) return 'Triple Bogey';
+      return `+${diff}`;
+    })();
+
+    let message = `Hole ${hole.holeNumber} - Par ${par}\n`;
+    message += `Score: ${shots.length} strokes (${scoreName})\n\n`;
+    message += `Shot by shot:\n`;
+    
+    shots.forEach((shot, index) => {
+      const shotNum = index + 1;
+      const shotTypeLabel = SHOT_TYPES.ROW1.concat(SHOT_TYPES.ROW2).find(t => t.id === shot.type)?.label || shot.type;
+      
+      message += `${shotNum}. ${shotTypeLabel}`;
+      
+      if (shot.results && shot.results.length > 0) {
+        const resultDescriptions = shot.results.map(r => {
+          const result = SHOT_RESULTS.ROW1.concat(SHOT_RESULTS.ROW2).find(res => res.id === r);
+          return result?.label || r;
+        });
+        message += ` - ${resultDescriptions.join(', ')}`;
+      }
+      
+      message += '\n';
+    });
+    
+    // Add final result
+    if (shots.length <= par - 1) {
+      message += '\n🎉 Outstanding play!';
+    } else if (shots.length === par) {
+      message += '\n⛳ Solid par!';
+    }
+    
+    return message;
+  };
+
   const handleSave = async () => {
     // Save the hole data
     await autoSave(shots, par);
@@ -135,23 +181,17 @@ const ShotTrackingScreen = () => {
           text: 'Yes',
           onPress: async () => {
             try {
-              // Generate AI summary
-              const aiService = new AIHoleAnalysisService();
-              const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
-              const summary = await aiService.analyzeHoleWithMedia({
-                ...hole,
-                par,
-                strokes: shots.length,
-                shotData: JSON.stringify({ par, shots }),
-              }, media);
+              // Generate detailed shot description
+              const detailedDescription = generateDetailedShotDescription(shots, par);
               
-              // Prepare media for sharing
+              // Get media for the hole
+              const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
               const mediaUrls = media.map(m => m.uri).filter(uri => uri);
               
               // Share using react-native-share
               await Share.open({
-                title: `Hole ${hole.holeNumber} Summary`,
-                message: summary,
+                title: `Hole ${hole.holeNumber} - Shot Details`,
+                message: detailedDescription,
                 urls: mediaUrls,
               });
               
@@ -347,28 +387,35 @@ const ShotTrackingScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Compact Header */}
+      {/* Compact Header with Score */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={20} color="#fff" />
         </TouchableOpacity>
         
-        <Text style={styles.holeLabel}>Hole {hole.holeNumber}</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.holeLabel}>Hole {hole.holeNumber} • Par {par}</Text>
+          {shots.length > 0 && (
+            <Text style={styles.scoreLabel}>
+              Score: {shots.length} {shots.length === par ? '(E)' : shots.length < par ? `(${shots.length - par})` : `(+${shots.length - par})`}
+            </Text>
+          )}
+        </View>
         
         <View style={styles.mediaButtons}>
           <TouchableOpacity 
             onPress={() => handleMediaCapture('photo')} 
-            style={styles.mediaButtonLarge}
+            style={styles.mediaButtonCompact}
             disabled={isCapturing}
           >
             {isCapturing ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Ionicons name="camera" size={24} color="#fff" />
+                <Ionicons name="camera" size={20} color="#fff" />
                 {mediaCount.photos > 0 && (
-                  <View style={styles.mediaBadge}>
-                    <Text style={styles.mediaBadgeText}>{mediaCount.photos}</Text>
+                  <View style={styles.mediaBadgeCompact}>
+                    <Text style={styles.mediaBadgeTextCompact}>{mediaCount.photos}</Text>
                   </View>
                 )}
               </>
@@ -377,17 +424,17 @@ const ShotTrackingScreen = () => {
           
           <TouchableOpacity 
             onPress={() => handleMediaCapture('video')} 
-            style={styles.mediaButtonLarge}
+            style={styles.mediaButtonCompact}
             disabled={isCapturing}
           >
             {isCapturing ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Ionicons name="videocam" size={24} color="#fff" />
+                <Ionicons name="videocam" size={20} color="#fff" />
                 {mediaCount.videos > 0 && (
-                  <View style={styles.mediaBadge}>
-                    <Text style={styles.mediaBadgeText}>{mediaCount.videos}</Text>
+                  <View style={styles.mediaBadgeCompact}>
+                    <Text style={styles.mediaBadgeTextCompact}>{mediaCount.videos}</Text>
                   </View>
                 )}
               </>
@@ -480,7 +527,7 @@ const ShotTrackingScreen = () => {
                   onPress={() => handleShotTypeSelection(type.label)}
                 >
                   <Icon name={type.icon} size={24} color="#333" />
-                  <Text style={styles.typeButtonLabel} numberOfLines={2} adjustsFontSizeToFit>
+                  <Text style={styles.typeButtonLabel}>
                     {type.label}
                   </Text>
                 </TouchableOpacity>
@@ -498,7 +545,7 @@ const ShotTrackingScreen = () => {
                   ) : (
                     <Icon name={type.icon} size={24} color="#333" />
                   )}
-                  <Text style={styles.typeButtonLabel} numberOfLines={2} adjustsFontSizeToFit>
+                  <Text style={styles.typeButtonLabel}>
                     {type.label}
                   </Text>
                 </TouchableOpacity>
@@ -651,8 +698,8 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#4CAF50',
-    paddingTop: 45,
-    paddingBottom: 10,
+    paddingTop: 40,
+    paddingBottom: 8,
     paddingHorizontal: 15,
     flexDirection: 'row',
     alignItems: 'center',
@@ -666,10 +713,21 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 5,
   },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 10,
+  },
   holeLabel: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
+  },
+  scoreLabel: {
+    color: '#fff',
+    fontSize: 12,
+    marginTop: 2,
+    opacity: 0.9,
   },
   parButtons: {
     flexDirection: 'row',
@@ -719,6 +777,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  mediaButtonCompact: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 8,
+    borderRadius: 16,
+    position: 'relative',
+    minWidth: 36,
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   mediaBadge: {
     position: 'absolute',
     top: -5,
@@ -733,6 +801,22 @@ const styles = StyleSheet.create({
   mediaBadgeText: {
     color: '#fff',
     fontSize: 10,
+    fontWeight: 'bold',
+  },
+  mediaBadgeCompact: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: '#ff6b6b',
+    borderRadius: 6,
+    minWidth: 14,
+    height: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mediaBadgeTextCompact: {
+    color: '#fff',
+    fontSize: 9,
     fontWeight: 'bold',
   },
   content: {
@@ -847,11 +931,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   typeButtonLabel: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '600',
     color: '#333',
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 3,
   },
   resultButton: {
     backgroundColor: '#f0f0f0',

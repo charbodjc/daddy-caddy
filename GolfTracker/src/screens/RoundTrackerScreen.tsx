@@ -19,6 +19,7 @@ import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import DatabaseService from '../services/database';
 import MediaService from '../services/media';
+import RoundManager from '../utils/roundManager';
 import { GolfRound, GolfHole, Tournament } from '../types';
 
 const RoundTrackerScreen = () => {
@@ -156,14 +157,14 @@ const RoundTrackerScreen = () => {
       Alert.alert('Error', 'Please enter a course name');
       return;
     }
-    // Generate a round ID for this session
-    const newRoundId = Date.now().toString();
+    // Generate a unique round ID for this session
+    const newRoundId = RoundManager.generateRoundId();
     setRoundId(newRoundId);
     setIsStarted(true);
     
-    // Save the active round ID to preferences
+    // Save the active round ID using RoundManager
     try {
-      await DatabaseService.setPreference('active_round_id', newRoundId);
+      await RoundManager.setActiveRound(newRoundId);
       
       // Create a preliminary round in the database
       const newRound: GolfRound = {
@@ -183,8 +184,10 @@ const RoundTrackerScreen = () => {
       
       await DatabaseService.saveRound(newRound);
       setActiveRound(newRound);
+      console.log('New round started with ID:', newRoundId);
     } catch (error) {
       console.error('Error saving active round:', error);
+      Alert.alert('Error', 'Failed to start round. Please try again.');
     }
   };
 
@@ -272,7 +275,7 @@ const RoundTrackerScreen = () => {
     };
   };
 
-  const viewSummary = () => {
+  const viewSummary = async () => {
     const stats = calculateScore();
     
     if (stats.completedHoles === 0) {
@@ -280,21 +283,49 @@ const RoundTrackerScreen = () => {
       return;
     }
 
-    // Navigate to summary without marking as finished
-    const currentRound: GolfRound = {
-      id: roundId || activeRound?.id || Date.now().toString(),
-      courseName: courseName || activeRound?.courseName || 'Unknown Course',
-      date: activeRound?.date || new Date(),
-      holes: holes,
-      totalScore: stats.totalStrokes,
-      isFinished: false,
-      tournamentId: selectedTournamentId || activeRound?.tournamentId || tournamentId,
-      tournamentName: selectedTournamentName || activeRound?.tournamentName || tournamentName,
-    };
+    try {
+      // Ensure we have a valid round ID
+      const currentRoundId = roundId || activeRound?.id;
+      if (!currentRoundId) {
+        Alert.alert('Error', 'No active round found');
+        return;
+      }
 
-    navigation.navigate('RoundSummary' as never, {
-      roundId: currentRound.id,
-    } as never);
+      // Save the current round data to database before navigating to summary
+      const currentRound: GolfRound = {
+        id: currentRoundId,
+        courseName: courseName || activeRound?.courseName || 'Unknown Course',
+        date: activeRound?.date || new Date(),
+        holes: holes,  // Keep all holes for view summary (including unplayed ones)
+        totalScore: stats.totalStrokes,
+        totalPutts: holes.reduce((sum, h) => sum + (h.putts || 0), 0),
+        fairwaysHit: holes.filter(h => h.fairwayHit === true).length,
+        greensInRegulation: holes.filter(h => h.greenInRegulation === true).length,
+        isFinished: false,
+        tournamentId: selectedTournamentId || activeRound?.tournamentId || tournamentId,
+        tournamentName: selectedTournamentName || activeRound?.tournamentName || tournamentName,
+        createdAt: activeRound?.createdAt || new Date(),
+        updatedAt: new Date(),
+      };
+
+      // Save the round to ensure database has latest data
+      console.log('Saving round for summary view:', {
+        id: currentRound.id,
+        courseName: currentRound.courseName,
+        holesWithStrokes: currentRound.holes.filter(h => h.strokes > 0).length,
+        totalStrokes: currentRound.totalScore,
+      });
+      await DatabaseService.saveRound(currentRound);
+
+      // Navigate to summary screen with the round ID
+      console.log('Navigating to summary with roundId:', currentRoundId);
+      navigation.navigate('RoundSummary' as never, {
+        roundId: currentRoundId,
+      } as never);
+    } catch (error) {
+      console.error('Error saving round for summary:', error);
+      Alert.alert('Error', 'Failed to save round data. Please try again.');
+    }
   };
 
   const finishRound = async () => {
@@ -510,82 +541,39 @@ const RoundTrackerScreen = () => {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={styles.container}>
-      {/* Custom Header */}
+      {/* Combined Header with Score and Actions */}
       <View style={styles.customHeader}>
-        <Text style={styles.headerTitle}>{courseName || 'Golf Course'}</Text>
-        {tournamentName && (
-          <Text style={styles.headerSubtitle}>{tournamentName}</Text>
-        )}
-      </View>
-      
-      {/* Action Bar */}
-      <View style={styles.actionBar}>
         <TouchableOpacity
-          style={styles.actionButton}
+          style={styles.headerBackButton}
           onPress={() => navigation.goBack()}
         >
-          <Icon name="arrow-back" size={20} color="#333" />
-          <Text style={styles.actionButtonText}>Back</Text>
+          <Icon name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
         
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={deleteRound}
-        >
-          <Icon name="delete" size={20} color="#ff6b6b" />
-          <Text style={[styles.actionButtonText, { color: '#ff6b6b' }]}>Delete Round</Text>
-        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>{courseName || 'Golf Course'}</Text>
+          {tournamentName && (
+            <Text style={styles.headerSubtitle}>{tournamentName}</Text>
+          )}
+          <Text style={styles.headerScore}>
+            Score: {stats.totalStrokes || 0} ({stats.score > 0 ? '+' : ''}{stats.score})
+          </Text>
+        </View>
         
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={viewSummary}
-        >
-          <Icon name="bar-chart" size={20} color="#4CAF50" />
-          <Text style={[styles.actionButtonText, { color: '#4CAF50' }]}>View Summary</Text>
-        </TouchableOpacity>
-      </View>
-      
-      {/* Score Info */}
-      <View style={styles.header}>
-        <View style={styles.mediaButtons}>
+        <View style={styles.headerActions}>
           <TouchableOpacity
-            style={styles.mediaButton}
-            onPress={async () => {
-              try {
-                const media = await MediaService.capturePhoto(roundId, currentHole);
-                if (media) {
-                  Alert.alert('Success', 'Photo saved to album');
-                }
-              } catch (error) {
-                Alert.alert('Error', 'Failed to capture photo');
-              }
-            }}
+            style={styles.headerIconButton}
+            onPress={deleteRound}
           >
-            <FontAwesome5 name="camera" size={20} color="#fff" />
+            <Icon name="delete" size={20} color="#ff6b6b" />
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={styles.mediaButton}
-            onPress={async () => {
-              try {
-                const media = await MediaService.captureVideo(roundId, currentHole);
-                if (media) {
-                  Alert.alert('Success', 'Video saved to album');
-                }
-              } catch (error) {
-                Alert.alert('Error', 'Failed to capture video');
-              }
-            }}
+            style={styles.headerIconButton}
+            onPress={viewSummary}
           >
-            <FontAwesome5 name="video" size={20} color="#fff" />
+            <Icon name="bar-chart" size={20} color="#fff" />
           </TouchableOpacity>
-        </View>
-        
-        <View style={styles.scoreInfo}>
-          <Text style={styles.scoreLabel}>Score</Text>
-          <Text style={styles.scoreValue}>
-            {stats.score > 0 ? '+' : ''}{stats.score}
-          </Text>
         </View>
       </View>
 
@@ -697,20 +685,40 @@ const styles = StyleSheet.create({
   },
   customHeader: {
     backgroundColor: '#4CAF50',
-    paddingTop: 50,
-    paddingBottom: 15,
-    paddingHorizontal: 20,
+    paddingTop: 45,
+    paddingBottom: 12,
+    paddingHorizontal: 15,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerBackButton: {
+    padding: 5,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 10,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 2,
+  },
+  headerScore: {
+    fontSize: 14,
+    color: '#fff',
     marginTop: 4,
+    fontWeight: '600',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 12,
   },
   actionBar: {
     backgroundColor: '#fff',
@@ -806,7 +814,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   headerIconButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     padding: 8,
+    borderRadius: 20,
   },
   mediaButtons: {
     flexDirection: 'row',
