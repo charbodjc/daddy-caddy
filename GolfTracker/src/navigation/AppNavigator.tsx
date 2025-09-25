@@ -17,6 +17,8 @@ import TournamentsScreen from '../screens/TournamentsScreen';
 import TournamentRoundsScreen from '../screens/TournamentRoundsScreen';
 import RoundSummaryScreen from '../screens/RoundSummaryScreen';
 import CameraScreen from '../screens/CameraScreen';
+import SettingsScreen from '../screens/SettingsScreen';
+import DatabaseDiagnosticScreen from '../screens/DatabaseDiagnosticScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -43,7 +45,7 @@ const ScoringStack = () => {
       <Stack.Screen 
         name="ShotTracking" 
         component={ShotTrackingScreen}
-        options={{ title: 'Shot Tracking' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen 
         name="HoleSummary" 
@@ -87,6 +89,24 @@ const TournamentStack = () => {
   );
 };
 
+// Stack navigator for Settings
+const SettingsStack = () => {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen 
+        name="SettingsList" 
+        component={SettingsScreen}
+        options={{ title: 'Settings', headerShown: false }}
+      />
+      <Stack.Screen 
+        name="DatabaseDiagnostic" 
+        component={DatabaseDiagnosticScreen}
+        options={{ title: 'Database Diagnostics', headerShown: false }}
+      />
+    </Stack.Navigator>
+  );
+};
+
 const AppNavigator = () => {
   return (
     <NavigationContainer>
@@ -103,6 +123,8 @@ const AppNavigator = () => {
               return <FontAwesome5 name="chart-line" size={size} color={color} />;
             } else if (route.name === 'Media') {
               return <FontAwesome5 name="images" size={size} color={color} />;
+            } else if (route.name === 'Settings') {
+              return <Icon name="settings" size={size} color={color} />;
             }
 
             return <Icon name="home" size={size} color={color} />;
@@ -117,6 +139,7 @@ const AppNavigator = () => {
         <Tab.Screen name="Tournaments" component={TournamentStack} />
         <Tab.Screen name="Stats" component={StatsScreen} />
         <Tab.Screen name="Media" component={MediaScreen} />
+        <Tab.Screen name="Settings" component={SettingsStack} />
       </Tab.Navigator>
     </NavigationContainer>
   );

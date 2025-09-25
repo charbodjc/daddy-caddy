@@ -7,9 +7,49 @@ import {
 } from 'react-native-image-picker';
 import { Platform, PermissionsAndroid } from 'react-native';
 import DatabaseService from './database';
+import RNFS from 'react-native-fs';
 import { MediaItem } from '../types';
 
 class MediaService {
+  private mediaDir: string = `${RNFS.DocumentDirectoryPath}/media`;
+
+  constructor() {
+    // Ensure media directory exists
+    this.ensureMediaDirectory();
+  }
+
+  private async ensureMediaDirectory(): Promise<void> {
+    try {
+      const exists = await RNFS.exists(this.mediaDir);
+      if (!exists) {
+        await RNFS.mkdir(this.mediaDir);
+        console.log('📁 Created media directory');
+      }
+    } catch (error) {
+      console.error('Error creating media directory:', error);
+    }
+  }
+
+  private async copyToPermamentStorage(tempUri: string, mediaType: 'photo' | 'video'): Promise<string> {
+    try {
+      const timestamp = Date.now();
+      const extension = mediaType === 'photo' ? '.jpg' : '.mp4';
+      const fileName = `${mediaType}_${timestamp}${extension}`;
+      const destPath = `${this.mediaDir}/${fileName}`;
+      
+      // Copy file to permanent storage
+      await RNFS.copyFile(tempUri, destPath);
+      console.log(`📁 Copied ${mediaType} to: ${destPath}`);
+      
+      // Return the new permanent path
+      return destPath;
+    } catch (error) {
+      console.error('Error copying media to permanent storage:', error);
+      // Fall back to original URI if copy fails
+      return tempUri;
+    }
+  }
+
   private async requestPermissions(): Promise<boolean> {
     if (Platform.OS === 'ios') {
       // iOS permissions are handled automatically
@@ -176,15 +216,17 @@ class MediaService {
       maxWidth: 2000,
       quality: 0.9,
       saveToPhotos: true,
+      includeExtra: true, // Include extra metadata
     } : {
       mediaType: 'video',
       videoQuality: 'medium', // Changed from 'high' to 'medium' for better compatibility
       durationLimit: 30, // Reduced from 60 to 30 seconds
       saveToPhotos: true,
+      includeExtra: true, // Include extra metadata
     };
 
     return new Promise((resolve, reject) => {
-      launchCamera(options, (response: ImagePickerResponse) => {
+      launchCamera(options, async (response: ImagePickerResponse) => {
         if (response.didCancel) {
           resolve(null);
           return;
@@ -205,18 +247,30 @@ class MediaService {
         if (response.assets && response.assets[0]) {
           const asset = response.assets[0];
           
-          const mediaItem: MediaItem = {
-            id: Date.now().toString(),
-            uri: asset.uri!,
-            type: type,
-            roundId: '', // Will be set when saving
-            holeNumber: undefined,
-            timestamp: new Date(),
-            description: '',
-          };
+          console.log(`📷 Media captured: URI=${asset.uri}, Type=${type}`);
+          console.log(`Asset details:`, asset);
           
-          resolve(mediaItem);
+          try {
+            // Copy to permanent storage
+            const permanentUri = await this.copyToPermamentStorage(asset.uri!, type);
+            
+            const mediaItem: MediaItem = {
+              id: Date.now().toString(),
+              uri: permanentUri,
+              type: type,
+              roundId: '', // Will be set when saving
+              holeNumber: undefined,
+              timestamp: new Date(),
+              description: '',
+            };
+            
+            resolve(mediaItem);
+          } catch (error) {
+            console.error('Error processing media:', error);
+            reject(error);
+          }
         } else {
+          console.log('No asset returned from camera');
           resolve(null);
         }
       });

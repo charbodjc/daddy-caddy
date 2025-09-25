@@ -16,10 +16,11 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import DatabaseService from '../services/database';
 import MediaService from '../services/media';
 import RoundManager from '../utils/roundManager';
+import RoundDeletionManager from '../utils/RoundDeletionManager';
 import { GolfRound, GolfHole, Tournament } from '../types';
 
 const RoundTrackerScreen = () => {
@@ -59,6 +60,7 @@ const RoundTrackerScreen = () => {
         const completedHoles = holes.filter(h => h.strokes > 0);
         const partialRound: GolfRound = {
           id: roundId || activeRound!.id,
+          name: activeRound?.name,  // Preserve the round name
           tournamentId: activeRound?.tournamentId || tournamentId,
           tournamentName: activeRound?.tournamentName || tournamentName,
           courseName: activeRound?.courseName || courseName,
@@ -71,6 +73,34 @@ const RoundTrackerScreen = () => {
       }
     };
   }, [isStarted, roundId, activeRound, holes, tournamentId, tournamentName, courseName]); // Reload when roundId changes
+
+  // Listen for round deletions
+  useFocusEffect(
+    React.useCallback(() => {
+      const cleanup = RoundDeletionManager.addListener((deletedRoundId) => {
+        // If the deleted round is the current round, reset the screen
+        if (deletedRoundId === roundId || deletedRoundId === activeRound?.id) {
+          console.log('Current round was deleted, resetting screen');
+          resetToDefaultState();
+        }
+      });
+
+      return cleanup;
+    }, [roundId, activeRound])
+  );
+
+  const resetToDefaultState = () => {
+    setRoundId('');
+    setActiveRound(null);
+    setIsStarted(false);
+    setCourseName('');
+    setSelectedTournamentId(undefined);
+    setSelectedTournamentName(undefined);
+    initializeHoles();
+    setCurrentHole(1);
+    // Clear the active round preference
+    DatabaseService.setPreference('active_round_id', '');
+  };
 
   const loadActiveRound = async () => {
     try {
@@ -88,18 +118,34 @@ const RoundTrackerScreen = () => {
           setCourseName(round.courseName || 'Unknown Course');
           setIsStarted(true);
           setActiveRound(round);
+          // Set tournament info from the loaded round
+          setSelectedTournamentId(round.tournamentId || tournamentId);
+          setSelectedTournamentName(round.tournamentName || tournamentName);
+          
+          console.log('Round holes data:', {
+            hasHoles: !!round.holes,
+            holesLength: round.holes?.length,
+            firstHole: round.holes?.[0],
+            holesWithStrokes: round.holes?.filter(h => h.strokes > 0).length
+          });
           
           // Always ensure we have holes data
           if (round.holes && round.holes.length > 0) {
+            console.log('Setting holes from loaded round');
             setHoles(round.holes);
             // Find the next unplayed hole
             const nextHole = round.holes.find(h => h.strokes === 0);
             if (nextHole) {
               setCurrentHole(nextHole.holeNumber);
+            } else {
+              // All holes played, go to last hole
+              setCurrentHole(18);
             }
           } else {
+            console.log('No holes in round, initializing new holes');
             // Initialize holes if they don't exist
             const newHoles = initializeHoles();
+            setHoles(newHoles);
             // Save the initialized holes to the round
             if (round.id) {
               const updatedRound = { ...round, holes: newHoles };
@@ -202,6 +248,7 @@ const RoundTrackerScreen = () => {
       const completedHoles = newHoles.filter(h => h.strokes > 0);
       const partialRound: GolfRound = {
         id: roundId || activeRound!.id,
+        name: activeRound?.name,  // Preserve the round name
         tournamentId: activeRound?.tournamentId || tournamentId,
         tournamentName: activeRound?.tournamentName || tournamentName,
         courseName: activeRound?.courseName || courseName,
@@ -232,6 +279,8 @@ const RoundTrackerScreen = () => {
     navigation.navigate('ShotTracking' as never, {
       hole: updatedHoles[holeNumber - 1],
       roundId: roundId,
+      roundName: activeRound?.name,
+      tournamentName: tournamentName,
       preselectedShotType: par === 3 ? 'Approach' : 'Tee Shot',
       onSave: async (updatedHole: GolfHole) => {
         await updateHole(holeNumber, updatedHole);
@@ -250,6 +299,8 @@ const RoundTrackerScreen = () => {
       navigation.navigate('ShotTracking' as never, {
         hole: hole,
         roundId: roundId,
+        roundName: activeRound?.name,
+        tournamentName: tournamentName,
         onSave: async (updatedHole: GolfHole) => {
           await updateHole(holeNumber, updatedHole);
         },
@@ -275,6 +326,64 @@ const RoundTrackerScreen = () => {
     };
   };
 
+  const saveAndNavigateToTournament = async () => {
+    try {
+      // Save the current round data
+      const currentRoundId = roundId || activeRound?.id;
+      if (!currentRoundId) {
+        Alert.alert('Error', 'No active round to save');
+        return;
+      }
+
+      const calculatedStats = calculateScore();
+      const currentRound: GolfRound = {
+        id: currentRoundId,
+        name: activeRound?.name,
+        courseName: courseName || activeRound?.courseName || 'Unknown Course',
+        date: activeRound?.date || new Date(),
+        holes: holes,
+        totalScore: calculatedStats.totalStrokes,
+        totalPutts: holes.reduce((sum, h) => sum + (h.putts || 0), 0),
+        fairwaysHit: holes.filter(h => h.fairwayHit === true).length,
+        greensInRegulation: holes.filter(h => h.greenInRegulation === true).length,
+        isFinished: false,
+        tournamentId: selectedTournamentId || activeRound?.tournamentId || tournamentId,
+        tournamentName: selectedTournamentName || activeRound?.tournamentName || tournamentName,
+        createdAt: activeRound?.createdAt || new Date(),
+        updatedAt: new Date(),
+      };
+
+      // Save the round
+      await DatabaseService.saveRound(currentRound);
+      
+      // Navigate to the tournament rounds screen if this round belongs to a tournament
+      if (currentRound.tournamentId) {
+        // Get the tournament details
+        const tournaments = await DatabaseService.getTournaments();
+        const tournament = tournaments.find(t => t.id === currentRound.tournamentId);
+        
+        if (tournament) {
+          // Navigate to the Tournament tab and then to the rounds screen
+          navigation.getParent()?.navigate('Tournaments' as never, {
+            screen: 'TournamentRounds',
+            params: {
+              tournament: tournament
+            }
+          } as never);
+        } else {
+          // If no tournament found, just go to tournaments list
+          navigation.getParent()?.navigate('Tournaments' as never);
+        }
+      } else {
+        // If no tournament, just go to tournaments tab
+        navigation.getParent()?.navigate('Tournaments' as never);
+      }
+    } catch (error) {
+      console.error('Error saving round:', error);
+      Alert.alert('Error', 'Failed to save round');
+    }
+  };
+
   const viewSummary = async () => {
     const stats = calculateScore();
     
@@ -294,6 +403,7 @@ const RoundTrackerScreen = () => {
       // Save the current round data to database before navigating to summary
       const currentRound: GolfRound = {
         id: currentRoundId,
+        name: activeRound?.name,  // Preserve the round name
         courseName: courseName || activeRound?.courseName || 'Unknown Course',
         date: activeRound?.date || new Date(),
         holes: holes,  // Keep all holes for view summary (including unplayed ones)
@@ -348,6 +458,7 @@ const RoundTrackerScreen = () => {
             try {
               const round: GolfRound = {
                 id: roundId,
+                name: activeRound?.name,  // Preserve the round name
                 tournamentId: selectedTournamentId,
                 tournamentName: selectedTournamentName,
                 courseName,
@@ -392,8 +503,8 @@ const RoundTrackerScreen = () => {
               if (roundId) {
                 await DatabaseService.deleteRound(roundId);
               }
-              // Navigate back to home
-              navigation.goBack();
+              // Reset the screen to default state (no round selected)
+              resetToDefaultState();
             } catch (error) {
               Alert.alert('Error', 'Failed to delete round.');
               console.error('Delete round error:', error);
@@ -435,8 +546,23 @@ const RoundTrackerScreen = () => {
     );
   }
 
-  // Only show setup screen if not started AND no round is being loaded
-  if (!isStarted && !routeRoundId) {
+  // Show message when no round is selected (after deletion or initial load)
+  if (!isStarted && !routeRoundId && !tournamentId) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.noRoundContainer}>
+          <FontAwesome5 name="golf-ball" size={80} color="#ddd" />
+          <Text style={styles.noRoundTitle}>No Active Round</Text>
+          <Text style={styles.noRoundText}>
+            Create or select a round from the{'\n'}Tournaments tab to start tracking
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Only show setup screen if not started AND no round is being loaded but tournament is selected
+  if (!isStarted && !routeRoundId && tournamentId) {
     return (
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <KeyboardAvoidingView 
@@ -543,15 +669,15 @@ const RoundTrackerScreen = () => {
       <View style={styles.container}>
       {/* Combined Header with Score and Actions */}
       <View style={styles.customHeader}>
-        <TouchableOpacity
-          style={styles.headerBackButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" size={22} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.headerLeft}>
+          {/* Empty space where save button used to be */}
+        </View>
         
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>{courseName || 'Golf Course'}</Text>
+          {activeRound?.name && (
+            <Text style={styles.roundName}>{activeRound.name}</Text>
+          )}
           {tournamentName && (
             <Text style={styles.headerSubtitle}>{tournamentName}</Text>
           )}
@@ -673,6 +799,17 @@ const RoundTrackerScreen = () => {
           </View>
         </View>
       </Modal>
+      
+      {/* Floating Action Button for Save */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={async () => {
+          await saveAndNavigateToTournament();
+        }}
+        activeOpacity={0.8}
+      >
+        <Icon name="save" size={28} color="#fff" />
+      </TouchableOpacity>
       </View>
     </TouchableWithoutFeedback>
   );
@@ -692,6 +829,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  headerLeft: {
+    width: 40,  // Same width as the headerActions to keep center balanced
+  },
   headerBackButton: {
     padding: 5,
   },
@@ -708,6 +848,12 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 2,
+  },
+  roundName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
     marginTop: 2,
   },
   headerScore: {
@@ -1104,6 +1250,58 @@ const styles = StyleSheet.create({
   parCancelText: {
     fontSize: 16,
     color: '#666',
+  },
+  noRoundContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  noRoundTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#999',
+    marginTop: 30,
+    marginBottom: 15,
+  },
+  noRoundText: {
+    fontSize: 18,
+    color: '#aaa',
+    textAlign: 'center',
+    lineHeight: 26,
+  },
+  goToTournamentsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+    gap: 10,
+  },
+  goToTournamentsText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    backgroundColor: '#4CAF50',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
   },
 });
 

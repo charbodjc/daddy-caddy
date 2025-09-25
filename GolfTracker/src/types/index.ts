@@ -28,6 +28,7 @@ export interface GolfHole {
 
 export interface GolfRound {
   id: string;
+  name?: string;
   tournamentId?: string;
   tournamentName?: string;
   courseName: string;
@@ -41,6 +42,7 @@ export interface GolfRound {
   mediaUrls?: string[];
   createdAt: Date;
   updatedAt: Date;
+  isFinished?: boolean;
 }
 
 export interface Tournament {

@@ -8,9 +8,12 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Platform,
+  Modal,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import MediaService from '../services/media';
@@ -22,7 +25,7 @@ import { GolfHole, MediaItem } from '../types';
 // Shot types with icons - organized into 2 rows of 4
 const SHOT_TYPES = {
   ROW1: [
-    { id: 'tee', label: 'Tee Shot', icon: 'golf-course' },
+    { id: 'tee', label: 'Tee Shot', icon: 'golf-tee', iconType: 'material-community' },
     { id: 'approach', label: 'Approach', icon: 'flag' },
     { id: 'chip', label: 'Chip/Pitch', icon: 'terrain' },
     { id: 'putt', label: 'Putt', icon: 'radio-button-unchecked' },
@@ -55,13 +58,14 @@ interface Shot {
   stroke: number;
   type: string;
   results: string[];
+  puttDistance?: string; // Add putt distance
 }
 
 const ShotTrackingScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const scrollViewRef = useRef<ScrollView>(null);
-  const { hole, onSave, roundId, preselectedShotType } = route.params as { hole: GolfHole; onSave: (hole: GolfHole) => Promise<void>; roundId?: string; preselectedShotType?: string };
+  const { hole, onSave, roundId, roundName, tournamentName, preselectedShotType } = route.params as { hole: GolfHole; onSave: (hole: GolfHole) => Promise<void>; roundId?: string; roundName?: string; tournamentName?: string; preselectedShotType?: string };
 
   // Initialize state from saved data if available
   const loadSavedShotData = () => {
@@ -91,11 +95,16 @@ const ShotTrackingScreen = () => {
   const [currentShotType, setCurrentShotType] = useState<string>(preselectedShotType || '');
   const [currentShotResults, setCurrentShotResults] = useState<string[]>([]);
   const [currentStroke, setCurrentStroke] = useState(initialData.currentStroke);
+  const [currentPuttDistance, setCurrentPuttDistance] = useState<string>('');
+  const [showParSelector, setShowParSelector] = useState(false);
   const [mediaCount, setMediaCount] = useState({ photos: 0, videos: 0 });
   const [capturedMedia, setCapturedMedia] = useState<MediaItem[]>([]);
 
   const autoSave = async (currentShots: Shot[], currentPar: number = par) => {
-    const totalStrokes = currentShots.length;
+    // If we have recorded shots in this session, use that count
+    // Otherwise, preserve the existing strokes value from the hole data
+    // This prevents overwriting scores when just changing par or viewing the hole
+    const totalStrokes = currentShots.length > 0 ? currentShots.length : (hole.strokes || 0);
     
     const shotData = {
       par: currentPar,
@@ -142,6 +151,14 @@ const ShotTrackingScreen = () => {
       
       message += `${shotNum}. ${shotTypeLabel}`;
       
+      // Add putt distance if it's a putt
+      if (shot.type === 'Putt' && shot.puttDistance) {
+        const distanceLabel = shot.puttDistance === 'short' ? '< 5ft' : 
+                              shot.puttDistance === 'medium' ? '5-15ft' : 
+                              '> 15ft';
+        message += ` (${distanceLabel})`;
+      }
+      
       if (shot.results && shot.results.length > 0) {
         const resultDescriptions = shot.results.map(r => {
           const result = SHOT_RESULTS.ROW1.concat(SHOT_RESULTS.ROW2).find(res => res.id === r);
@@ -163,9 +180,106 @@ const ShotTrackingScreen = () => {
     return message;
   };
 
+  const generateSMSShotDescription = (shots: Shot[], par: number, runningScore?: number): string => {
+    if (shots.length === 0) return 'No shots recorded yet';
+    
+    const scoreName = (() => {
+      const diff = shots.length - par;
+      if (diff <= -3) return 'Albatross!';
+      if (diff === -2) return 'Eagle!';
+      if (diff === -1) return 'Birdie';
+      if (diff === 0) return 'Par';
+      if (diff === 1) return 'Bogey';
+      if (diff === 2) return 'Double Bogey';
+      if (diff === 3) return 'Triple Bogey';
+      return `+${diff}`;
+    })();
+
+    // Map shot results to icons
+    const resultToIcon = (resultId: string): string => {
+      switch (resultId) {
+        case 'up': return '⬆️';
+        case 'down': return '⬇️';
+        case 'target': return '🎯';
+        case 'left': return '⬅️';
+        case 'right': return '➡️';
+        case 'hazard': return '💧';
+        case 'lost': return '❓';
+        case 'ob': return '❌';
+        default: return '';
+      }
+    };
+
+    let message = `Hole ${hole.holeNumber}\n`;
+    message += `Score: ${shots.length} (${scoreName})\n`;
+    if (runningScore !== undefined) {
+      const scoreText = runningScore === 0 ? 'E' : runningScore > 0 ? `+${runningScore}` : `${runningScore}`;
+      message += `Running Total: ${scoreText}\n`;
+    }
+    message += `\nShot by shot:\n`;
+    
+    shots.forEach((shot, index) => {
+      const shotNum = index + 1;
+      const shotTypeLabel = SHOT_TYPES.ROW1.concat(SHOT_TYPES.ROW2).find(t => t.id === shot.type)?.label || shot.type;
+      
+      message += `${shotNum}. ${shotTypeLabel}`;
+      
+      // Add putt distance if it's a putt
+      if (shot.type === 'Putt' && shot.puttDistance) {
+        const distanceLabel = shot.puttDistance === 'short' ? '< 5ft' : 
+                              shot.puttDistance === 'medium' ? '5-15ft' : 
+                              '> 15ft';
+        message += ` (${distanceLabel})`;
+      }
+      
+      if (shot.results && shot.results.length > 0) {
+        const resultIcons = shot.results.map(r => resultToIcon(r)).filter(icon => icon !== '');
+        if (resultIcons.length > 0) {
+          message += ` ${resultIcons.join(' ')}`;
+        }
+      }
+      
+      message += '\n';
+    });
+    
+    // Add final result
+    if (shots.length <= par - 1) {
+      message += '\n🎉 Outstanding play!';
+    } else if (shots.length === par) {
+      message += '\n⛳ Solid par!';
+    }
+    
+    return message;
+  };
+
   const handleSave = async () => {
     // Save the hole data
     await autoSave(shots, par);
+    
+    // Calculate running score if we have a round
+    let runningScore: number | undefined;
+    if (roundId) {
+      try {
+        const round = await DatabaseService.getRound(roundId);
+        if (round) {
+          // Calculate total strokes and par for all holes played
+          let totalStrokes = 0;
+          let totalPar = 0;
+          round.holes.forEach(h => {
+            if (h.strokes > 0) {
+              totalStrokes += h.strokes;
+              totalPar += h.par || 4;
+            }
+          });
+          // Add current hole
+          totalStrokes += shots.length;
+          totalPar += par;
+          runningScore = totalStrokes - totalPar;
+        }
+      } catch (error) {
+        console.error('Error calculating running score:', error);
+      }
+    }
     
     // Prompt to share
     Alert.alert(
@@ -181,8 +295,11 @@ const ShotTrackingScreen = () => {
           text: 'Yes',
           onPress: async () => {
             try {
-              // Generate detailed shot description
-              const detailedDescription = generateDetailedShotDescription(shots, par);
+              // Generate SMS-specific format for iOS SMS, regular format for other sharing
+              const isSMS = Platform.OS === 'ios';
+              const description = isSMS 
+                ? generateSMSShotDescription(shots, par, runningScore)
+                : generateDetailedShotDescription(shots, par);
               
               // Get media for the hole
               const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
@@ -191,7 +308,7 @@ const ShotTrackingScreen = () => {
               // Share using react-native-share
               await Share.open({
                 title: `Hole ${hole.holeNumber} - Shot Details`,
-                message: detailedDescription,
+                message: description,
                 urls: mediaUrls,
               });
               
@@ -299,11 +416,13 @@ const ShotTrackingScreen = () => {
         stroke: currentStroke,
         type: currentShotType,
         results: currentShotResults,
+        ...(currentShotType === 'Putt' && currentPuttDistance ? { puttDistance: currentPuttDistance } : {})
       };
       setShots([...shots, newShot]);
       setCurrentStroke(currentStroke + 1);
       setCurrentShotType('');
       setCurrentShotResults([]);
+      setCurrentPuttDistance('');
       
       // Auto-scroll to show all buttons
       setTimeout(() => {
@@ -389,12 +508,22 @@ const ShotTrackingScreen = () => {
     <View style={styles.container}>
       {/* Compact Header with Score */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={20} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.headerLeft}>
+          {/* Empty space to balance header */}
+        </View>
         
         <View style={styles.headerCenter}>
-          <Text style={styles.holeLabel}>Hole {hole.holeNumber} • Par {par}</Text>
+          <TouchableOpacity onPress={() => setShowParSelector(true)} style={styles.parButton}>
+            <Text style={styles.holeLabel}>Hole {hole.holeNumber} • Par {par}</Text>
+            <Icon name="edit" size={14} color="rgba(255,255,255,0.8)" style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
+          {(roundName || tournamentName) && (
+            <Text style={styles.roundInfo}>
+              {roundName && <Text style={styles.roundName}>{roundName}</Text>}
+              {roundName && tournamentName && <Text style={styles.roundSeparator}> • </Text>}
+              {tournamentName && <Text style={styles.tournamentName}>{tournamentName}</Text>}
+            </Text>
+          )}
           {shots.length > 0 && (
             <Text style={styles.scoreLabel}>
               Score: {shots.length} {shots.length === par ? '(E)' : shots.length < par ? `(${shots.length - par})` : `(+${shots.length - par})`}
@@ -412,7 +541,7 @@ const ShotTrackingScreen = () => {
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Ionicons name="camera" size={20} color="#fff" />
+                <Ionicons name="camera" size={26} color="#fff" />
                 {mediaCount.photos > 0 && (
                   <View style={styles.mediaBadgeCompact}>
                     <Text style={styles.mediaBadgeTextCompact}>{mediaCount.photos}</Text>
@@ -431,7 +560,7 @@ const ShotTrackingScreen = () => {
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Ionicons name="videocam" size={20} color="#fff" />
+                <Ionicons name="videocam" size={26} color="#fff" />
                 {mediaCount.videos > 0 && (
                   <View style={styles.mediaBadgeCompact}>
                     <Text style={styles.mediaBadgeTextCompact}>{mediaCount.videos}</Text>
@@ -526,7 +655,11 @@ const ShotTrackingScreen = () => {
                   style={styles.typeButtonSquare}
                   onPress={() => handleShotTypeSelection(type.label)}
                 >
-                  <Icon name={type.icon} size={24} color="#333" />
+                  {type.iconType === 'material-community' ? (
+                    <MaterialCommunityIcons name={type.icon} size={24} color="#333" />
+                  ) : (
+                    <Icon name={type.icon} size={24} color="#333" />
+                  )}
                   <Text style={styles.typeButtonLabel}>
                     {type.label}
                   </Text>
@@ -573,32 +706,93 @@ const ShotTrackingScreen = () => {
                 </TouchableOpacity>
               ))}
             </View>
-            <View style={styles.buttonRow}>
-              {SHOT_RESULTS.ROW2.map((result) => (
-                <TouchableOpacity
-                  key={result.id}
-                  style={[
-                    styles.resultButton,
-                    currentShotResults.includes(result.id) && styles.resultButtonActive
-                  ]}
-                  onPress={() => handleShotResultSelection(result.id)}
-                >
-                  {result.id === 'hazard' ? (
-                    <FontAwesome5 
-                      name="water" 
-                      size={20} 
-                      color={currentShotResults.includes(result.id) ? '#fff' : '#333'} 
-                    />
-                  ) : (
-                    <Icon 
-                      name={result.icon} 
-                      size={24} 
-                      color={currentShotResults.includes(result.id) ? '#fff' : '#333'} 
-                    />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
+            
+            {/* Only show hazard/lost/OB for shots that are not putts or chips */}
+            {currentShotType !== 'Putt' && currentShotType !== 'Chip/Pitch' && (
+              <View style={styles.buttonRow}>
+                {SHOT_RESULTS.ROW2.map((result) => (
+                  <TouchableOpacity
+                    key={result.id}
+                    style={[
+                      styles.resultButton,
+                      currentShotResults.includes(result.id) && styles.resultButtonActive
+                    ]}
+                    onPress={() => handleShotResultSelection(result.id)}
+                  >
+                    {result.id === 'hazard' ? (
+                      <FontAwesome5 
+                        name="water" 
+                        size={20} 
+                        color={currentShotResults.includes(result.id) ? '#fff' : '#333'} 
+                      />
+                    ) : (
+                      <Icon 
+                        name={result.icon} 
+                        size={24} 
+                        color={currentShotResults.includes(result.id) ? '#fff' : '#333'} 
+                      />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            
+            {/* Putt Distance Selection for Putts */}
+            {currentShotType === 'Putt' && (
+              <View style={styles.puttDistanceSection}>
+                <Text style={styles.puttDistanceLabel}>Putt Distance:</Text>
+                <View style={styles.puttDistanceRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.puttDistanceButton,
+                      currentPuttDistance === 'short' && styles.puttDistanceButtonActive
+                    ]}
+                    onPress={() => setCurrentPuttDistance('short')}
+                  >
+                    <Text style={[
+                      styles.puttDistanceText,
+                      currentPuttDistance === 'short' && styles.puttDistanceTextActive
+                    ]}>Short</Text>
+                    <Text style={[
+                      styles.puttDistanceSubtext,
+                      currentPuttDistance === 'short' && styles.puttDistanceTextActive
+                    ]}>{'< 5ft'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.puttDistanceButton,
+                      currentPuttDistance === 'medium' && styles.puttDistanceButtonActive
+                    ]}
+                    onPress={() => setCurrentPuttDistance('medium')}
+                  >
+                    <Text style={[
+                      styles.puttDistanceText,
+                      currentPuttDistance === 'medium' && styles.puttDistanceTextActive
+                    ]}>Medium</Text>
+                    <Text style={[
+                      styles.puttDistanceSubtext,
+                      currentPuttDistance === 'medium' && styles.puttDistanceTextActive
+                    ]}>5-15ft</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.puttDistanceButton,
+                      currentPuttDistance === 'long' && styles.puttDistanceButtonActive
+                    ]}
+                    onPress={() => setCurrentPuttDistance('long')}
+                  >
+                    <Text style={[
+                      styles.puttDistanceText,
+                      currentPuttDistance === 'long' && styles.puttDistanceTextActive
+                    ]}>Long</Text>
+                    <Text style={[
+                      styles.puttDistanceSubtext,
+                      currentPuttDistance === 'long' && styles.puttDistanceTextActive
+                    ]}>{'> 15ft'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
             
             {/* Instruction text */}
             <Text style={styles.instructionText}>
@@ -677,16 +871,65 @@ const ShotTrackingScreen = () => {
         </View>
       )}
 
-      {/* Done Button */}
-      <View style={styles.footer}>
-        <TouchableOpacity 
-          style={styles.saveButton} 
-          onPress={handleSave}
+      {/* Par Selector Modal */}
+      <Modal
+        visible={showParSelector}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowParSelector(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowParSelector(false)}
         >
-          <Icon name="save" size={20} color="#fff" />
-          <Text style={styles.saveButtonText}>Save Hole</Text>
+          <View style={styles.parSelectorModal}>
+            <Text style={styles.parSelectorTitle}>Select Par for Hole {hole.holeNumber}</Text>
+            <View style={styles.parSelectorButtons}>
+              <TouchableOpacity
+                style={[styles.parButton, par === 3 && styles.parButtonActive]}
+                onPress={() => {
+                  setPar(3);
+                  autoSave(shots, 3);
+                  setShowParSelector(false);
+                }}
+              >
+                <Text style={[styles.parButtonText, par === 3 && styles.parButtonTextActive]}>Par 3</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.parButton, par === 4 && styles.parButtonActive]}
+                onPress={() => {
+                  setPar(4);
+                  autoSave(shots, 4);
+                  setShowParSelector(false);
+                }}
+              >
+                <Text style={[styles.parButtonText, par === 4 && styles.parButtonTextActive]}>Par 4</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.parButton, par === 5 && styles.parButtonActive]}
+                onPress={() => {
+                  setPar(5);
+                  autoSave(shots, 5);
+                  setShowParSelector(false);
+                }}
+              >
+                <Text style={[styles.parButtonText, par === 5 && styles.parButtonTextActive]}>Par 5</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </TouchableOpacity>
-      </View>
+      </Modal>
+
+      {/* Floating Action Button for Save */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={handleSave}
+        activeOpacity={0.8}
+      >
+        <Icon name="save" size={28} color="#fff" />
+      </TouchableOpacity>
+
     </View>
   );
 };
@@ -713,6 +956,9 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 5,
   },
+  saveIconButton: {
+    padding: 5,
+  },
   headerCenter: {
     flex: 1,
     alignItems: 'center',
@@ -728,6 +974,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     opacity: 0.9,
+  },
+  roundInfo: {
+    flexDirection: 'row',
+    marginTop: 2,
+  },
+  roundName: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  roundSeparator: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+  },
+  tournamentName: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
   },
   parButtons: {
     flexDirection: 'row',
@@ -779,10 +1042,10 @@ const styles = StyleSheet.create({
   },
   mediaButtonCompact: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 8,
-    borderRadius: 16,
+    padding: 12,
+    borderRadius: 20,
     position: 'relative',
-    minWidth: 36,
+    minWidth: 44,
     minHeight: 36,
     alignItems: 'center',
     justifyContent: 'center',
@@ -805,12 +1068,12 @@ const styles = StyleSheet.create({
   },
   mediaBadgeCompact: {
     position: 'absolute',
-    top: -3,
-    right: -3,
+    top: -4,
+    right: -4,
     backgroundColor: '#ff6b6b',
-    borderRadius: 6,
-    minWidth: 14,
-    height: 14,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1019,6 +1282,10 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 10,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 10,
   },
   saveButtonText: {
     color: '#fff',
@@ -1063,6 +1330,112 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     borderRadius: 10,
     padding: 2,
+  },
+  puttDistanceSection: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  puttDistanceLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  puttDistanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    gap: 10,
+  },
+  puttDistanceButton: {
+    flex: 1,
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  puttDistanceButtonActive: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  puttDistanceText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  puttDistanceSubtext: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  puttDistanceTextActive: {
+    color: '#fff',
+  },
+  parButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  parSelectorModal: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 20,
+    width: '80%',
+    maxWidth: 300,
+  },
+  parSelectorTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  parSelectorButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    gap: 10,
+  },
+  parButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
+  parButtonText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '600',
+  },
+  parButtonTextActive: {
+    color: '#fff',
+  },
+  headerLeft: {
+    width: 40,  // Same width as media buttons to keep center balanced
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    backgroundColor: '#4CAF50',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
   },
 });
 

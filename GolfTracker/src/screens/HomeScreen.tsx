@@ -1,145 +1,161 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
   RefreshControl,
-  ImageBackground,
-  Alert,
-  Modal,
-  TextInput,
+  Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import DatabaseService from '../services/database';
-import { GolfRound } from '../types';
+import { GolfRound, Tournament } from '../types';
+import RoundDeletionManager from '../services/roundManager';
 
 const HomeScreen = () => {
   const navigation = useNavigation();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeRound, setActiveRound] = useState<GolfRound | null>(null);
   const [recentRounds, setRecentRounds] = useState<GolfRound[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
-  const [newRoundModal, setNewRoundModal] = useState(false);
-  const [courseName, setCourseName] = useState('');
-  const [tournaments, setTournaments] = useState<any[]>([]);
-  const [selectedTournamentId, setSelectedTournamentId] = useState<string | null>(null);
-  const [showTournamentPicker, setShowTournamentPicker] = useState(false);
-  const [selectedRoundNumber, setSelectedRoundNumber] = useState<string>('Round 1');
-  const [showRoundPicker, setShowRoundPicker] = useState(false);
-
-  useEffect(() => {
-    loadData();
-    loadTournaments();
-    loadRecentRounds();
-  }, []);
+  const [stats, setStats] = useState({
+    totalRounds: 0,
+    averageScore: 0,
+    bestScore: 0,
+    totalBirdies: 0,
+    totalEagles: 0,
+    averagePutts: 0,
+    fairwayAccuracy: 0,
+    greenAccuracy: 0,
+  });
 
   const loadData = async () => {
     try {
-      // Database is now initialized at app level
+      // Check for active round
       const activeRoundId = await DatabaseService.getPreference('active_round_id');
       if (activeRoundId) {
         const round = await DatabaseService.getRound(activeRoundId);
-        if (round && !round.totalScore) {
-          setActiveRound(round);
-        } else {
-          setActiveRound(null);
-        }
+        setActiveRound(round);
       } else {
         setActiveRound(null);
       }
+
+      // Load all rounds for stats
+      const allRounds = await DatabaseService.getRounds();
+      
+      // Get recent completed rounds
+      const completed = allRounds
+        .filter(r => r.holes.filter(h => h.strokes > 0).length === 18)
+        .sort((a, b) => b.date.getTime() - a.date.getTime())
+        .slice(0, 3);
+      setRecentRounds(completed);
+
+      // Calculate statistics
+      if (allRounds.length > 0) {
+        const completedRounds = allRounds.filter(r => 
+          r.holes.filter(h => h.strokes > 0).length === 18
+        );
+
+        if (completedRounds.length > 0) {
+          const totalScores = completedRounds.map(r => r.totalScore || 0);
+          const avgScore = totalScores.reduce((a, b) => a + b, 0) / totalScores.length;
+          const bestScore = Math.min(...totalScores);
+
+          // Count birdies and eagles
+          let birdies = 0;
+          let eagles = 0;
+          let totalPutts = 0;
+          let totalFairways = 0;
+          let totalGreens = 0;
+          let roundCount = 0;
+
+          completedRounds.forEach(round => {
+            roundCount++;
+            totalPutts += round.totalPutts || 0;
+            totalFairways += round.fairwaysHit || 0;
+            totalGreens += round.greensInRegulation || 0;
+
+            round.holes.forEach(hole => {
+              const diff = hole.strokes - (hole.par || 4);
+              if (diff === -1) birdies++;
+              if (diff === -2) eagles++;
+            });
+          });
+
+          setStats({
+            totalRounds: completedRounds.length,
+            averageScore: Math.round(avgScore),
+            bestScore: bestScore,
+            totalBirdies: birdies,
+            totalEagles: eagles,
+            averagePutts: Math.round(totalPutts / roundCount),
+            fairwayAccuracy: Math.round((totalFairways / (roundCount * 14)) * 100), // Assuming 14 fairways
+            greenAccuracy: Math.round((totalGreens / (roundCount * 18)) * 100),
+          });
+        }
+      }
     } catch (error) {
       console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const loadTournaments = async () => {
-    try {
-      const tournamentsData = await DatabaseService.getTournaments();
-      setTournaments(tournamentsData || []);
-    } catch (error) {
-      console.error('Error loading tournaments:', error);
-      setTournaments([]);
-    }
-  };
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const loadRecentRounds = async () => {
-    try {
-      const rounds = await DatabaseService.getRounds();
-      // Get the 10 most recent rounds
-      setRecentRounds(rounds.slice(0, 10));
-    } catch (error) {
-      console.error('Error loading recent rounds:', error);
-      setRecentRounds([]);
-    }
-  };
+  useFocusEffect(
+    React.useCallback(() => {
+      loadData();
+      
+      const subscription = RoundDeletionManager.subscribe(() => {
+        loadData();
+      });
 
-  const confirmDeleteRound = (round: GolfRound) => {
-    Alert.alert(
-      'Delete Round?',
-      `Delete round at ${round.courseName} from ${formatDate(round.date)}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await DatabaseService.deleteRound(round.id);
-              if (round.id === activeRound?.id) {
-                await DatabaseService.setPreference('active_round_id', '');
-              }
-              await loadData();
-              await loadRecentRounds();
-            } catch (e) {
-              // noop
-            }
-          },
-        },
-      ]
-    );
-  };
+      return () => subscription();
+    }, [])
+  );
 
-  const onRefresh = async () => {
+  const onRefresh = () => {
     setRefreshing(true);
-    await loadData();
-    await loadTournaments();
-    await loadRecentRounds();
-    setRefreshing(false);
+    loadData();
   };
 
-  const openRound = (roundId: string) => {
-    // Set as active round and navigate to scoring tab
-    DatabaseService.setPreference('active_round_id', roundId);
-    navigation.navigate('Scoring' as never, { 
-      screen: 'RoundTracker', 
-      params: { roundId } 
+  const startQuickRound = () => {
+    navigation.navigate('Scoring' as never, {
+      screen: 'RoundTracker',
+      params: { quickStart: true }
     } as never);
   };
 
-  const calculateScoreToPar = (round: GolfRound): string => {
-    if (!round.holes || round.holes.length === 0) return 'E';
-    
-    const completedHoles = round.holes.filter(h => h.strokes > 0);
-    if (completedHoles.length === 0) return 'E';
-    
-    const totalStrokes = completedHoles.reduce((sum, h) => sum + (h.strokes || 0), 0);
-    const totalPar = completedHoles.reduce((sum, h) => sum + (h.par || 4), 0);
-    const diff = totalStrokes - totalPar;
-    
-    if (diff === 0) return 'E';
-    return diff > 0 ? `+${diff}` : `${diff}`;
+  const continueRound = () => {
+    if (activeRound) {
+      navigation.navigate('Scoring' as never, {
+        screen: 'RoundTracker',
+        params: { roundId: activeRound.id }
+      } as never);
+    }
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
-    });
+  const goToTournaments = () => {
+    navigation.navigate('Tournaments' as never);
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+      </View>
+    );
+  }
 
   return (
     <ScrollView 
@@ -148,237 +164,160 @@ const HomeScreen = () => {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      <ImageBackground 
-        source={{ uri: 'https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=800' }}
-        style={styles.header}
-        imageStyle={styles.headerImage}
-      >
-        <View style={styles.headerOverlay}>
-            <FontAwesome5 name="golf-ball" size={40} color="#fff" style={styles.headerIcon} />
-            <Text style={styles.title}>Daddy Caddy</Text>
-          <Text style={styles.subtitle}>Track, Analyze, Report</Text>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <Image 
+            source={require('../../assets/daddy_caddy_logo.png')} 
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.headerTitle}>Daddy Caddy</Text>
         </View>
-      </ImageBackground>
+      </View>
 
-      {/* Recent Rounds */}
-      <View style={styles.statsOverview}>
-        <Text style={styles.sectionTitle}>Recent Rounds</Text>
-        {recentRounds.length > 0 ? (
-          <View>
-            {recentRounds.map((round) => {
-              const completedHoles = round.holes?.filter(h => h.strokes > 0).length || 0;
-              const scoreToPar = calculateScoreToPar(round);
-              
-              return (
-                <TouchableOpacity
-                  key={round.id}
-                  style={styles.roundCard}
-                  onPress={() => openRound(round.id)}
-                >
-                  <View style={styles.roundHeader}>
-                    <View style={{ flex: 1 }}>
-                      {round.tournamentName && (
-                        <Text style={styles.tournamentName}>{round.tournamentName}</Text>
-                      )}
-                      <Text style={styles.courseName}>
-                        {round.courseName}
-                      </Text>
-                      <Text style={styles.roundInfo}>
-                        {round.name || 'Practice Round'} • {formatDate(round.date)}
-                      </Text>
-                    </View>
-                    <TouchableOpacity 
-                      onPress={() => confirmDeleteRound(round)} 
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Icon name="delete" size={20} color="#F44336" />
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.roundStats}>
-                    <View style={styles.roundStatItem}>
-                      <FontAwesome5 name="flag" size={14} color="#666" />
-                      <Text style={styles.roundStatText}>{completedHoles}/18</Text>
-                    </View>
-                    <View style={[styles.scoreBox, 
-                      scoreToPar.startsWith('+') ? styles.overPar : 
-                      scoreToPar.startsWith('-') ? styles.underPar : 
-                      styles.evenPar
-                    ]}>
-                      <Text style={styles.scoreText}>{scoreToPar}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+      {/* Quick Actions */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <View style={styles.quickActions}>
+          {activeRound ? (
+            <TouchableOpacity style={styles.primaryButton} onPress={continueRound}>
+              <MaterialCommunityIcons name="golf" size={24} color="#fff" />
+              <Text style={styles.primaryButtonText}>Continue Round</Text>
+              <Text style={styles.primaryButtonSubtext}>
+                Hole {activeRound.holes.filter(h => h.strokes > 0).length + 1}/18
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.primaryButton} onPress={goToTournaments}>
+              <FontAwesome5 name="plus-circle" size={24} color="#fff" />
+              <Text style={styles.primaryButtonText}>Start New Round</Text>
+              <Text style={styles.primaryButtonSubtext}>Create a tournament first</Text>
+            </TouchableOpacity>
+          )}
+          
+          <View style={styles.secondaryActions}>
+            <TouchableOpacity style={styles.secondaryButton} onPress={goToTournaments}>
+              <FontAwesome5 name="trophy" size={20} color="#4CAF50" />
+              <Text style={styles.secondaryButtonText}>Tournaments</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.secondaryButton} 
+              onPress={() => navigation.navigate('Stats' as never)}
+            >
+              <Icon name="bar-chart" size={20} color="#4CAF50" />
+              <Text style={styles.secondaryButtonText}>Statistics</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* Performance Dashboard */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Your Performance</Text>
+        {stats.totalRounds > 0 ? (
+          <View style={styles.statsGrid}>
+            <View style={styles.statCard}>
+              <FontAwesome5 name="chart-line" size={24} color="#4CAF50" />
+              <Text style={styles.statValue}>{stats.averageScore}</Text>
+              <Text style={styles.statLabel}>Avg Score</Text>
+            </View>
+            <View style={styles.statCard}>
+              <FontAwesome5 name="medal" size={24} color="#FFD700" />
+              <Text style={styles.statValue}>{stats.bestScore}</Text>
+              <Text style={styles.statLabel}>Best Score</Text>
+            </View>
+            <View style={styles.statCard}>
+              <MaterialCommunityIcons name="bird" size={24} color="#2196F3" />
+              <Text style={styles.statValue}>{stats.totalBirdies}</Text>
+              <Text style={styles.statLabel}>Total Birdies</Text>
+            </View>
+            <View style={styles.statCard}>
+              <FontAwesome5 name="bullseye" size={24} color="#FF6B6B" />
+              <Text style={styles.statValue}>{stats.fairwayAccuracy}%</Text>
+              <Text style={styles.statLabel}>Fairways</Text>
+            </View>
           </View>
         ) : (
-          <View style={styles.emptyState}>
-            <FontAwesome5 name="golf-ball" size={48} color="#ccc" />
-            <Text style={styles.emptyStateText}>No rounds yet</Text>
-            <Text style={styles.emptyStateSubtext}>Create a tournament to get started</Text>
+          <View style={styles.emptyStats}>
+            <FontAwesome5 name="chart-bar" size={48} color="#ccc" />
+            <Text style={styles.emptyStatsText}>No completed rounds yet</Text>
+            <Text style={styles.emptyStatsSubtext}>
+              Complete your first 18-hole round to see your stats
+            </Text>
           </View>
         )}
       </View>
 
-      {/* New Round Modal */}
-      <Modal visible={newRoundModal} transparent animationType="slide" onRequestClose={() => setNewRoundModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.newRoundCard}>
-            <Text style={styles.sectionTitle}>Create New Round</Text>
-            
-            {/* Tournament Selector */}
-            <TouchableOpacity 
-              style={styles.dropdownButton}
-              onPress={() => setShowTournamentPicker(!showTournamentPicker)}
-            >
-              <Text style={styles.dropdownButtonText}>
-                {selectedTournamentId === 'none' 
-                  ? 'No Tournament' 
-                  : selectedTournamentId 
-                    ? tournaments.find(t => t.id === selectedTournamentId)?.name || 'Select Tournament'
-                    : 'Select Tournament'}
-              </Text>
-              <Icon name={showTournamentPicker ? 'arrow-drop-up' : 'arrow-drop-down'} size={24} color="#666" />
-            </TouchableOpacity>
-            
-            {/* Tournament Picker Dropdown */}
-            {showTournamentPicker && (
-              <View style={styles.dropdownList}>
-                <ScrollView style={{ maxHeight: 200 }}>
-                  {tournaments.map(tournament => (
-                    <TouchableOpacity
-                      key={tournament.id}
-                      style={styles.dropdownItem}
-                      onPress={() => {
-                        setSelectedTournamentId(tournament.id);
-                        setShowTournamentPicker(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownItemText}>{tournament.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  <TouchableOpacity
-                    style={[styles.dropdownItem, { borderTopWidth: 1, borderTopColor: '#eee' }]}
-                    onPress={() => {
-                      setSelectedTournamentId('none');
-                      setShowTournamentPicker(false);
-                    }}
-                  >
-                    <Text style={[styles.dropdownItemText, { fontStyle: 'italic' }]}>No Tournament</Text>
-                  </TouchableOpacity>
-                </ScrollView>
+      {/* Achievements */}
+      {stats.totalRounds > 0 && (stats.totalEagles > 0 || stats.totalBirdies >= 10) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Achievements</Text>
+          <View style={styles.achievementsRow}>
+            {stats.totalEagles > 0 && (
+              <View style={styles.achievement}>
+                <View style={styles.achievementIcon}>
+                  <MaterialCommunityIcons name="bird" size={28} color="#FFD700" />
+                </View>
+                <Text style={styles.achievementText}>Eagle Hunter</Text>
+                <Text style={styles.achievementCount}>{stats.totalEagles} Eagles</Text>
               </View>
             )}
-            
-            {/* Course Name Input - Only show for No Tournament */}
-            {selectedTournamentId === 'none' && (
-              <TextInput
-                style={styles.input}
-                placeholder="Course Name (required)"
-                placeholderTextColor="#666"
-                value={courseName}
-                onChangeText={setCourseName}
-              />
-            )}
-            
-            {/* Round Number Selection - Always use standard naming */}
-            {selectedTournamentId ? (
-              <TouchableOpacity 
-                style={styles.dropdownButton}
-                onPress={() => setShowRoundPicker(!showRoundPicker)}
-              >
-                <Text style={styles.dropdownButtonText}>{selectedRoundNumber}</Text>
-                <Icon name={showRoundPicker ? 'arrow-drop-up' : 'arrow-drop-down'} size={24} color="#666" />
-              </TouchableOpacity>
-            ) : null}
-            
-            {/* Round Number Picker */}
-            {showRoundPicker && selectedTournamentId && (
-              <View style={styles.dropdownList}>
-                {['Round 1', 'Round 2', 'Round 3', 'Round 4'].map(roundNum => (
-                  <TouchableOpacity
-                    key={roundNum}
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setSelectedRoundNumber(roundNum);
-                      setShowRoundPicker(false);
-                    }}
-                  >
-                    <Text style={styles.dropdownItemText}>{roundNum}</Text>
-                  </TouchableOpacity>
-                ))}
+            {stats.totalBirdies >= 10 && (
+              <View style={styles.achievement}>
+                <View style={styles.achievementIcon}>
+                  <FontAwesome5 name="star" size={28} color="#4CAF50" />
+                </View>
+                <Text style={styles.achievementText}>Birdie Machine</Text>
+                <Text style={styles.achievementCount}>{stats.totalBirdies} Birdies</Text>
               </View>
             )}
-            
-            {/* Action Buttons */}
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 15 }}>
-              <TouchableOpacity 
-                style={[styles.saveButton, { flex: 1, backgroundColor: '#4CAF50' }]} 
-                onPress={async () => {
-                  // Validate inputs
-                  if (selectedTournamentId === 'none' && !courseName.trim()) {
-                    Alert.alert('Course Name Required', 'Please enter a course name');
-                    return;
-                  }
-                  
-                  // Create round and associate with tournament
-                  const id = Date.now().toString();
-                  const selectedTournament = selectedTournamentId && selectedTournamentId !== 'none' 
-                    ? tournaments.find(t => t.id === selectedTournamentId)
-                    : null;
-                  
-                  const round: GolfRound = {
-                    id,
-                    courseName: selectedTournament?.courseName || courseName.trim() || 'Unknown Course',
-                    date: new Date(),
-                    holes: [],
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                    tournamentId: selectedTournament?.id || undefined,
-                    tournamentName: selectedTournament?.name || undefined,
-                  } as any;
-                  
-                  // Always use standard round naming
-                  (round as any).name = selectedRoundNumber;
-                  
-                  await DatabaseService.saveRound({ ...round, holes: [] });
-                  await DatabaseService.setPreference('active_round_id', id);
-                  
-                  // Reset modal state
-                  setNewRoundModal(false);
-                  setCourseName('');
-                  setSelectedTournamentId(null);
-                  setSelectedRoundNumber('Round 1');
-                  setShowTournamentPicker(false);
-                  setShowRoundPicker(false);
-                  
-                  // Reload data to show new round
-                  await loadData();
-                  
-                  // Navigate to scoring tab
-                  navigation.navigate('Scoring' as never, { screen: 'RoundTracker', params: { roundId: id } } as never);
-                }}
-              >
-                <Text style={styles.saveButtonText}>Start Round</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.saveButton, { flex: 1 }]} 
-                onPress={() => {
-                  setNewRoundModal(false);
-                  setCourseName('');
-                  setSelectedTournamentId(null);
-                  setSelectedRoundNumber('Round 1');
-                  setShowTournamentPicker(false);
-                  setShowRoundPicker(false);
-                }}
-              >
-                <Text style={styles.saveButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+            {stats.bestScore <= 80 && (
+              <View style={styles.achievement}>
+                <View style={styles.achievementIcon}>
+                  <FontAwesome5 name="fire" size={28} color="#FF6B6B" />
+                </View>
+                <Text style={styles.achievementText}>Breaking 80</Text>
+                <Text style={styles.achievementCount}>Best: {stats.bestScore}</Text>
+              </View>
+            )}
           </View>
         </View>
-      </Modal>
+      )}
+
+      {/* Recent Activity */}
+      {recentRounds.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recent Rounds</Text>
+          {recentRounds.map((round, index) => (
+            <View key={round.id} style={styles.recentRound}>
+              <View style={styles.recentRoundLeft}>
+                <Text style={styles.recentRoundCourse}>{round.courseName}</Text>
+                <Text style={styles.recentRoundDate}>
+                  {new Date(round.date).toLocaleDateString()}
+                </Text>
+              </View>
+              <View style={styles.recentRoundRight}>
+                <Text style={styles.recentRoundScore}>{round.totalScore}</Text>
+                <Text style={styles.recentRoundPar}>
+                  {round.totalScore - 72 > 0 ? '+' : ''}{round.totalScore - 72}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Tips */}
+      <View style={[styles.section, { marginBottom: 30 }]}>
+        <Text style={styles.sectionTitle}>Quick Tips</Text>
+        <View style={styles.tipCard}>
+          <FontAwesome5 name="lightbulb" size={20} color="#FFD700" />
+          <Text style={styles.tipText}>
+            Track every shot to identify patterns and improve your game
+          </Text>
+        </View>
+      </View>
     </ScrollView>
   );
 };
@@ -388,91 +327,45 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  header: {
-    height: 200,
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#f5f5f5',
   },
-  headerImage: {
-    opacity: 0.8,
-  },
-  headerOverlay: {
-    backgroundColor: 'rgba(76, 175, 80, 0.8)',
-    padding: 20,
-    borderRadius: 15,
+  header: {
+    backgroundColor: '#4CAF50',
+    paddingTop: 60,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
     alignItems: 'center',
   },
-  headerIcon: {
-    marginBottom: 10,
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  title: {
-    fontSize: 28,
+  headerLogo: {
+    width: 50,
+    height: 50,
+    marginRight: 8,
+  },
+  headerTitle: {
+    fontSize: 32,
     fontWeight: 'bold',
     color: '#fff',
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#fff',
-    opacity: 0.9,
-    marginTop: 5,
-  },
-  actionButton: {
+  section: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  primaryButton: {
-    backgroundColor: '#4CAF50',
-  },
-  fullWidthButton: {
-    width: '100%',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  actionButtonTextDark: {
-    color: '#333',
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  statsOverview: {
-    backgroundColor: '#fff',
-    margin: 20,
-    marginTop: 0,
+    marginHorizontal: 15,
+    marginTop: 15,
+    borderRadius: 15,
     padding: 20,
-    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 3,
     elevation: 3,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  newRoundCard: {
-    backgroundColor: '#fff',
-    width: '90%',
-    maxWidth: 420,
-    borderRadius: 12,
-    padding: 16,
   },
   sectionTitle: {
     fontSize: 20,
@@ -480,200 +373,157 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 15,
   },
+  quickActions: {
+    gap: 15,
+  },
+  primaryButton: {
+    backgroundColor: '#4CAF50',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 5,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  primaryButtonSubtext: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+  },
+  secondaryActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  secondaryButton: {
+    flex: 1,
+    backgroundColor: '#f0f8f0',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  secondaryButtonText: {
+    color: '#4CAF50',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   statsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 10,
   },
-  statItem: {
-    alignItems: 'center',
+  statCard: {
     flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#f8f8f8',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    gap: 5,
   },
   statValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#333',
   },
   statLabel: {
     fontSize: 12,
     color: '#666',
-    marginTop: 5,
   },
-  scoreDistribution: {
-    marginTop: 20,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
+  emptyStats: {
+    alignItems: 'center',
+    paddingVertical: 30,
   },
-  subsectionTitle: {
+  emptyStatsText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 10,
+    color: '#666',
+    marginTop: 15,
   },
-  scoreGrid: {
+  emptyStatsSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 5,
+    textAlign: 'center',
+  },
+  achievementsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    gap: 15,
   },
-  scoreItem: {
+  achievement: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 5,
+  },
+  achievementIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#f0f8f0',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  scoreCount: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  achievementText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: '#333',
   },
-  scoreLabel: {
+  achievementCount: {
     fontSize: 11,
     color: '#666',
-    marginTop: 3,
   },
-  recentRounds: {
-    padding: 20,
-    paddingTop: 0,
-  },
-  roundCard: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  roundHeader: {
+  recentRound: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  courseName: {
+  recentRoundLeft: {
+    flex: 1,
+  },
+  recentRoundCourse: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
   },
-  roundInfo: {
+  recentRoundDate: {
     fontSize: 14,
     color: '#666',
     marginTop: 2,
   },
-  tournamentName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4CAF50',
-    marginBottom: 2,
+  recentRoundRight: {
+    alignItems: 'flex-end',
   },
-  roundDate: {
-    fontSize: 14,
-    color: '#666',
-  },
-  scoreBox: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginLeft: 'auto',
-  },
-  overPar: {
-    backgroundColor: '#ffebee',
-  },
-  underPar: {
-    backgroundColor: '#e8f5e9',
-  },
-  evenPar: {
-    backgroundColor: '#f5f5f5',
-  },
-  scoreText: {
-    fontSize: 16,
+  recentRoundScore: {
+    fontSize: 20,
     fontWeight: 'bold',
+    color: '#333',
   },
-  roundStats: {
+  recentRoundPar: {
+    fontSize: 14,
+    color: '#666',
+  },
+  tipCard: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 15,
+    backgroundColor: '#fffbf0',
+    padding: 15,
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FFD700',
   },
-  roundStatItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  roundStatText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  aiInsight: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    gap: 5,
-  },
-  aiInsightText: {
+  tipText: {
     flex: 1,
-    fontSize: 13,
-    color: '#666',
-    fontStyle: 'italic',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 30,
-  },
-  emptyStateText: {
-    fontSize: 18,
-    color: '#999',
-    marginTop: 15,
-  },
-  emptyStateSubtext: {
     fontSize: 14,
-    color: '#aaa',
-    marginTop: 5,
-  },
-  saveButton: {
-    backgroundColor: '#f44336',
-    borderRadius: 8,
-    padding: 12,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 10,
-    fontSize: 16,
-  },
-  dropdownButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 10,
-  },
-  dropdownButtonText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  dropdownList: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    marginBottom: 10,
-    backgroundColor: '#fff',
-  },
-  dropdownItem: {
-    padding: 12,
-  },
-  dropdownItemText: {
-    fontSize: 16,
-    color: '#333',
+    color: '#666',
+    lineHeight: 20,
   },
 });
 

@@ -16,6 +16,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import DatabaseService from '../services/database';
+import RoundDeletionManager from '../utils/RoundDeletionManager';
 import { Tournament } from '../types';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
@@ -42,6 +43,14 @@ const TournamentsScreen = () => {
     React.useCallback(() => {
       loadTournaments();
       loadRounds();
+      
+      // Also listen for round deletions
+      const cleanup = RoundDeletionManager.addListener((deletedRoundId) => {
+        console.log('Round deleted, refreshing TournamentsScreen');
+        loadRounds(); // Reload rounds to update tournament stats
+      });
+
+      return cleanup;
     }, [])
   );
 
@@ -118,71 +127,9 @@ const TournamentsScreen = () => {
     } as never);
   };
 
-  const markTournamentComplete = async (tournament: Tournament) => {
-    Alert.alert(
-      'Complete Tournament?',
-      'Mark this tournament as complete? You won\'t be able to add new rounds after this.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Complete',
-          style: 'default',
-          onPress: async () => {
-            try {
-              // Update tournament with isComplete flag
-              const updatedTournament = { ...tournament, isComplete: true };
-              await DatabaseService.saveTournament(updatedTournament);
-              await loadTournaments();
-            } catch (error) {
-              console.error('Error marking tournament complete:', error);
-              Alert.alert('Error', 'Failed to update tournament');
-            }
-          },
-        },
-      ]
-    );
-  };
+  // Removed markTournamentComplete function - not needed in main screen
 
-  const trackRound = async (tournament: Tournament, roundNumber: number) => {
-    // Check if round exists
-    const roundName = `Round ${roundNumber}`;
-    const existingRound = rounds.find(
-      r => r.tournamentId === tournament.id && r.name === roundName
-    );
-
-    let roundId: string;
-    
-    if (existingRound) {
-      roundId = existingRound.id;
-    } else {
-      // Create new round
-      const newRound = {
-        id: Date.now().toString(),
-        name: roundName,
-        courseName: tournament.courseName,
-        date: new Date(),
-        holes: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        tournamentId: tournament.id,
-        tournamentName: tournament.name,
-      };
-      
-      await DatabaseService.saveRound(newRound);
-      roundId = newRound.id;
-      
-      // Reload rounds
-      await loadRounds();
-    }
-
-    // Set as active round and navigate
-    await DatabaseService.setPreference('active_round_id', roundId);
-    navigation.navigate('RoundTracker' as never, {
-      roundId,
-      tournamentId: tournament.id,
-      tournamentName: tournament.name,
-    } as never);
-  };
+  // Removed trackRound function - rounds are now created in TournamentRoundsScreen
 
   const getRoundsForTournament = (tournamentId: string) => {
     return rounds.filter(r => r.tournamentId === tournamentId);
@@ -226,116 +173,56 @@ const TournamentsScreen = () => {
     const isPast = new Date() > item.endDate;
     const tournamentRounds = getRoundsForTournament(item.id);
     
-    // Determine which rounds exist
-    const hasRound1 = tournamentRounds.some(r => r.name === 'Round 1');
-    const hasRound2 = tournamentRounds.some(r => r.name === 'Round 2');
-    const hasRound3 = tournamentRounds.some(r => r.name === 'Round 3');
-    const hasRound4 = tournamentRounds.some(r => r.name === 'Round 4');
-    
-    // If tournament is complete, show only existing rounds
-    // Otherwise, show existing rounds plus the next available round button
-    let roundsToShow: number[] = [];
-    if (item.isComplete) {
-      // Show only existing rounds
-      if (hasRound1) roundsToShow.push(1);
-      if (hasRound2) roundsToShow.push(2);
-      if (hasRound3) roundsToShow.push(3);
-      if (hasRound4) roundsToShow.push(4);
-    } else {
-      // Always show Round 1
-      roundsToShow.push(1);
-      
-      // Show Round 2 if Round 1 exists or add it as next available
-      if (hasRound1) roundsToShow.push(2);
-      
-      // Show Round 3 if Round 2 exists
-      if (hasRound2) roundsToShow.push(3);
-      
-      // Show Round 4 if Round 3 exists
-      if (hasRound3) roundsToShow.push(4);
-    }
-    
     return (
-      <View style={styles.tournamentCard}>
-        <TouchableOpacity onPress={() => viewTournamentRounds(item)}>
-          <View style={styles.tournamentHeader}>
-            <Icon 
-              name="emoji-events" 
-              size={24} 
-              color={isActive ? '#4CAF50' : isPast ? '#999' : '#FF9800'}
-            />
-            <View style={styles.tournamentInfo}>
-              <Text style={styles.tournamentName}>{item.name}</Text>
-              <Text style={styles.courseName}>{item.courseName}</Text>
-              <Text style={styles.dateRange}>{formatDateRange(item.startDate, item.endDate)}</Text>
-            </View>
+      <TouchableOpacity 
+        style={styles.tournamentCard}
+        onPress={() => viewTournamentRounds(item)}
+      >
+        <View style={styles.tournamentHeader}>
+          <Icon 
+            name="emoji-events" 
+            size={24} 
+            color={isActive ? '#4CAF50' : isPast ? '#999' : '#FF9800'}
+          />
+          <View style={styles.tournamentInfo}>
+            <Text style={styles.tournamentName}>{item.name}</Text>
+            <Text style={styles.courseName}>{item.courseName}</Text>
+            <Text style={styles.dateRange}>{formatDateRange(item.startDate, item.endDate)}</Text>
           </View>
-          
-          <View style={styles.tournamentStats}>
-            <View style={styles.statBadge}>
-              <Text style={styles.statCount}>{tournamentRounds.length}</Text>
-              <Text style={styles.statLabel}>Rounds</Text>
-            </View>
-            
-            {isActive && (
-              <View style={[styles.statusBadge, styles.activeBadge]}>
-                <Text style={styles.statusText}>Active</Text>
-              </View>
-            )}
-            {!isActive && !isPast && (
-              <View style={[styles.statusBadge, styles.upcomingBadge]}>
-                <Text style={styles.statusText}>Upcoming</Text>
-              </View>
-            )}
-            {isPast && (
-              <View style={[styles.statusBadge, styles.completedBadge]}>
-                <Text style={styles.statusText}>Completed</Text>
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
-
-        <View style={styles.roundButtons}>
-          {roundsToShow.map(roundNum => {
-            const hasRound = tournamentRounds.some(r => r.name === `Round ${roundNum}`);
-            return (
-              <TouchableOpacity
-                key={roundNum}
-                style={[styles.roundButton, hasRound && styles.roundButtonExists]}
-                onPress={() => trackRound(item, roundNum)}
-              >
-                <Icon 
-                  name={hasRound ? "edit" : "play-arrow"} 
-                  size={16} 
-                  color="#fff" 
-                />
-                <Text style={styles.roundButtonText}>
-                  Track Round {roundNum}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-          
-          {!item.isComplete && tournamentRounds.length > 0 && (
-            <TouchableOpacity
-              style={[styles.roundButton, styles.completeButton]}
-              onPress={() => markTournamentComplete(item)}
-            >
-              <Icon name="check-circle" size={16} color="#fff" />
-              <Text style={styles.roundButtonText}>Tournament Complete</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <View style={styles.cardActions}>
           <TouchableOpacity
             style={styles.deleteButton}
-            onPress={() => deleteTournament(item)}
+            onPress={(e) => {
+              e.stopPropagation();
+              deleteTournament(item);
+            }}
           >
             <Icon name="delete" size={20} color="#F44336" />
           </TouchableOpacity>
         </View>
-      </View>
+        
+        <View style={styles.tournamentStats}>
+          <View style={styles.statBadge}>
+            <Text style={styles.statCount}>{tournamentRounds.length}</Text>
+            <Text style={styles.statLabel}>Rounds</Text>
+          </View>
+          
+          {isActive && (
+            <View style={[styles.statusBadge, styles.activeBadge]}>
+              <Text style={styles.statusText}>Active</Text>
+            </View>
+          )}
+          {!isActive && !isPast && (
+            <View style={[styles.statusBadge, styles.upcomingBadge]}>
+              <Text style={styles.statusText}>Upcoming</Text>
+            </View>
+          )}
+          {isPast && (
+            <View style={[styles.statusBadge, styles.completedBadge]}>
+              <Text style={styles.statusText}>Completed</Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
     );
   };
 

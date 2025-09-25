@@ -11,7 +11,8 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import DatabaseService from '../services/database';
-import { GolfRound } from '../types';
+import RoundDeletionManager from '../utils/RoundDeletionManager';
+import { GolfRound, GolfHole } from '../types';
 
 const TournamentRoundsScreen = () => {
   const navigation = useNavigation();
@@ -27,18 +28,47 @@ const TournamentRoundsScreen = () => {
   useFocusEffect(
     React.useCallback(() => {
       loadRounds();
+      
+      // Also listen for round deletions
+      const cleanup = RoundDeletionManager.addListener((deletedRoundId) => {
+        console.log('Round deleted, refreshing TournamentRoundsScreen');
+        loadRounds();
+      });
+
+      return cleanup;
     }, [])
   );
 
   const loadRounds = async () => {
     try {
       const allRounds = await DatabaseService.getRounds();
-      // Only show rounds that have at least one scored hole
+      // Show all rounds for this tournament
       const tournamentRounds = allRounds.filter(r => 
-        r.tournamentId === tournament.id && 
-        r.holes && 
-        r.holes.some(h => h.strokes > 0)
+        r.tournamentId === tournament.id
       );
+      
+      // Debug logging
+      console.log('Loaded tournament rounds:', tournamentRounds.map(r => ({
+        id: r.id,
+        name: r.name,
+        holesCount: r.holes?.length,
+        totalScore: r.totalScore,
+        holesWithStrokes: r.holes?.filter(h => h.strokes > 0).length,
+        firstHole: r.holes?.[0],
+        holesData: r.holes?.slice(0, 3).map(h => ({ num: h.holeNumber, strokes: h.strokes, par: h.par }))
+      })));
+      
+      // Sort by creation date (oldest first) or by round name
+      tournamentRounds.sort((a, b) => {
+        // First try to sort by round number if names are like "Round 1", "Round 2"
+        const aNum = parseInt(a.name?.replace('Round ', '') || '0');
+        const bNum = parseInt(b.name?.replace('Round ', '') || '0');
+        if (aNum && bNum) {
+          return aNum - bNum;
+        }
+        // Otherwise sort by creation date
+        return a.createdAt.getTime() - b.createdAt.getTime();
+      });
       setRounds(tournamentRounds);
     } catch (error) {
       console.error('Error loading rounds:', error);
@@ -88,20 +118,63 @@ const TournamentRoundsScreen = () => {
     });
   };
 
-  const createNewRound = () => {
-    // Navigate to scoring tab with tournament info
-    navigation.getParent()?.navigate('Scoring' as never, {
-      screen: 'RoundTracker',
-      params: {
+  const createNewRound = async () => {
+    try {
+      // Determine the round number based on existing rounds
+      const roundNumber = rounds.length + 1;
+      const roundName = `Round ${roundNumber}`;
+      
+      // Create the new round with proper initial holes structure
+      const initialHoles: GolfHole[] = Array.from({ length: 18 }, (_, i) => ({
+        holeNumber: i + 1,
+        par: 4, // Default par, will be set when playing
+        strokes: 0,
+        fairwayHit: false,
+        greenInRegulation: false,
+        putts: 0,
+      }));
+      
+      // Create the new round
+      const newRound: GolfRound = {
+        id: `round_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: roundName,
         tournamentId: tournament.id,
         tournamentName: tournament.name,
-      }
-    } as never);
+        courseName: tournament.courseName,
+        date: new Date(),
+        holes: initialHoles,
+        totalScore: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      
+      // Save the round
+      await DatabaseService.saveRound(newRound);
+      
+      // Set as active round and navigate to scoring tab
+      await DatabaseService.setPreference('active_round_id', newRound.id);
+      navigation.getParent()?.navigate('Scoring' as never, {
+        screen: 'RoundTracker',
+        params: {
+          roundId: newRound.id,
+          tournamentId: tournament.id,
+          tournamentName: tournament.name,
+        }
+      } as never);
+    } catch (error) {
+      console.error('Error creating round:', error);
+      Alert.alert('Error', 'Failed to create round');
+    }
   };
 
   const renderRound = ({ item }: { item: GolfRound }) => {
-    const completedHoles = item.holes?.filter(h => h.strokes > 0).length || 0;
-    const totalStrokes = item.totalScore || item.holes?.reduce((sum, h) => sum + (h.strokes || 0), 0) || 0;
+    // Ensure holes array exists and calculate completed holes
+    const holesArray = item.holes || [];
+    const completedHoles = holesArray.filter(h => h && typeof h.strokes === 'number' && h.strokes > 0).length;
+    const totalStrokes = item.totalScore || holesArray.reduce((sum, h) => sum + (h?.strokes || 0), 0) || 0;
+    const isInProgress = completedHoles > 0 && completedHoles < 18;
+    const isCompleted = completedHoles === 18;
+    const notStarted = completedHoles === 0;
     
     return (
       <TouchableOpacity
@@ -109,9 +182,24 @@ const TournamentRoundsScreen = () => {
         onPress={() => selectRound(item)}
       >
         <View style={styles.roundHeader}>
-          <View>
+          <View style={styles.roundInfo}>
             <Text style={styles.roundName}>{item.name || 'Unnamed Round'}</Text>
             <Text style={styles.roundDate}>{formatDate(item.date)}</Text>
+            {notStarted && (
+              <View style={styles.statusBadge}>
+                <Text style={styles.statusText}>Not Started</Text>
+              </View>
+            )}
+            {isInProgress && (
+              <View style={[styles.statusBadge, styles.inProgressBadge]}>
+                <Text style={styles.statusText}>In Progress</Text>
+              </View>
+            )}
+            {isCompleted && (
+              <View style={[styles.statusBadge, styles.completedBadge]}>
+                <Text style={styles.statusText}>Completed</Text>
+              </View>
+            )}
           </View>
           <TouchableOpacity 
             onPress={() => deleteRound(item)}
@@ -161,7 +249,7 @@ const TournamentRoundsScreen = () => {
           </Text>
           <TouchableOpacity style={styles.addFirstButton} onPress={createNewRound}>
             <Icon name="play-arrow" size={24} color="#fff" />
-            <Text style={styles.addFirstButtonText}>Start Round</Text>
+            <Text style={styles.addFirstButtonText}>Start Round 1</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -170,12 +258,14 @@ const TournamentRoundsScreen = () => {
           renderItem={renderRound}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContainer}
+          ListFooterComponent={() => <View style={{ height: 100 }} />}
         />
       )}
 
-      {rounds.length > 0 && (
+      {rounds.length > 0 && rounds.length < 4 && (
         <TouchableOpacity style={styles.fab} onPress={createNewRound}>
           <Icon name="add" size={28} color="#fff" />
+          <Text style={styles.fabText}>Start Round {rounds.length + 1}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -232,6 +322,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 10,
   },
+  roundInfo: {
+    flex: 1,
+  },
   roundName: {
     fontSize: 18,
     fontWeight: '600',
@@ -241,6 +334,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 2,
+  },
+  statusBadge: {
+    backgroundColor: '#e0e0e0',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginTop: 5,
+  },
+  inProgressBadge: {
+    backgroundColor: '#fff3cd',
+  },
+  completedBadge: {
+    backgroundColor: '#d4edda',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#666',
   },
   roundStats: {
     flexDirection: 'row',
@@ -292,17 +404,24 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 20,
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderRadius: 30,
     backgroundColor: '#4CAF50',
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 8,
+  },
+  fabText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

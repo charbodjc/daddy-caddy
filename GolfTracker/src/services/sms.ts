@@ -143,13 +143,13 @@ class SMSService {
     const date = round.date.toLocaleDateString();
     const mediaCount = mediaItems.length;
 
-    let message = `🏌️ Golf Round Update - ${date}\n`;
+    let message = `Golf Round Update - ${date}\n`;
     message += `📍 ${round.courseName}\n`;
     if (round.tournamentName) {
       message += `🏆 ${round.tournamentName}\n`;
     }
     message += `\n`;
-    message += `⛳ Score: ${stats.totalScore} (${stats.scoreVsPar})\n`;
+    message += `Score: ${stats.totalScore} (${stats.scoreVsPar})\n`;
     message += `\n`;
     message += `📊 Round Stats:\n`;
     
@@ -265,7 +265,7 @@ class SMSService {
     letUserSelectRecipients: boolean = false
   ): Promise<{ success: boolean; errors: string[] }> {
     // Create message with AI summary
-    let message = `⛳ Hole ${hole.holeNumber} Update\n`;
+    let message = `Hole ${hole.holeNumber} Update\n`;
     message += `${aiSummary}\n\n`;
     
     // Add stats
@@ -280,7 +280,7 @@ class SMSService {
     else if (diff === 3) scoreText = 'Triple Bogey';
     else scoreText = diff > 0 ? `+${diff}` : diff.toString();
     
-    message += `Score: ${hole.strokes} strokes (${scoreText})\n`;
+    message += `Score: ${hole.strokes} (${scoreText})\n`;
     
     if (hole.shotData?.putts) {
       message += `Putts: ${hole.shotData.putts.length}\n`;
