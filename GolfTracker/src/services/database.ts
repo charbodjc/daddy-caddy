@@ -9,7 +9,7 @@ class DatabaseService {
   private db: SQLite.SQLiteDatabase | null = null;
   private initialized: boolean = false;
 
-  private async init() {
+  async init() {
     if (this.initialized && this.db) {
       console.log('Database already initialized');
       return;

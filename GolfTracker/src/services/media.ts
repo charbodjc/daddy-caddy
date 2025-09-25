@@ -294,6 +294,70 @@ class MediaService {
       videos: media.filter(m => m.type === 'video').length,
     };
   }
+
+  async selectFromLibrary(type: 'photo' | 'video' | 'mixed'): Promise<MediaItem | null> {
+    const options: CameraOptions = {
+      mediaType: type === 'mixed' ? 'mixed' : type,
+      includeBase64: false,
+      maxHeight: 2000,
+      maxWidth: 2000,
+      quality: 0.9,
+      includeExtra: true,
+      selectionLimit: 1,
+    };
+
+    return new Promise((resolve, reject) => {
+      launchImageLibrary(options, async (response: ImagePickerResponse) => {
+        if (response.didCancel) {
+          resolve(null);
+          return;
+        }
+        
+        if (response.errorMessage) {
+          console.error('Library error:', response.errorMessage);
+          reject(new Error(response.errorMessage));
+          return;
+        }
+
+        if (response.errorCode) {
+          console.error('Library error code:', response.errorCode);
+          reject(new Error(`Library error: ${response.errorCode}`));
+          return;
+        }
+
+        if (response.assets && response.assets[0]) {
+          const asset = response.assets[0];
+          const mediaType = asset.type?.includes('video') ? 'video' : 'photo';
+          
+          console.log(`📷 Media selected from library: URI=${asset.uri}, Type=${mediaType}`);
+          console.log(`Asset details:`, asset);
+          
+          try {
+            // Copy to permanent storage
+            const permanentUri = await this.copyToPermamentStorage(asset.uri!, mediaType);
+            
+            const mediaItem: MediaItem = {
+              id: Date.now().toString(),
+              uri: permanentUri,
+              type: mediaType,
+              roundId: '', // Will be set when saving
+              holeNumber: undefined,
+              timestamp: new Date(),
+              description: '',
+            };
+            
+            resolve(mediaItem);
+          } catch (error) {
+            console.error('Error processing media from library:', error);
+            reject(error);
+          }
+        } else {
+          console.log('No asset selected from library');
+          resolve(null);
+        }
+      });
+    });
+  }
 }
 
 export default new MediaService();

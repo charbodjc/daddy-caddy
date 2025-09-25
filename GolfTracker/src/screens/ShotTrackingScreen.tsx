@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Platform,
   Modal,
+  TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
@@ -99,6 +100,8 @@ const ShotTrackingScreen = () => {
   const [showParSelector, setShowParSelector] = useState(false);
   const [mediaCount, setMediaCount] = useState({ photos: 0, videos: 0 });
   const [capturedMedia, setCapturedMedia] = useState<MediaItem[]>([]);
+  const [distanceToHole, setDistanceToHole] = useState<string>('');  // New state for distance to hole
+  const [showDistanceModal, setShowDistanceModal] = useState(false);
 
   const autoSave = async (currentShots: Shot[], currentPar: number = par) => {
     // If we have recorded shots in this session, use that count
@@ -180,7 +183,7 @@ const ShotTrackingScreen = () => {
     return message;
   };
 
-  const generateSMSShotDescription = (shots: Shot[], par: number, runningScore?: number): string => {
+  const generateSMSShotDescription = (shots: Shot[], par: number, runningScore?: number, isUpdate?: boolean): string => {
     if (shots.length === 0) return 'No shots recorded yet';
     
     const scoreName = (() => {
@@ -211,7 +214,14 @@ const ShotTrackingScreen = () => {
     };
 
     let message = `Hole ${hole.holeNumber}\n`;
-    message += `Score: ${shots.length} (${scoreName})\n`;
+    if (isUpdate) {
+      message += `Ball on green!\n`;
+      if (distanceToHole) {
+        message += `Distance: ${distanceToHole}\n`;
+      }
+    } else {
+      message += `Score: ${shots.length} (${scoreName})\n`;
+    }
     if (runningScore !== undefined) {
       const scoreText = runningScore === 0 ? 'E' : runningScore > 0 ? `+${runningScore}` : `${runningScore}`;
       message += `Running Total: ${scoreText}\n`;
@@ -222,10 +232,15 @@ const ShotTrackingScreen = () => {
       const shotNum = index + 1;
       const shotTypeLabel = SHOT_TYPES.ROW1.concat(SHOT_TYPES.ROW2).find(t => t.id === shot.type)?.label || shot.type;
       
+      // For updates, only show non-putt shots
+      if (isUpdate && shot.type === 'putt') {
+        return;
+      }
+      
       message += `${shotNum}. ${shotTypeLabel}`;
       
       // Add putt distance if it's a putt
-      if (shot.type === 'Putt' && shot.puttDistance) {
+      if (shot.type === 'putt' && shot.puttDistance) {
         const distanceLabel = shot.puttDistance === 'short' ? '< 5ft' : 
                               shot.puttDistance === 'medium' ? '5-15ft' : 
                               '> 15ft';
@@ -252,34 +267,78 @@ const ShotTrackingScreen = () => {
     return message;
   };
 
+  const calculateRunningScore = async (): Promise<number | undefined> => {
+    if (!roundId) return undefined;
+    
+    try {
+      const round = await DatabaseService.getRound(roundId);
+      if (round) {
+        // Calculate total strokes and par for all holes played (not including current)
+        let totalStrokes = 0;
+        let totalPar = 0;
+        round.holes.forEach(h => {
+          // Only count holes that have been scored and are not the current hole
+          if (h.strokes > 0 && h.holeNumber !== hole.holeNumber) {
+            totalStrokes += h.strokes;
+            totalPar += h.par || 4;
+          }
+        });
+        // Return cumulative score to par
+        return totalStrokes - totalPar;
+      }
+    } catch (error) {
+      console.error('Error calculating running score:', error);
+    }
+    return undefined;
+  };
+
+  const handleUpdate = async () => {
+    // Check if ball is on green (has tee/approach shots but no putts yet)
+    const nonPuttShots = shots.filter(s => s.type !== 'putt');
+    const puttShots = shots.filter(s => s.type === 'putt');
+    
+    if (nonPuttShots.length === 0) {
+      Alert.alert('No Shots', 'Please record at least one shot before sending an update.');
+      return;
+    }
+    
+    if (puttShots.length > 0) {
+      Alert.alert('Hole Complete', 'This hole has putts recorded. Use the Save button to share the complete hole summary.');
+      return;
+    }
+    
+    // Show distance modal
+    setShowDistanceModal(true);
+  };
+
+  const sendUpdate = async () => {
+    setShowDistanceModal(false);
+    
+    const nonPuttShots = shots.filter(s => s.type !== 'putt');
+    const runningScore = await calculateRunningScore();
+    
+    try {
+      const description = generateSMSShotDescription(nonPuttShots, par, runningScore, true);
+      
+      await Share.open({
+        title: `Hole ${hole.holeNumber} - In Progress`,
+        message: description,
+      });
+    } catch (error: any) {
+      if (error?.message !== 'User did not share') {
+        console.error('Share error:', error);
+      }
+    }
+  };
+
   const handleSave = async () => {
     // Save the hole data
     await autoSave(shots, par);
     
-    // Calculate running score if we have a round
-    let runningScore: number | undefined;
-    if (roundId) {
-      try {
-        const round = await DatabaseService.getRound(roundId);
-        if (round) {
-          // Calculate total strokes and par for all holes played
-          let totalStrokes = 0;
-          let totalPar = 0;
-          round.holes.forEach(h => {
-            if (h.strokes > 0) {
-              totalStrokes += h.strokes;
-              totalPar += h.par || 4;
-            }
-          });
-          // Add current hole
-          totalStrokes += shots.length;
-          totalPar += par;
-          runningScore = totalStrokes - totalPar;
-        }
-      } catch (error) {
-        console.error('Error calculating running score:', error);
-      }
-    }
+    // Calculate running score including current hole
+    const runningScore = await calculateRunningScore();
+    const currentHoleScore = shots.length - par;
+    const totalRunningScore = (runningScore || 0) + currentHoleScore;
     
     // Prompt to share
     Alert.alert(
@@ -298,7 +357,7 @@ const ShotTrackingScreen = () => {
               // Generate SMS-specific format for iOS SMS, regular format for other sharing
               const isSMS = Platform.OS === 'ios';
               const description = isSMS 
-                ? generateSMSShotDescription(shots, par, runningScore)
+                ? generateSMSShotDescription(shots, par, totalRunningScore)
                 : generateDetailedShotDescription(shots, par);
               
               // Get media for the hole
@@ -392,16 +451,24 @@ const ShotTrackingScreen = () => {
   };
 
   const confirmShotWithResults = () => {
+    // For putts, require distance selection
+    if (currentShotType === 'putt' && !currentPuttDistance) {
+      Alert.alert('Select Putt Distance', 'Please select the putt distance before confirming the shot.');
+      return;
+    }
+    
     if (currentShotResults.length > 0) {
       const newShot: Shot = {
         stroke: currentStroke,
         type: currentShotType,
         results: currentShotResults,
+        ...(currentShotType === 'putt' && currentPuttDistance ? { puttDistance: currentPuttDistance } : {})
       };
       setShots([...shots, newShot]);
       setCurrentStroke(currentStroke + 1);
       setCurrentShotType('');
       setCurrentShotResults([]);
+      setCurrentPuttDistance('');
       
       // Auto-scroll to show all buttons
       setTimeout(() => {
@@ -411,12 +478,18 @@ const ShotTrackingScreen = () => {
   };
 
   const confirmShot = () => {
+    // For putts, require distance selection
+    if (currentShotType === 'putt' && !currentPuttDistance) {
+      Alert.alert('Select Putt Distance', 'Please select the putt distance before confirming the shot.');
+      return;
+    }
+    
     if (currentShotResults.length > 0 && currentShotResults.length <= 2) {
       const newShot: Shot = {
         stroke: currentStroke,
         type: currentShotType,
         results: currentShotResults,
-        ...(currentShotType === 'Putt' && currentPuttDistance ? { puttDistance: currentPuttDistance } : {})
+        ...(currentShotType === 'putt' && currentPuttDistance ? { puttDistance: currentPuttDistance } : {})
       };
       setShots([...shots, newShot]);
       setCurrentStroke(currentStroke + 1);
@@ -434,6 +507,33 @@ const ShotTrackingScreen = () => {
   // Removed auto-confirm to allow manual confirmation with checkmark
 
   
+
+  const handleMediaFromLibrary = async () => {
+    if (!roundId) {
+      Alert.alert('Error', 'Please save the round first before adding media');
+      return;
+    }
+
+    if (isCapturing) {
+      return;
+    }
+
+    setIsCapturing(true);
+    try {
+      const media = await MediaService.selectFromLibrary('mixed');
+      if (media) {
+        await MediaService.saveMedia(media, roundId, hole.holeNumber);
+        setCapturedMedia([...capturedMedia, media]);
+        await loadMediaCount();
+        Alert.alert('Success', 'Media added from library');
+      }
+    } catch (error: any) {
+      console.error('Error selecting from library:', error);
+      Alert.alert('Error', error.message || 'Failed to select media from library');
+    } finally {
+      setIsCapturing(false);
+    }
+  };
 
   const handleMediaCapture = async (type: 'photo' | 'video') => {
     if (!roundId) {
@@ -567,6 +667,18 @@ const ShotTrackingScreen = () => {
                   </View>
                 )}
               </>
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            onPress={handleMediaFromLibrary} 
+            style={styles.mediaButtonCompact}
+            disabled={isCapturing}
+          >
+            {isCapturing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="images" size={26} color="#fff" />
             )}
           </TouchableOpacity>
         </View>
@@ -921,7 +1033,57 @@ const ShotTrackingScreen = () => {
         </TouchableOpacity>
       </Modal>
 
-      {/* Floating Action Button for Save */}
+      {/* Distance to Hole Modal */}
+      <Modal
+        visible={showDistanceModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDistanceModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowDistanceModal(false)}
+        >
+          <View style={styles.parSelectorModal}>
+            <Text style={styles.parSelectorTitle}>Distance to Hole</Text>
+            <TextInput
+              style={styles.distanceInput}
+              placeholder="e.g., 15 feet, 3 yards"
+              value={distanceToHole}
+              onChangeText={setDistanceToHole}
+              autoFocus={true}
+            />
+            <View style={styles.parSelectorButtons}>
+              <TouchableOpacity
+                style={[styles.parButton, { backgroundColor: '#666' }]}
+                onPress={() => setShowDistanceModal(false)}
+              >
+                <Text style={styles.parButtonTextActive}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.parButton, styles.parButtonActive]}
+                onPress={sendUpdate}
+              >
+                <Text style={styles.parButtonTextActive}>Send Update</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Floating Action Buttons */}
+      {shots.filter(s => s.type !== 'putt').length > 0 && shots.filter(s => s.type === 'putt').length === 0 && (
+        <TouchableOpacity
+          style={[styles.fab, styles.fabUpdate]}
+          onPress={handleUpdate}
+          activeOpacity={0.8}
+        >
+          <Icon name="send" size={28} color="#fff" />
+          <Text style={styles.fabText}>Update</Text>
+        </TouchableOpacity>
+      )}
+      
       <TouchableOpacity
         style={styles.fab}
         onPress={handleSave}
@@ -1436,6 +1598,27 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.3,
     shadowRadius: 5,
+  },
+  fabUpdate: {
+    bottom: 110,
+    backgroundColor: '#2196F3',
+    width: 80,
+    paddingHorizontal: 16,
+  },
+  fabText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
+  distanceInput: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 16,
+    marginVertical: 15,
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
 });
 
