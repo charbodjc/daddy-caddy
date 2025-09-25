@@ -312,6 +312,109 @@ describe('DatabaseService - Shot Data', () => {
     });
   });
 
+  describe('Missing Fields Handling', () => {
+    it('should handle missing createdAt and updatedAt fields gracefully', async () => {
+      const testRound: any = {
+        id: 'test-round-missing-dates',
+        courseName: 'Test Course',
+        date: new Date(),
+        holes: [
+          {
+            holeNumber: 1,
+            par: 4,
+            strokes: 3,
+          },
+        ],
+        // Intentionally missing createdAt and updatedAt
+      };
+
+      mockTx.executeSql.mockResolvedValue([{ rows: { length: 0 } }]);
+      mockDb.executeSql.mockResolvedValue([{ 
+        rows: { 
+          item: () => ({ count: 1 }),
+          length: 1 
+        } 
+      }]);
+
+      await DatabaseService.init();
+      
+      // Should not throw even with missing dates
+      await expect(DatabaseService.saveRound(testRound)).resolves.not.toThrow();
+      
+      // Check that the round insert was called with default dates
+      const roundInsertCall = mockTx.executeSql.mock.calls.find(
+        (call: any[]) => call[0].includes('INSERT OR REPLACE INTO rounds')
+      );
+      
+      expect(roundInsertCall).toBeDefined();
+      // createdAt and updatedAt should be timestamps (not null/undefined)
+      expect(roundInsertCall[1][12]).toBeGreaterThan(0); // createdAt timestamp
+      expect(roundInsertCall[1][13]).toBeGreaterThan(0); // updatedAt timestamp
+    });
+
+    it('should handle null/undefined holes array', async () => {
+      const testRound: any = {
+        id: 'test-round-no-holes',
+        courseName: 'Test Course',
+        date: new Date(),
+        holes: undefined, // No holes array
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockTx.executeSql.mockResolvedValue([{ rows: { length: 0 } }]);
+      mockDb.executeSql.mockResolvedValue([{ 
+        rows: { 
+          item: () => ({ count: 0 }),
+          length: 1 
+        } 
+      }]);
+
+      await DatabaseService.init();
+      
+      // Should not throw even with undefined holes
+      await expect(DatabaseService.saveRound(testRound)).resolves.not.toThrow();
+      
+      // Check that no holes insert was attempted
+      const holesInsertCall = mockTx.executeSql.mock.calls.find(
+        (call: any[]) => call[0].includes('INSERT INTO holes')
+      );
+      
+      expect(holesInsertCall).toBeUndefined();
+    });
+
+    it('should handle empty holes array', async () => {
+      const testRound: GolfRound = {
+        id: 'test-round-empty-holes',
+        courseName: 'Test Course',
+        date: new Date(),
+        holes: [], // Empty holes array
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockTx.executeSql.mockResolvedValue([{ rows: { length: 0 } }]);
+      mockDb.executeSql.mockResolvedValue([{ 
+        rows: { 
+          item: () => ({ count: 0 }),
+          length: 1 
+        } 
+      }]);
+
+      await DatabaseService.init();
+      
+      // Should not throw even with empty holes
+      await expect(DatabaseService.saveRound(testRound)).resolves.not.toThrow();
+      
+      // Check that no holes insert was attempted
+      const holesInsertCall = mockTx.executeSql.mock.calls.find(
+        (call: any[]) => call[0].includes('INSERT INTO holes')
+      );
+      
+      expect(holesInsertCall).toBeUndefined();
+    });
+  });
+
   describe('Score Preservation', () => {
     it('should preserve existing strokes when saving hole with no new shots', async () => {
       const testRound: GolfRound = {

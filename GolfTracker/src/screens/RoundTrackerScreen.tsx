@@ -68,8 +68,18 @@ const RoundTrackerScreen = () => {
           holes: holes,
           totalScore: completedHoles.reduce((sum, h) => sum + h.strokes, 0),
           isFinished: false,
+          createdAt: activeRound?.createdAt || new Date(),
+          updatedAt: new Date(),
         };
-        DatabaseService.saveRound(partialRound);
+        // Use async IIFE to properly handle the promise
+        (async () => {
+          try {
+            await DatabaseService.saveRound(partialRound);
+            console.log('✅ Round autosaved on screen unmount');
+          } catch (error) {
+            console.error('❌ Failed to autosave round on unmount:', error);
+          }
+        })();
       }
     };
   }, [isStarted, roundId, activeRound, holes, tournamentId, tournamentName, courseName]); // Reload when roundId changes

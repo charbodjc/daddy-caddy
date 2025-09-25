@@ -208,7 +208,7 @@ class DatabaseService {
       if (!this.db) throw new Error('Database not initialized');
     }
 
-    console.log('💾 Saving round:', round.id, 'with', round.holes?.length, 'holes');
+    console.log('💾 Saving round:', round.id, 'with', round.holes?.length || 0, 'holes');
     console.log('Total score:', round.totalScore);
     console.log('Holes to save:', JSON.stringify(round.holes?.map(h => ({ 
       holeNumber: h.holeNumber, 
@@ -219,6 +219,11 @@ class DatabaseService {
     try {
       await this.db.transaction(async (tx) => {
         console.log('🔄 Transaction started');
+        
+        // Ensure we have valid dates, use current date as fallback
+        const createdAt = round.createdAt || new Date();
+        const updatedAt = round.updatedAt || new Date();
+        
         // Insert round
         await tx.executeSql(
           `INSERT OR REPLACE INTO rounds 
@@ -238,16 +243,18 @@ class DatabaseService {
             round.greensInRegulation ?? null,
             round.aiAnalysis ?? null,
             round.isFinished ? 1 : 0,
-            round.createdAt.getTime(),
-            round.updatedAt.getTime(),
+            createdAt.getTime(),
+            updatedAt.getTime(),
           ]
         );
 
         // Delete existing holes for this round
         await tx.executeSql('DELETE FROM holes WHERE roundId = ?', [round.id]);
 
-        // Insert holes
-        for (const hole of round.holes) {
+        // Insert holes (only if holes array exists and has items)
+        if (round.holes && round.holes.length > 0) {
+          console.log(`📝 Inserting ${round.holes.length} holes...`);
+          for (const hole of round.holes) {
           const strokesValue = hole.strokes ?? 0;
           console.log(`💾 Saving hole ${hole.holeNumber}: strokes=${strokesValue}, par=${hole.par}`);
           
@@ -280,6 +287,9 @@ class DatabaseService {
             throw holeError;
           }
         }
+        } else {
+          console.log('⚠️ No holes to save for this round');
+        }
         console.log('✅ Transaction completed successfully');
       });
       
@@ -290,10 +300,11 @@ class DatabaseService {
         [round.id]
       );
       const savedHolesCount = verifyResult.rows.item(0).count;
+      const expectedHoles = round.holes?.length || 0;
       console.log(`✅ Round saved successfully. Verified ${savedHolesCount} holes in database for round ${round.id}`);
       
-      if (savedHolesCount !== round.holes.length) {
-        console.error(`⚠️ Warning: Expected ${round.holes.length} holes but only ${savedHolesCount} were saved`);
+      if (savedHolesCount !== expectedHoles) {
+        console.error(`⚠️ Warning: Expected ${expectedHoles} holes but only ${savedHolesCount} were saved`);
       }
     } catch (error) {
       console.error('❌ Error saving round:', error);

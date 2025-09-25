@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import ShotTrackingScreen from '../ShotTrackingScreen';
 import DatabaseService from '../../services/database';
 import { GolfHole } from '../../types';
@@ -56,6 +56,10 @@ describe('ShotTrackingScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRouteParams.onSave = jest.fn();
+    // Reset media service mocks to resolved values
+    const MediaService = require('../../services/media').default;
+    MediaService.getMediaCount.mockResolvedValue({ photos: 0, videos: 0 });
+    MediaService.getMediaForHole.mockResolvedValue([]);
   });
 
   describe('Shot Data Preservation', () => {
@@ -68,7 +72,16 @@ describe('ShotTrackingScreen', () => {
         shotData: undefined,
       } as GolfHole;
 
-      const { getByText } = render(<ShotTrackingScreen />);
+      let component;
+      await act(async () => {
+        component = render(<ShotTrackingScreen />);
+      });
+      const { getByText } = component;
+      
+      // Wait for async operations to complete
+      await waitFor(() => {
+        expect(getByText('Hole 1 • Par 4')).toBeTruthy();
+      });
       
       // Change par without recording shots
       fireEvent.press(getByText('Hole 1 • Par 4'));
@@ -91,7 +104,16 @@ describe('ShotTrackingScreen', () => {
         shotData: undefined,
       } as GolfHole;
 
-      const { getByText, getAllByText } = render(<ShotTrackingScreen />);
+      let component;
+      await act(async () => {
+        component = render(<ShotTrackingScreen />);
+      });
+      const { getByText, getAllByText } = component;
+      
+      // Wait for component to fully load
+      await waitFor(() => {
+        expect(getByText('Tee Shot')).toBeTruthy();
+      });
       
       // Record a tee shot
       fireEvent.press(getByText('Tee Shot'));
@@ -104,7 +126,7 @@ describe('ShotTrackingScreen', () => {
       // Just verify the basic flow works without completing full shot recording
     });
 
-    it('should load and display existing shot data', () => {
+    it('should load and display existing shot data', async () => {
       const existingShotData = {
         par: 4,
         shots: [
@@ -122,12 +144,16 @@ describe('ShotTrackingScreen', () => {
         shotData: JSON.stringify(existingShotData),
       } as any;
 
-      const { getByText } = render(<ShotTrackingScreen />);
+      let component;
+      await act(async () => {
+        component = render(<ShotTrackingScreen />);
+      });
+      const { getByText } = component;
       
-      // Check that existing shots are displayed in the UI
-      // The UI shows shots in a different format
-      // Just verify the component renders without errors
-      expect(getByText(/Hole 1/)).toBeTruthy();
+      // Wait for component to fully load
+      await waitFor(() => {
+        expect(getByText(/Hole 1/)).toBeTruthy();
+      });
     });
   });
 
@@ -140,7 +166,16 @@ describe('ShotTrackingScreen', () => {
         shotData: undefined,
       } as GolfHole;
 
-      const { getByText, getAllByText } = render(<ShotTrackingScreen />);
+      let component;
+      await act(async () => {
+        component = render(<ShotTrackingScreen />);
+      });
+      const { getByText, getAllByText } = component;
+      
+      // Wait for component to fully load
+      await waitFor(() => {
+        expect(getByText('Tee Shot')).toBeTruthy();
+      });
       
       // Record a shot
       fireEvent.press(getByText('Tee Shot'));
@@ -159,7 +194,16 @@ describe('ShotTrackingScreen', () => {
         shotData: undefined,
       } as GolfHole;
 
-      const { getByText } = render(<ShotTrackingScreen />);
+      let component;
+      await act(async () => {
+        component = render(<ShotTrackingScreen />);
+      });
+      const { getByText } = component;
+      
+      // Wait for component to fully load
+      await waitFor(() => {
+        expect(getByText('Hole 1 • Par 4')).toBeTruthy();
+      });
       
       // Change to Par 3
       fireEvent.press(getByText('Hole 1 • Par 4'));
@@ -189,10 +233,18 @@ describe('ShotTrackingScreen', () => {
         shotData: undefined,
       } as GolfHole;
 
-      const { getByText, getAllByText } = render(<ShotTrackingScreen />);
+      let component;
+      await act(async () => {
+        component = render(<ShotTrackingScreen />);
+      });
+      const { getByText, getAllByText } = component;
+      
+      // Wait for component to fully load
+      await waitFor(() => {
+        expect(getByText('Tee Shot')).toBeTruthy();
+      });
       
       // Just verify shot type buttons are available
-      expect(getByText('Tee Shot')).toBeTruthy();
       expect(getByText('Approach')).toBeTruthy();
       expect(getByText('Putt')).toBeTruthy();
     });
@@ -205,10 +257,18 @@ describe('ShotTrackingScreen', () => {
         shotData: undefined,
       } as GolfHole;
 
-      const { getByText, getAllByText } = render(<ShotTrackingScreen />);
+      let component;
+      await act(async () => {
+        component = render(<ShotTrackingScreen />);
+      });
+      const { getByText, getAllByText } = component;
+      
+      // Wait for component to fully load
+      await waitFor(() => {
+        expect(getByText('Tee Shot')).toBeTruthy();
+      });
       
       // Just verify shot type buttons are available
-      expect(getByText('Tee Shot')).toBeTruthy();
       expect(getByText('Chip/Pitch')).toBeTruthy();
       expect(getByText('Putt')).toBeTruthy();
     });
