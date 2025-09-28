@@ -213,6 +213,14 @@ const RoundTrackerScreen = () => {
       Alert.alert('Error', 'Please enter a course name');
       return;
     }
+    
+    // Ensure holes are initialized
+    let holesForRound = holes;
+    if (!holesForRound || holesForRound.length === 0) {
+      console.log('⚠️ Holes not initialized, creating default holes');
+      holesForRound = initializeHoles();
+    }
+    
     // Generate a unique round ID for this session
     const newRoundId = RoundManager.generateRoundId();
     setRoundId(newRoundId);
@@ -229,7 +237,7 @@ const RoundTrackerScreen = () => {
         tournamentName: selectedTournamentName,
         courseName: courseName.trim(),
         date: new Date(),
-        holes,
+        holes: holesForRound,
         totalScore: undefined, // Not finished yet
         totalPutts: undefined,
         fairwaysHit: undefined,
@@ -238,11 +246,12 @@ const RoundTrackerScreen = () => {
         updatedAt: new Date(),
       };
       
+      console.log(`📝 Starting new round ${newRoundId} with ${holesForRound.length} holes`);
       await DatabaseService.saveRound(newRound);
       setActiveRound(newRound);
-      console.log('New round started with ID:', newRoundId);
+      console.log('✅ New round started successfully with ID:', newRoundId);
     } catch (error) {
-      console.error('Error saving active round:', error);
+      console.error('❌ Error saving active round:', error);
       Alert.alert('Error', 'Failed to start round. Please try again.');
     }
   };
@@ -272,9 +281,22 @@ const RoundTrackerScreen = () => {
         updatedAt: new Date(),
       };
       try {
+        console.log(`🔄 Autosaving round ${partialRound.id} with ${partialRound.holes.length} holes`);
+        console.log('Holes being saved:', partialRound.holes.filter(h => h.strokes > 0).map(h => ({
+          hole: h.holeNumber,
+          strokes: h.strokes,
+          par: h.par
+        })));
         await DatabaseService.saveRound(partialRound);
+        console.log('✅ Round autosaved successfully');
       } catch (err) {
-        console.error('Autosave round error:', err);
+        console.error('❌ Autosave round error:', err);
+        // Show error to user
+        Alert.alert(
+          'Save Error', 
+          'Failed to save round data. Please try again or restart the app if the problem persists.',
+          [{ text: 'OK' }]
+        );
       }
     }
   };

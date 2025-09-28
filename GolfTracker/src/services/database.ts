@@ -50,6 +50,30 @@ class DatabaseService {
       // Test database
       await this.testDatabase();
       
+      // Verify holes table structure
+      const holesTableValid = await this.verifyHolesTable();
+      if (!holesTableValid) {
+        console.error('❌ Holes table structure is invalid, attempting to recreate...');
+        // Try to recreate the holes table
+        await this.db.executeSql('DROP TABLE IF EXISTS holes');
+        await this.db.executeSql(
+          `CREATE TABLE holes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            roundId TEXT NOT NULL,
+            holeNumber INTEGER NOT NULL,
+            par INTEGER NOT NULL,
+            strokes INTEGER NOT NULL,
+            fairwayHit INTEGER,
+            greenInRegulation INTEGER,
+            putts INTEGER,
+            notes TEXT,
+            shotData TEXT,
+            FOREIGN KEY (roundId) REFERENCES rounds(id)
+          )`
+        );
+        console.log('✅ Holes table recreated');
+      }
+      
       this.initialized = true;
       console.log('✅ Database fully initialized and ready');
     } catch (error) {
@@ -254,39 +278,48 @@ class DatabaseService {
         // Insert holes (only if holes array exists and has items)
         if (round.holes && round.holes.length > 0) {
           console.log(`📝 Inserting ${round.holes.length} holes...`);
+          console.log('Holes data:', JSON.stringify(round.holes.map(h => ({
+            holeNumber: h.holeNumber,
+            strokes: h.strokes,
+            par: h.par,
+            fairwayHit: h.fairwayHit,
+            greenInRegulation: h.greenInRegulation
+          }))));
+          
           for (const hole of round.holes) {
-          const strokesValue = hole.strokes ?? 0;
-          console.log(`💾 Saving hole ${hole.holeNumber}: strokes=${strokesValue}, par=${hole.par}`);
-          
-          // shotData might already be a string if it came from ShotTrackingScreen
-          let shotDataToSave = hole.shotData;
-          if (shotDataToSave && typeof shotDataToSave !== 'string') {
-            shotDataToSave = JSON.stringify(shotDataToSave);
+            const strokesValue = hole.strokes ?? 0;
+            console.log(`💾 Saving hole ${hole.holeNumber}: strokes=${strokesValue}, par=${hole.par}`);
+            
+            // shotData might already be a string if it came from ShotTrackingScreen
+            let shotDataToSave = hole.shotData;
+            if (shotDataToSave && typeof shotDataToSave !== 'string') {
+              shotDataToSave = JSON.stringify(shotDataToSave);
+            }
+            
+            try {
+              await tx.executeSql(
+                `INSERT INTO holes 
+                 (roundId, holeNumber, par, strokes, fairwayHit, greenInRegulation, putts, notes, shotData)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                  round.id,
+                  hole.holeNumber,
+                  hole.par ?? 4,  // Default par to 4 if not set
+                  strokesValue,  // Ensure strokes is always a number
+                  hole.fairwayHit === true ? 1 : (hole.fairwayHit === false ? 0 : null),
+                  hole.greenInRegulation === true ? 1 : (hole.greenInRegulation === false ? 0 : null),
+                  hole.putts ?? null,
+                  hole.notes ?? null,
+                  shotDataToSave ?? null,
+                ]
+              );
+              console.log(`✅ Hole ${hole.holeNumber} saved successfully`);
+            } catch (holeError) {
+              console.error(`❌ Error saving hole ${hole.holeNumber}:`, holeError);
+              console.error('Failed hole data:', JSON.stringify(hole));
+              throw holeError;
+            }
           }
-          
-          try {
-            await tx.executeSql(
-              `INSERT INTO holes 
-               (roundId, holeNumber, par, strokes, fairwayHit, greenInRegulation, putts, notes, shotData)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [
-                round.id,
-                hole.holeNumber,
-                hole.par ?? 4,  // Default par to 4 if not set
-                strokesValue,  // Ensure strokes is always a number
-                hole.fairwayHit ? 1 : 0,
-                hole.greenInRegulation ? 1 : 0,
-                hole.putts ?? null,
-                hole.notes ?? null,
-                shotDataToSave,
-              ]
-            );
-            console.log(`✅ Hole ${hole.holeNumber} saved successfully`);
-          } catch (holeError) {
-            console.error(`❌ Error saving hole ${hole.holeNumber}:`, holeError);
-            throw holeError;
-          }
-        }
         } else {
           console.log('⚠️ No holes to save for this round');
         }
@@ -819,6 +852,88 @@ class DatabaseService {
       await tx.executeSql('DELETE FROM tournaments');
       await tx.executeSql('DELETE FROM preferences');
     });
+  }
+  
+  // Test method to save a single hole directly
+  async testSaveHole(roundId: string, holeNumber: number): Promise<boolean> {
+    if (!this.db) {
+      await this.init();
+      if (!this.db) return false;
+    }
+    
+    console.log(`🧪 Testing direct hole save for round ${roundId}, hole ${holeNumber}`);
+    
+    try {
+      await this.db.executeSql(
+        `INSERT INTO holes 
+         (roundId, holeNumber, par, strokes, fairwayHit, greenInRegulation, putts, notes, shotData)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          roundId,
+          holeNumber,
+          4,  // Default par
+          0,  // Default strokes
+          null,
+          null,
+          null,
+          'Test hole',
+          null
+        ]
+      );
+      
+      console.log('✅ Test hole saved successfully');
+      
+      // Verify it was saved
+      const [result] = await this.db.executeSql(
+        'SELECT * FROM holes WHERE roundId = ? AND holeNumber = ?',
+        [roundId, holeNumber]
+      );
+      
+      if (result.rows.length > 0) {
+        console.log('✅ Test hole verified in database:', result.rows.item(0));
+        return true;
+      } else {
+        console.error('❌ Test hole not found after save');
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Test hole save failed:', error);
+      return false;
+    }
+  }
+  
+  // Verify holes table structure
+  async verifyHolesTable(): Promise<boolean> {
+    if (!this.db) {
+      await this.init();
+      if (!this.db) return false;
+    }
+    
+    try {
+      const [result] = await this.db.executeSql("PRAGMA table_info(holes)");
+      console.log('🔍 Holes table schema verification:');
+      const requiredColumns = ['id', 'roundId', 'holeNumber', 'par', 'strokes'];
+      const foundColumns: string[] = [];
+      
+      for (let i = 0; i < result.rows.length; i++) {
+        const column = result.rows.item(i);
+        foundColumns.push(column.name);
+        console.log(`  ${column.name}: ${column.type} ${column.notnull ? 'NOT NULL' : 'NULL'} ${column.pk ? '(PRIMARY KEY)' : ''}`);
+      }
+      
+      // Check if all required columns exist
+      const missingColumns = requiredColumns.filter(col => !foundColumns.includes(col));
+      if (missingColumns.length > 0) {
+        console.error('❌ Missing required columns in holes table:', missingColumns);
+        return false;
+      }
+      
+      console.log('✅ Holes table structure verified successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Error verifying holes table:', error);
+      return false;
+    }
   }
   
   // Diagnostic function to check database contents
