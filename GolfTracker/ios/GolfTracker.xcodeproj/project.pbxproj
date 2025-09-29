@@ -19,10 +19,10 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = GolfTracker/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = GolfTracker/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = GolfTracker/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		31D9B489DB0C0E808A961B68 /* Pods-GolfTracker.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GolfTracker.release.xcconfig"; path = "Target Support Files/Pods-GolfTracker/Pods-GolfTracker.release.xcconfig"; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = GolfTracker/AppDelegate.swift; sourceTree = "<group>"; };
+		7F4FA45F5C5551959971834C /* Pods-GolfTracker.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GolfTracker.debug.xcconfig"; path = "Target Support Files/Pods-GolfTracker/Pods-GolfTracker.debug.xcconfig"; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = GolfTracker/LaunchScreen.storyboard; sourceTree = "<group>"; };
-		9A0D235BC07900928F8B02AA /* Pods-GolfTracker.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GolfTracker.debug.xcconfig"; path = "Target Support Files/Pods-GolfTracker/Pods-GolfTracker.debug.xcconfig"; sourceTree = "<group>"; };
+		904E735545BC5ED96F873E25 /* Pods-GolfTracker.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GolfTracker.release.xcconfig"; path = "Target Support Files/Pods-GolfTracker/Pods-GolfTracker.release.xcconfig"; sourceTree = "<group>"; };
 		CCD56483D41AA2B3F7FD402D /* libPods-GolfTracker.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-GolfTracker.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -60,6 +60,16 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		319B489E76D9BD2ADD808478 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				7F4FA45F5C5551959971834C /* Pods-GolfTracker.debug.xcconfig */,
+				904E735545BC5ED96F873E25 /* Pods-GolfTracker.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
 			isa = PBXGroup;
 			children = (
@@ -74,8 +84,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				BBD78D7AC51CEA395F1C20DB /* Pods */,
 				CC43696285A5456ABF42F3B4 /* Resources */,
+				319B489E76D9BD2ADD808478 /* Pods */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -88,15 +98,6 @@
 				13B07F961A680F5B00A75B9A /* GolfTracker.app */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		BBD78D7AC51CEA395F1C20DB /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				9A0D235BC07900928F8B02AA /* Pods-GolfTracker.debug.xcconfig */,
-				31D9B489DB0C0E808A961B68 /* Pods-GolfTracker.release.xcconfig */,
-			);
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		CC43696285A5456ABF42F3B4 /* Resources */ = {
@@ -265,7 +266,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 9A0D235BC07900928F8B02AA /* Pods-GolfTracker.debug.xcconfig */;
+			baseConfigurationReference = 7F4FA45F5C5551959971834C /* Pods-GolfTracker.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
@@ -301,7 +302,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 31D9B489DB0C0E808A961B68 /* Pods-GolfTracker.release.xcconfig */;
+			baseConfigurationReference = 904E735545BC5ED96F873E25 /* Pods-GolfTracker.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;

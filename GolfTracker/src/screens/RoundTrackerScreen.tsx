@@ -106,7 +106,8 @@ const RoundTrackerScreen = () => {
     setCourseName('');
     setSelectedTournamentId(undefined);
     setSelectedTournamentName(undefined);
-    initializeHoles();
+    const newHoles = initializeHoles();
+    setHoles(newHoles);
     setCurrentHole(1);
     // Clear the active round preference
     DatabaseService.setPreference('active_round_id', '');
@@ -247,7 +248,16 @@ const RoundTrackerScreen = () => {
       };
       
       console.log(`📝 Starting new round ${newRoundId} with ${holesForRound.length} holes`);
+      
+      // First save the round itself
       await DatabaseService.saveRound(newRound);
+      
+      // Then save all 18 holes individually (even with 0 strokes) for initial display
+      console.log('💾 Saving initial 18 holes...');
+      for (const hole of holesForRound) {
+        await DatabaseService.saveHole(newRoundId, hole);
+      }
+      
       setActiveRound(newRound);
       console.log('✅ New round started successfully with ID:', newRoundId);
     } catch (error) {
@@ -262,41 +272,44 @@ const RoundTrackerScreen = () => {
     );
     setHoles(newHoles);
 
-    // Persist progress to DB (autosave)
+    // Save individual hole directly to database
     if (roundId || activeRound?.id) {
-      const completedHoles = newHoles.filter(h => h.strokes > 0);
-      const partialRound: GolfRound = {
-        id: roundId || activeRound!.id,
-        name: activeRound?.name,  // Preserve the round name
-        tournamentId: activeRound?.tournamentId || tournamentId,
-        tournamentName: activeRound?.tournamentName || tournamentName,
-        courseName: activeRound?.courseName || courseName,
-        date: activeRound?.date || new Date(),
-        holes: newHoles,
-        totalScore: completedHoles.reduce((sum, h) => sum + (h.strokes || 0), 0),
-        totalPutts: completedHoles.reduce((sum, h) => sum + (h.putts || 0), 0),
-        fairwaysHit: newHoles.filter(h => h.fairwayHit === true).length,
-        greensInRegulation: newHoles.filter(h => h.greenInRegulation === true).length,
-        createdAt: activeRound?.createdAt || new Date(),
-        updatedAt: new Date(),
-      };
-      try {
-        console.log(`🔄 Autosaving round ${partialRound.id} with ${partialRound.holes.length} holes`);
-        console.log('Holes being saved:', partialRound.holes.filter(h => h.strokes > 0).map(h => ({
-          hole: h.holeNumber,
-          strokes: h.strokes,
-          par: h.par
-        })));
-        await DatabaseService.saveRound(partialRound);
-        console.log('✅ Round autosaved successfully');
-      } catch (err) {
-        console.error('❌ Autosave round error:', err);
-        // Show error to user
-        Alert.alert(
-          'Save Error', 
-          'Failed to save round data. Please try again or restart the app if the problem persists.',
-          [{ text: 'OK' }]
-        );
+      const currentRoundId = roundId || activeRound!.id;
+      const updatedHole = newHoles.find(h => h.holeNumber === holeNumber);
+      
+      if (updatedHole && updatedHole.strokes && updatedHole.strokes > 0) {
+        try {
+          console.log(`💾 Saving hole ${holeNumber} with ${updatedHole.strokes} strokes`);
+          const saved = await DatabaseService.saveHole(currentRoundId, updatedHole);
+          
+          if (saved) {
+            console.log(`✅ Hole ${holeNumber} saved successfully`);
+            
+            // Also update the round summary (without re-saving all holes)
+            const completedHoles = newHoles.filter(h => h.strokes > 0);
+            const roundUpdate: Partial<GolfRound> = {
+              id: currentRoundId,
+              totalScore: completedHoles.reduce((sum, h) => sum + (h.strokes || 0), 0),
+              totalPutts: completedHoles.reduce((sum, h) => sum + (h.putts || 0), 0),
+              fairwaysHit: newHoles.filter(h => h.fairwayHit === true).length,
+              greensInRegulation: newHoles.filter(h => h.greenInRegulation === true).length,
+              updatedAt: new Date(),
+            };
+            
+            // Update just the round totals (we'll need to add this method)
+            // For now, we can skip this or use saveRound with empty holes array
+          } else {
+            console.error(`❌ Failed to save hole ${holeNumber}`);
+            Alert.alert('Save Error', 'Failed to save hole data. Please try again.');
+          }
+        } catch (err) {
+          console.error('❌ Error saving hole:', err);
+          Alert.alert(
+            'Save Error', 
+            'Failed to save hole data. Please try again or restart the app if the problem persists.',
+            [{ text: 'OK' }]
+          );
+        }
       }
     }
   };

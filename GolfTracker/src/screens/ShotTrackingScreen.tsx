@@ -11,6 +11,7 @@ import {
   Platform,
   Modal,
   TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
@@ -102,6 +103,23 @@ const ShotTrackingScreen = () => {
   const [capturedMedia, setCapturedMedia] = useState<MediaItem[]>([]);
   const [distanceToHole, setDistanceToHole] = useState<string>('');  // New state for distance to hole
   const [showDistanceModal, setShowDistanceModal] = useState(false);
+  
+  // Auto-append 'ft' to distance input
+  const handleDistanceChange = (text: string) => {
+    // Remove any existing 'ft' or 'feet' to avoid duplication
+    const cleanedText = text.replace(/\s*(ft|feet)\s*$/i, '');
+    setDistanceToHole(cleanedText);
+  };
+  
+  const getFormattedDistance = () => {
+    if (!distanceToHole) return '';
+    // If it's just a number, add 'ft'
+    const trimmed = distanceToHole.trim();
+    if (/^\d+$/.test(trimmed)) {
+      return `${trimmed} ft`;
+    }
+    return distanceToHole;
+  };
 
   const autoSave = async (currentShots: Shot[], currentPar: number = par) => {
     // If we have recorded shots in this session, use that count
@@ -156,9 +174,13 @@ const ShotTrackingScreen = () => {
       
       // Add putt distance if it's a putt
       if (shot.type === 'Putt' && shot.puttDistance) {
-        const distanceLabel = shot.puttDistance === 'short' ? '< 5ft' : 
-                              shot.puttDistance === 'medium' ? '5-15ft' : 
-                              '> 15ft';
+        // If puttDistance already includes 'ft', use it as is, otherwise format it
+        const distanceLabel = shot.puttDistance.includes('ft') 
+          ? shot.puttDistance 
+          : (shot.puttDistance === 'short' ? '< 5ft' : 
+             shot.puttDistance === 'medium' ? '5-15ft' : 
+             shot.puttDistance === 'long' ? '> 15ft' : 
+             `${shot.puttDistance} ft`);
         message += ` (${distanceLabel})`;
       }
       
@@ -217,7 +239,7 @@ const ShotTrackingScreen = () => {
     if (isUpdate) {
       message += `Ball on green!\n`;
       if (distanceToHole) {
-        message += `Distance: ${distanceToHole}\n`;
+        message += `Distance: ${getFormattedDistance()}\n`;
       }
     } else {
       message += `Score: ${shots.length} (${scoreName})\n`;
@@ -241,9 +263,13 @@ const ShotTrackingScreen = () => {
       
       // Add putt distance if it's a putt
       if (shot.type === 'putt' && shot.puttDistance) {
-        const distanceLabel = shot.puttDistance === 'short' ? '< 5ft' : 
-                              shot.puttDistance === 'medium' ? '5-15ft' : 
-                              '> 15ft';
+        // If puttDistance already includes 'ft', use it as is, otherwise format it
+        const distanceLabel = shot.puttDistance.includes('ft') 
+          ? shot.puttDistance 
+          : (shot.puttDistance === 'short' ? '< 5ft' : 
+             shot.puttDistance === 'medium' ? '5-15ft' : 
+             shot.puttDistance === 'long' ? '> 15ft' : 
+             `${shot.puttDistance} ft`);
         message += ` (${distanceLabel})`;
       }
       
@@ -292,43 +318,48 @@ const ShotTrackingScreen = () => {
     return undefined;
   };
 
-  const handleUpdate = async () => {
-    // Check if ball is on green (has tee/approach shots but no putts yet)
-    const nonPuttShots = shots.filter(s => s.type !== 'putt');
-    const puttShots = shots.filter(s => s.type === 'putt');
-    
-    if (nonPuttShots.length === 0) {
-      Alert.alert('No Shots', 'Please record at least one shot before sending an update.');
-      return;
-    }
-    
-    if (puttShots.length > 0) {
-      Alert.alert('Hole Complete', 'This hole has putts recorded. Use the Save button to share the complete hole summary.');
-      return;
-    }
-    
-    // Show distance modal
-    setShowDistanceModal(true);
-  };
+  // Update function removed - updates are now sent with each putt
+  // const handleUpdate = async () => { ... }
 
-  const sendUpdate = async () => {
+  const sendPuttUpdate = async () => {
     setShowDistanceModal(false);
     
-    const nonPuttShots = shots.filter(s => s.type !== 'putt');
-    const runningScore = await calculateRunningScore();
+    // Calculate what the putt is for
+    // currentStroke is the stroke number for this putt
+    const strokesAfterPutt = currentStroke;
+    let puttFor = '';
+    if (strokesAfterPutt === par - 2) puttFor = ' for eagle';
+    else if (strokesAfterPutt === par - 1) puttFor = ' for birdie';
+    else if (strokesAfterPutt === par) puttFor = ' for par';
+    else if (strokesAfterPutt === par + 1) puttFor = ' for bogey';
+    else if (strokesAfterPutt === par + 2) puttFor = ' for double bogey';
+    else if (strokesAfterPutt > par + 2) puttFor = ` for +${strokesAfterPutt - par}`;
+    
+    // Format distance with "ft" and putt description
+    const formattedDistance = getFormattedDistance();
+    const distanceMessage = formattedDistance ? `${formattedDistance}${puttFor}` : `Putting${puttFor}`;
     
     try {
-      const description = generateSMSShotDescription(nonPuttShots, par, runningScore, true);
+      // Simplified message
+      let message = `Hole ${hole.holeNumber} - Par ${par}\n`;
+      message += `${distanceMessage}`;
       
       await Share.open({
-        title: `Hole ${hole.holeNumber} - In Progress`,
-        message: description,
+        title: `Hole ${hole.holeNumber} - Putt`,
+        message: message,
       });
     } catch (error: any) {
       if (error?.message !== 'User did not share') {
         console.error('Share error:', error);
       }
     }
+    
+    // Save the putt distance for the current shot
+    const puttDistanceValue = distanceToHole || '0';
+    setCurrentPuttDistance(`${puttDistanceValue} ft`);
+    setDistanceToHole('');
+    // Keep the shot type as putt and let user select result
+    // Don't clear currentShotType so user can select putt result
   };
 
   const handleSave = async () => {
@@ -417,8 +448,15 @@ const ShotTrackingScreen = () => {
   };
 
   const handleShotTypeSelection = (type: string) => {
-    setCurrentShotType(type);
-    setCurrentShotResults([]);
+    // If putt is selected, open distance modal immediately
+    if (type === 'Putt') {
+      setCurrentShotType(type);
+      setCurrentShotResults([]);
+      setShowDistanceModal(true);
+    } else {
+      setCurrentShotType(type);
+      setCurrentShotResults([]);
+    }
   };
 
   const handleShotResultSelection = (resultId: string) => {
@@ -451,9 +489,10 @@ const ShotTrackingScreen = () => {
   };
 
   const confirmShotWithResults = () => {
-    // For putts, require distance selection
-    if (currentShotType === 'putt' && !currentPuttDistance) {
-      Alert.alert('Select Putt Distance', 'Please select the putt distance before confirming the shot.');
+    // For putts, distance should already be set from modal
+    if (currentShotType === 'Putt' && !currentPuttDistance) {
+      // Re-open distance modal if somehow distance wasn't set
+      setShowDistanceModal(true);
       return;
     }
     
@@ -478,9 +517,10 @@ const ShotTrackingScreen = () => {
   };
 
   const confirmShot = () => {
-    // For putts, require distance selection
-    if (currentShotType === 'putt' && !currentPuttDistance) {
-      Alert.alert('Select Putt Distance', 'Please select the putt distance before confirming the shot.');
+    // For putts, distance should already be set from modal
+    if (currentShotType === 'Putt' && !currentPuttDistance) {
+      // Re-open distance modal if somehow distance wasn't set
+      setShowDistanceModal(true);
       return;
     }
     
@@ -849,59 +889,12 @@ const ShotTrackingScreen = () => {
               </View>
             )}
             
-            {/* Putt Distance Selection for Putts */}
-            {currentShotType === 'Putt' && (
+            {/* Putt Distance Display for Putts */}
+            {currentShotType === 'Putt' && currentPuttDistance && (
               <View style={styles.puttDistanceSection}>
                 <Text style={styles.puttDistanceLabel}>Putt Distance:</Text>
-                <View style={styles.puttDistanceRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.puttDistanceButton,
-                      currentPuttDistance === 'short' && styles.puttDistanceButtonActive
-                    ]}
-                    onPress={() => setCurrentPuttDistance('short')}
-                  >
-                    <Text style={[
-                      styles.puttDistanceText,
-                      currentPuttDistance === 'short' && styles.puttDistanceTextActive
-                    ]}>Short</Text>
-                    <Text style={[
-                      styles.puttDistanceSubtext,
-                      currentPuttDistance === 'short' && styles.puttDistanceTextActive
-                    ]}>{'< 5ft'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.puttDistanceButton,
-                      currentPuttDistance === 'medium' && styles.puttDistanceButtonActive
-                    ]}
-                    onPress={() => setCurrentPuttDistance('medium')}
-                  >
-                    <Text style={[
-                      styles.puttDistanceText,
-                      currentPuttDistance === 'medium' && styles.puttDistanceTextActive
-                    ]}>Medium</Text>
-                    <Text style={[
-                      styles.puttDistanceSubtext,
-                      currentPuttDistance === 'medium' && styles.puttDistanceTextActive
-                    ]}>5-15ft</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.puttDistanceButton,
-                      currentPuttDistance === 'long' && styles.puttDistanceButtonActive
-                    ]}
-                    onPress={() => setCurrentPuttDistance('long')}
-                  >
-                    <Text style={[
-                      styles.puttDistanceText,
-                      currentPuttDistance === 'long' && styles.puttDistanceTextActive
-                    ]}>Long</Text>
-                    <Text style={[
-                      styles.puttDistanceSubtext,
-                      currentPuttDistance === 'long' && styles.puttDistanceTextActive
-                    ]}>{'> 15ft'}</Text>
-                  </TouchableOpacity>
+                <View style={styles.puttDistanceDisplay}>
+                  <Text style={styles.puttDistanceValue}>{currentPuttDistance}</Text>
                 </View>
               </View>
             )}
@@ -1033,56 +1026,61 @@ const ShotTrackingScreen = () => {
         </TouchableOpacity>
       </Modal>
 
-      {/* Distance to Hole Modal */}
+      {/* Distance to Hole Modal (for Putts) */}
       <Modal
         visible={showDistanceModal}
         transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowDistanceModal(false)}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowDistanceModal(false);
+          if (currentShotType === 'Putt') {
+            setCurrentShotType('');
+            setDistanceToHole('');
+          }
+        }}
       >
-        <TouchableOpacity
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowDistanceModal(false)}
         >
-          <View style={styles.parSelectorModal}>
-            <Text style={styles.parSelectorTitle}>Distance to Hole</Text>
-            <TextInput
-              style={styles.distanceInput}
-              placeholder="e.g., 15 feet, 3 yards"
-              value={distanceToHole}
-              onChangeText={setDistanceToHole}
-              autoFocus={true}
-            />
-            <View style={styles.parSelectorButtons}>
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => {
+              setShowDistanceModal(false);
+              if (currentShotType === 'Putt') {
+                setCurrentShotType('');
+                setDistanceToHole('');
+              }
+            }}
+          >
+            <View style={[styles.parSelectorModal, { marginBottom: 100 }]}>
+              <Text style={styles.parSelectorTitle}>
+                {currentShotType === 'Putt' ? 'Putt Distance' : 'Distance to Hole'}
+              </Text>
+              <View style={styles.distanceInputContainer}>
+                <TextInput
+                  style={styles.distanceInput}
+                  placeholder="Enter distance (e.g., 15)"
+                  value={distanceToHole}
+                  onChangeText={handleDistanceChange}
+                  keyboardType="numeric"
+                  autoFocus={true}
+                />
+                <Text style={styles.distanceUnit}>ft</Text>
+              </View>
               <TouchableOpacity
-                style={[styles.parButton, { backgroundColor: '#666' }]}
-                onPress={() => setShowDistanceModal(false)}
+                style={[styles.modalButton, styles.modalButtonSend, { width: '100%' }]}
+                onPress={sendPuttUpdate}
               >
-                <Text style={styles.parButtonTextActive}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.parButton, styles.parButtonActive]}
-                onPress={sendUpdate}
-              >
-                <Text style={styles.parButtonTextActive}>Send Update</Text>
+                <Text style={styles.modalButtonSendText}>Update</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
-      {/* Floating Action Buttons */}
-      {shots.filter(s => s.type !== 'putt').length > 0 && shots.filter(s => s.type === 'putt').length === 0 && (
-        <TouchableOpacity
-          style={[styles.fab, styles.fabUpdate]}
-          onPress={handleUpdate}
-          activeOpacity={0.8}
-        >
-          <Icon name="send" size={28} color="#fff" />
-          <Text style={styles.fabText}>Update</Text>
-        </TouchableOpacity>
-      )}
+      {/* Update link removed - updates are now sent with each putt */}
       
       <TouchableOpacity
         style={styles.fab}
@@ -1506,6 +1504,19 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textAlign: 'center',
   },
+  puttDistanceDisplay: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    alignSelf: 'center',
+  },
+  puttDistanceValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+  },
   puttDistanceRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -1551,8 +1562,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 15,
     padding: 20,
-    width: '80%',
-    maxWidth: 300,
+    width: '90%',
+    maxWidth: 400,
   },
   parSelectorTitle: {
     fontSize: 18,
@@ -1602,23 +1613,91 @@ const styles = StyleSheet.create({
   fabUpdate: {
     bottom: 110,
     backgroundColor: '#2196F3',
-    width: 80,
-    paddingHorizontal: 16,
+    width: 100,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
   fabText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 'bold',
-    marginTop: 2,
   },
-  distanceInput: {
-    backgroundColor: '#fff',
+  distanceInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
     borderRadius: 10,
-    padding: 12,
-    fontSize: 16,
     marginVertical: 15,
     borderWidth: 1,
     borderColor: '#ddd',
+  },
+  distanceInput: {
+    flex: 1,
+    padding: 12,
+    fontSize: 18,
+    color: '#333',
+  },
+  distanceUnit: {
+    fontSize: 16,
+    color: '#666',
+    paddingRight: 15,
+    fontWeight: '600',
+  },
+  modalButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 10,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  modalButtonCancel: {
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  modalButtonSend: {
+    backgroundColor: '#4CAF50',
+  },
+  modalButtonCancelText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalButtonSendText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  updateLink: {
+    position: 'absolute',
+    bottom: 110,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    gap: 6,
+  },
+  updateLinkText: {
+    color: '#2196F3',
+    fontSize: 16,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });
 

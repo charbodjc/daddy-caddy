@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Image,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
@@ -147,6 +148,32 @@ const HomeScreen = () => {
 
   const goToTournaments = () => {
     navigation.navigate('Tournaments' as never);
+  };
+
+  const handleDeleteRound = async (round: GolfRound) => {
+    Alert.alert(
+      'Delete Round?',
+      `Are you sure you want to delete the round at ${round.courseName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await DatabaseService.deleteRound(round.id);
+              console.log(`✅ Round ${round.id} deleted`);
+              // Refresh the data
+              loadRecentRounds();
+              loadStats();
+            } catch (error) {
+              console.error('❌ Failed to delete round:', error);
+              Alert.alert('Error', 'Failed to delete round');
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -297,27 +324,23 @@ const HomeScreen = () => {
                   {new Date(round.date).toLocaleDateString()}
                 </Text>
               </View>
-              <View style={styles.recentRoundRight}>
+              <View style={styles.recentRoundMiddle}>
                 <Text style={styles.recentRoundScore}>{round.totalScore}</Text>
                 <Text style={styles.recentRoundPar}>
                   {round.totalScore - 72 > 0 ? '+' : ''}{round.totalScore - 72}
                 </Text>
               </View>
+              <TouchableOpacity 
+                style={styles.deleteButton}
+                onPress={() => handleDeleteRound(round)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Icon name="delete" size={20} color="#F44336" />
+              </TouchableOpacity>
             </View>
           ))}
         </View>
       )}
-
-      {/* Tips */}
-      <View style={[styles.section, { marginBottom: 30 }]}>
-        <Text style={styles.sectionTitle}>Quick Tips</Text>
-        <View style={styles.tipCard}>
-          <FontAwesome5 name="lightbulb" size={20} color="#FFD700" />
-          <Text style={styles.tipText}>
-            Track every shot to identify patterns and improve your game
-          </Text>
-        </View>
-      </View>
     </ScrollView>
   );
 };
@@ -497,8 +520,13 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
-  recentRoundRight: {
+  recentRoundMiddle: {
     alignItems: 'flex-end',
+    marginRight: 15,
+  },
+  deleteButton: {
+    padding: 5,
+    justifyContent: 'center',
   },
   recentRoundScore: {
     fontSize: 20,
@@ -509,22 +537,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
-  tipCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 15,
-    backgroundColor: '#fffbf0',
-    padding: 15,
-    borderRadius: 10,
-    borderLeftWidth: 3,
-    borderLeftColor: '#FFD700',
-  },
-  tipText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-  },
+  // Removed tipCard and tipText styles - Quick Tips section deleted
 });
 
 export default HomeScreen;

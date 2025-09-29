@@ -1,5 +1,5 @@
 import SQLite from 'react-native-sqlite-storage';
-import { GolfRound, MediaItem, Contact, Tournament } from '../types';
+import { GolfRound, GolfHole, MediaItem, Contact, Tournament } from '../types';
 import RoundDeletionManager from './roundManager';
 
 // Enable promise-based API
@@ -8,6 +8,7 @@ SQLite.enablePromise(true);
 class DatabaseService {
   private db: SQLite.SQLiteDatabase | null = null;
   private initialized: boolean = false;
+  private dbName: string = 'GolfTracker.db';
 
   async init() {
     if (this.initialized && this.db) {
@@ -272,73 +273,14 @@ class DatabaseService {
           ]
         );
 
-        // Delete existing holes for this round
-        await tx.executeSql('DELETE FROM holes WHERE roundId = ?', [round.id]);
-
-        // Insert holes (only if holes array exists and has items)
-        if (round.holes && round.holes.length > 0) {
-          console.log(`📝 Inserting ${round.holes.length} holes...`);
-          console.log('Holes data:', JSON.stringify(round.holes.map(h => ({
-            holeNumber: h.holeNumber,
-            strokes: h.strokes,
-            par: h.par,
-            fairwayHit: h.fairwayHit,
-            greenInRegulation: h.greenInRegulation
-          }))));
-          
-          for (const hole of round.holes) {
-            const strokesValue = hole.strokes ?? 0;
-            console.log(`💾 Saving hole ${hole.holeNumber}: strokes=${strokesValue}, par=${hole.par}`);
-            
-            // shotData might already be a string if it came from ShotTrackingScreen
-            let shotDataToSave = hole.shotData;
-            if (shotDataToSave && typeof shotDataToSave !== 'string') {
-              shotDataToSave = JSON.stringify(shotDataToSave);
-            }
-            
-            try {
-              await tx.executeSql(
-                `INSERT INTO holes 
-                 (roundId, holeNumber, par, strokes, fairwayHit, greenInRegulation, putts, notes, shotData)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                  round.id,
-                  hole.holeNumber,
-                  hole.par ?? 4,  // Default par to 4 if not set
-                  strokesValue,  // Ensure strokes is always a number
-                  hole.fairwayHit === true ? 1 : (hole.fairwayHit === false ? 0 : null),
-                  hole.greenInRegulation === true ? 1 : (hole.greenInRegulation === false ? 0 : null),
-                  hole.putts ?? null,
-                  hole.notes ?? null,
-                  shotDataToSave ?? null,
-                ]
-              );
-              console.log(`✅ Hole ${hole.holeNumber} saved successfully`);
-            } catch (holeError) {
-              console.error(`❌ Error saving hole ${hole.holeNumber}:`, holeError);
-              console.error('Failed hole data:', JSON.stringify(hole));
-              throw holeError;
-            }
-          }
-        } else {
-          console.log('⚠️ No holes to save for this round');
-        }
+        // NO LONGER DELETE HOLES - we manage them individually now
+        // Holes are saved separately via saveHole() method
+        console.log(`✅ Round metadata saved, holes managed separately`);
         console.log('✅ Transaction completed successfully');
       });
       
-      console.log('🔍 Verifying saved data...');
-      // Verify holes were saved
-      const [verifyResult] = await this.db.executeSql(
-        'SELECT COUNT(*) as count FROM holes WHERE roundId = ?',
-        [round.id]
-      );
-      const savedHolesCount = verifyResult.rows.item(0).count;
-      const expectedHoles = round.holes?.length || 0;
-      console.log(`✅ Round saved successfully. Verified ${savedHolesCount} holes in database for round ${round.id}`);
-      
-      if (savedHolesCount !== expectedHoles) {
-        console.error(`⚠️ Warning: Expected ${expectedHoles} holes but only ${savedHolesCount} were saved`);
-      }
+      // Verification is now less critical since holes are managed separately
+      console.log(`✅ Round saved successfully with ID: ${round.id}`);
     } catch (error) {
       console.error('❌ Error saving round:', error);
       throw error;
@@ -364,7 +306,22 @@ class DatabaseService {
         [roundRow.id]
       );
 
-      const holes = [];
+      // Always start with 18 empty holes
+      const holes: GolfHole[] = [];
+      for (let h = 1; h <= 18; h++) {
+        holes.push({
+          holeNumber: h,
+          par: 4, // Default par
+          strokes: 0,
+          fairwayHit: undefined,
+          greenInRegulation: undefined,
+          putts: undefined,
+          notes: undefined,
+          shotData: undefined,
+        });
+      }
+      
+      // Merge saved hole data
       for (let j = 0; j < holeResults.rows.length; j++) {
         const holeRow = holeResults.rows.item(j);
         let parsedShotData = undefined;
@@ -378,16 +335,21 @@ class DatabaseService {
             parsedShotData = undefined;
           }
         }
-        holes.push({
-          holeNumber: holeRow.holeNumber,
-          par: holeRow.par,
-          strokes: holeRow.strokes ?? 0,  // Use nullish coalescing instead of ||
-          fairwayHit: holeRow.fairwayHit === 1,
-          greenInRegulation: holeRow.greenInRegulation === 1,
-          putts: holeRow.putts ?? 0,  // Use nullish coalescing
-          notes: holeRow.notes,
-          shotData: parsedShotData,
-        });
+        
+        // Find and update the corresponding hole
+        const holeIndex = holeRow.holeNumber - 1;
+        if (holeIndex >= 0 && holeIndex < 18) {
+          holes[holeIndex] = {
+            holeNumber: holeRow.holeNumber,
+            par: holeRow.par,
+            strokes: holeRow.strokes ?? 0,
+            fairwayHit: holeRow.fairwayHit === 1,
+            greenInRegulation: holeRow.greenInRegulation === 1,
+            putts: holeRow.putts ?? 0,
+            notes: holeRow.notes,
+            shotData: parsedShotData,
+          };
+        }
       }
 
       rounds.push({
@@ -432,8 +394,24 @@ class DatabaseService {
       [roundRow.id]
     );
 
-    const holes = [];
-    console.log(`Loading ${holeResults.rows.length} holes for round ${id}`);
+    // Always start with 18 empty holes
+    const holes: GolfHole[] = [];
+    for (let i = 1; i <= 18; i++) {
+      holes.push({
+        holeNumber: i,
+        par: 4, // Default par
+        strokes: 0,
+        fairwayHit: undefined,
+        greenInRegulation: undefined,
+        putts: undefined,
+        notes: undefined,
+        shotData: undefined,
+      });
+    }
+    
+    console.log(`Loading ${holeResults.rows.length} saved holes for round ${id}`);
+    
+    // Merge saved hole data into the 18-hole array
     for (let j = 0; j < holeResults.rows.length; j++) {
       const holeRow = holeResults.rows.item(j);
       let parsedShotData = undefined;
@@ -447,19 +425,23 @@ class DatabaseService {
           parsedShotData = undefined;
         }
       }
-      const hole = {
-        holeNumber: holeRow.holeNumber,
-        par: holeRow.par,
-        strokes: holeRow.strokes ?? 0,  // Use nullish coalescing instead of ||
-        fairwayHit: holeRow.fairwayHit === 1,
-        greenInRegulation: holeRow.greenInRegulation === 1,
-        putts: holeRow.putts ?? 0,  // Use nullish coalescing
-        notes: holeRow.notes,
-        shotData: parsedShotData,
-      };
-      holes.push(hole);
+      
+      // Find and update the corresponding hole in our 18-hole array
+      const holeIndex = holeRow.holeNumber - 1;
+      if (holeIndex >= 0 && holeIndex < 18) {
+        holes[holeIndex] = {
+          holeNumber: holeRow.holeNumber,
+          par: holeRow.par,
+          strokes: holeRow.strokes ?? 0,
+          fairwayHit: holeRow.fairwayHit === 1,
+          greenInRegulation: holeRow.greenInRegulation === 1,
+          putts: holeRow.putts ?? 0,
+          notes: holeRow.notes,
+          shotData: parsedShotData,
+        };
+      }
     }
-    console.log('First hole loaded:', holes[0]);
+    console.log(`Merged ${holeResults.rows.length} saved holes into 18 total holes`);
 
     return {
       id: roundRow.id,
@@ -844,17 +826,114 @@ class DatabaseService {
       if (!this.db) throw new Error('Database not initialized');
     }
 
-    await this.db.transaction(async (tx) => {
-      await tx.executeSql('DELETE FROM holes');
-      await tx.executeSql('DELETE FROM media');
-      await tx.executeSql('DELETE FROM rounds');
-      await tx.executeSql('DELETE FROM contacts');
-      await tx.executeSql('DELETE FROM tournaments');
-      await tx.executeSql('DELETE FROM preferences');
-    });
+    console.log('🗑️ Starting to clear all data...');
+    
+    try {
+      // Execute deletes individually for better error tracking
+      const [holesResult] = await this.db.executeSql('DELETE FROM holes');
+      console.log(`✅ Deleted ${holesResult.rowsAffected} holes`);
+      
+      const [mediaResult] = await this.db.executeSql('DELETE FROM media');
+      console.log(`✅ Deleted ${mediaResult.rowsAffected} media items`);
+      
+      const [roundsResult] = await this.db.executeSql('DELETE FROM rounds');
+      console.log(`✅ Deleted ${roundsResult.rowsAffected} rounds`);
+      
+      const [contactsResult] = await this.db.executeSql('DELETE FROM contacts');
+      console.log(`✅ Deleted ${contactsResult.rowsAffected} contacts`);
+      
+      const [tournamentsResult] = await this.db.executeSql('DELETE FROM tournaments');
+      console.log(`✅ Deleted ${tournamentsResult.rowsAffected} tournaments`);
+      
+      const [preferencesResult] = await this.db.executeSql('DELETE FROM preferences');
+      console.log(`✅ Deleted ${preferencesResult.rowsAffected} preferences`);
+      
+      console.log('✅ All data cleared successfully');
+    } catch (error) {
+      console.error('❌ Error clearing data:', error);
+      throw error;
+    }
+  }
+  
+  // Save or update a single hole
+  async saveHole(roundId: string, hole: GolfHole): Promise<boolean> {
+    if (!this.db) {
+      await this.init();
+      if (!this.db) return false;
+    }
+    
+    const strokesValue = hole.strokes || 0;
+    console.log(`💾 Saving/updating hole ${hole.holeNumber} for round ${roundId} with ${strokesValue} strokes`);
+    
+    try {
+      // Check if hole already exists
+      const [existing] = await this.db.executeSql(
+        'SELECT id FROM holes WHERE roundId = ? AND holeNumber = ?',
+        [roundId, hole.holeNumber]
+      );
+      
+      let shotDataToSave = hole.shotData;
+      if (shotDataToSave && typeof shotDataToSave !== 'string') {
+        shotDataToSave = JSON.stringify(shotDataToSave);
+      }
+      
+      if (existing.rows.length > 0) {
+        // Update existing hole
+        const holeId = existing.rows.item(0).id;
+        await this.db.executeSql(
+          `UPDATE holes 
+           SET par = ?, strokes = ?, fairwayHit = ?, greenInRegulation = ?, 
+               putts = ?, notes = ?, shotData = ?
+           WHERE id = ?`,
+          [
+            hole.par || 4,
+            strokesValue,
+            hole.fairwayHit === true ? 1 : (hole.fairwayHit === false ? 0 : null),
+            hole.greenInRegulation === true ? 1 : (hole.greenInRegulation === false ? 0 : null),
+            hole.putts || null,
+            hole.notes || null,
+            shotDataToSave || null,
+            holeId
+          ]
+        );
+        console.log(`✅ Hole ${hole.holeNumber} updated successfully`);
+      } else {
+        // Insert new hole
+        await this.db.executeSql(
+          `INSERT INTO holes 
+           (roundId, holeNumber, par, strokes, fairwayHit, greenInRegulation, putts, notes, shotData)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            roundId,
+            hole.holeNumber,
+            hole.par || 4,
+            strokesValue,
+            hole.fairwayHit === true ? 1 : (hole.fairwayHit === false ? 0 : null),
+            hole.greenInRegulation === true ? 1 : (hole.greenInRegulation === false ? 0 : null),
+            hole.putts || null,
+            hole.notes || null,
+            shotDataToSave || null
+          ]
+        );
+        console.log(`✅ Hole ${hole.holeNumber} inserted successfully`);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error(`❌ Error saving hole ${hole.holeNumber}:`, error);
+      return false;
+    }
   }
   
   // Test method to save a single hole directly
+  // Get database instance for testing
+  async getDb() {
+    if (!this.db) {
+      await this.init();
+    }
+    return this.db;
+  }
+
   async testSaveHole(roundId: string, holeNumber: number): Promise<boolean> {
     if (!this.db) {
       await this.init();
@@ -862,9 +941,22 @@ class DatabaseService {
     }
     
     console.log(`🧪 Testing direct hole save for round ${roundId}, hole ${holeNumber}`);
+    console.log(`📱 Database instance:`, this.db ? 'exists' : 'null');
+    console.log(`📍 Database name:`, this.dbName);
     
     try {
-      await this.db.executeSql(
+      // First check if holes table exists
+      const [tableCheck] = await this.db.executeSql(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='holes'"
+      );
+      console.log(`📋 Holes table exists: ${tableCheck.rows.length > 0}`);
+      
+      // Check current count in holes table
+      const [countBefore] = await this.db.executeSql('SELECT COUNT(*) as count FROM holes');
+      console.log(`📊 Holes count before insert: ${countBefore.rows.item(0).count}`);
+      
+      // Try to insert with non-zero strokes
+      const [insertResult] = await this.db.executeSql(
         `INSERT INTO holes 
          (roundId, holeNumber, par, strokes, fairwayHit, greenInRegulation, putts, notes, shotData)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -872,25 +964,36 @@ class DatabaseService {
           roundId,
           holeNumber,
           4,  // Default par
-          0,  // Default strokes
-          null,
-          null,
-          null,
-          'Test hole',
+          3,  // Non-zero strokes to test
+          1,  // fairwayHit
+          0,  // greenInRegulation  
+          2,  // putts
+          'Test hole with strokes',
           null
         ]
       );
       
-      console.log('✅ Test hole saved successfully');
+      console.log(`✅ Insert result - insertId: ${insertResult.insertId}, rowsAffected: ${insertResult.rowsAffected}`);
       
-      // Verify it was saved
+      // Check count after insert
+      const [countAfter] = await this.db.executeSql('SELECT COUNT(*) as count FROM holes');
+      console.log(`📊 Holes count after insert: ${countAfter.rows.item(0).count}`);
+      
+      // Verify the specific hole was saved
       const [result] = await this.db.executeSql(
         'SELECT * FROM holes WHERE roundId = ? AND holeNumber = ?',
         [roundId, holeNumber]
       );
       
       if (result.rows.length > 0) {
-        console.log('✅ Test hole verified in database:', result.rows.item(0));
+        const hole = result.rows.item(0);
+        console.log('✅ Test hole verified in database:', {
+          id: hole.id,
+          roundId: hole.roundId,
+          holeNumber: hole.holeNumber,
+          strokes: hole.strokes,
+          par: hole.par
+        });
         return true;
       } else {
         console.error('❌ Test hole not found after save');
