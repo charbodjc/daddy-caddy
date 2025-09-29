@@ -1,3 +1,4 @@
+// Updated: Quick Tips removed, Media tab removed, Delete functionality added - 2025-09-29
 import React, { useState, useEffect } from 'react';
 import {
   View,
