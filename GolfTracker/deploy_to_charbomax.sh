@@ -28,7 +28,7 @@ echo "🔨 Building app for device..."
 xcodebuild -workspace GolfTracker.xcworkspace \
   -scheme GolfTracker \
   -configuration Release \
-  -destination "platform=iOS,name=charbomax" \
+  -destination "platform=iOS,name=charboMAX" \
   -derivedDataPath build \
   CODE_SIGN_IDENTITY="Apple Development" \
   DEVELOPMENT_TEAM="CXHZ8Z4F6P" \
@@ -41,7 +41,7 @@ if [ $? -eq 0 ]; then
   
   # Install on device
   echo "📱 Installing on charbomax..."
-  xcrun devicectl device install app --device "charbomax" "build/Build/Products/Release-iphoneos/GolfTracker.app"
+  xcrun devicectl device install app --device "charboMAX" "build/Build/Products/Release-iphoneos/GolfTracker.app"
   
   if [ $? -eq 0 ]; then
     echo "✅ App deployed successfully to charbomax!"

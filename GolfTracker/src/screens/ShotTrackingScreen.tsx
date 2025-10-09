@@ -103,6 +103,8 @@ const ShotTrackingScreen = () => {
   const [capturedMedia, setCapturedMedia] = useState<MediaItem[]>([]);
   const [distanceToHole, setDistanceToHole] = useState<string>('');  // New state for distance to hole
   const [showDistanceModal, setShowDistanceModal] = useState(false);
+  const [isPuttingMode, setIsPuttingMode] = useState(false);  // Track putting mode
+  const [puttingStrokes, setPuttingStrokes] = useState(0);  // Track putts in current sequence
   
   // Auto-append 'ft' to distance input
   const handleDistanceChange = (text: string) => {
@@ -324,6 +326,11 @@ const ShotTrackingScreen = () => {
   const sendPuttUpdate = async () => {
     setShowDistanceModal(false);
     
+    // Calculate running score up to this point
+    const runningScore = await calculateRunningScore();
+    const currentHoleScore = shots.length - par; // Score with shots so far
+    const totalRunningScore = (runningScore || 0) + currentHoleScore;
+    
     // Calculate what the putt is for
     // currentStroke is the stroke number for this putt
     const strokesAfterPutt = currentStroke;
@@ -340,12 +347,37 @@ const ShotTrackingScreen = () => {
     const distanceMessage = formattedDistance ? `${formattedDistance}${puttFor}` : `Putting${puttFor}`;
     
     try {
-      // Simplified message
+      // Send full hole summary with all shots up to this point
       let message = `Hole ${hole.holeNumber} - Par ${par}\n`;
-      message += `${distanceMessage}`;
+      message += `${distanceMessage}\n`;
+      
+      // Add running score if available
+      if (totalRunningScore !== undefined) {
+        const scoreText = totalRunningScore === 0 ? 'E' : totalRunningScore > 0 ? `+${totalRunningScore}` : `${totalRunningScore}`;
+        message += `Running Total: ${scoreText}\n`;
+      }
+      
+      // Add shot-by-shot summary if there are shots before the putt
+      if (shots.length > 0) {
+        message += `\nShots to green:\n`;
+        shots.forEach((shot, index) => {
+          const shotNum = index + 1;
+          const shotTypeLabel = SHOT_TYPES.ROW1.concat(SHOT_TYPES.ROW2).find(t => t.id === shot.type)?.label || shot.type;
+          message += `${shotNum}. ${shotTypeLabel}`;
+          
+          if (shot.results && shot.results.length > 0) {
+            const resultDescriptions = shot.results.map(r => {
+              const result = SHOT_RESULTS.ROW1.concat(SHOT_RESULTS.ROW2).find(res => res.id === r);
+              return result?.label || r;
+            });
+            message += ` - ${resultDescriptions.join(', ')}`;
+          }
+          message += '\n';
+        });
+      }
       
       await Share.open({
-        title: `Hole ${hole.holeNumber} - Putt`,
+        title: `Hole ${hole.holeNumber} - On Green`,
         message: message,
       });
     } catch (error: any) {
@@ -358,8 +390,130 @@ const ShotTrackingScreen = () => {
     const puttDistanceValue = distanceToHole || '0';
     setCurrentPuttDistance(`${puttDistanceValue} ft`);
     setDistanceToHole('');
-    // Keep the shot type as putt and let user select result
-    // Don't clear currentShotType so user can select putt result
+    
+    // Enter putting mode instead of shot result selection
+    setIsPuttingMode(true);
+    setPuttingStrokes(0);
+    setCurrentShotType('');  // Clear shot type
+    setCurrentShotResults([]);  // Clear shot results
+  };
+
+  // Handler for "Missed It" button in putting mode
+  const handlePuttMissed = () => {
+    // Add a missed putt to shots
+    const missedPutt: Shot = {
+      stroke: currentStroke,
+      type: 'putt',
+      results: ['missed'],
+      puttDistance: currentPuttDistance,
+    };
+    
+    setShots([...shots, missedPutt]);
+    setCurrentStroke(currentStroke + 1);
+    setPuttingStrokes(puttingStrokes + 1);
+    // Stay in putting mode for next putt
+  };
+  
+  // Handler for "Made It" button in putting mode
+  const handlePuttMade = async () => {
+    // Add the made putt to shots
+    const madePutt: Shot = {
+      stroke: currentStroke,
+      type: 'putt',
+      results: ['target'],  // Use 'target' to indicate made putt
+      puttDistance: currentPuttDistance,
+    };
+    
+    const newShots = [...shots, madePutt];
+    setShots(newShots);
+    
+    // Exit putting mode
+    setIsPuttingMode(false);
+    const totalPutts = puttingStrokes + 1; // Include the made putt
+    setPuttingStrokes(0);
+    setCurrentPuttDistance('');
+    setCurrentStroke(currentStroke + 1);
+    
+    // Save the hole data
+    await autoSave(newShots, par);
+    
+    // Calculate running score including current hole
+    const runningScore = await calculateRunningScore();
+    const currentHoleScore = newShots.length - par;
+    const totalRunningScore = (runningScore || 0) + currentHoleScore;
+    
+    // Generate putting-only summary
+    const scoreName = (() => {
+      const diff = newShots.length - par;
+      if (diff <= -3) return 'Albatross! 🦅🦅';
+      if (diff === -2) return 'Eagle! 🦅';
+      if (diff === -1) return 'Birdie 🐦';
+      if (diff === 0) return 'Par ✅';
+      if (diff === 1) return 'Bogey';
+      if (diff === 2) return 'Double Bogey';
+      if (diff === 3) return 'Triple Bogey';
+      return `+${diff}`;
+    })();
+    
+    // Automatically trigger share dialog with putting summary only
+    try {
+      let message = `Hole ${hole.holeNumber} - Par ${par}\n`;
+      message += `Score: ${newShots.length} (${scoreName})\n`;
+      
+      // Add running score
+      if (totalRunningScore !== undefined) {
+        const scoreText = totalRunningScore === 0 ? 'E' : totalRunningScore > 0 ? `+${totalRunningScore}` : `${totalRunningScore}`;
+        message += `Running Total: ${scoreText}\n`;
+      }
+      
+      // Add putting summary
+      message += `\nPutting: `;
+      if (totalPutts === 1) {
+        message += `Made it! ⛳`;
+      } else if (totalPutts === 2) {
+        message += `2-putt`;
+      } else if (totalPutts === 3) {
+        message += `3-putt 😤`;
+      } else {
+        message += `${totalPutts}-putt 😱`;
+      }
+      
+      // Add final result
+      if (newShots.length <= par - 1) {
+        message += '\n\n🎉 Outstanding play!';
+      } else if (newShots.length === par) {
+        message += '\n\n⛳ Solid par!';
+      }
+      
+      // Get media for the hole
+      const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
+      const mediaUrls = media.map(m => m.uri).filter(uri => uri);
+      
+      // Share using react-native-share
+      await Share.open({
+        title: `Hole ${hole.holeNumber} - Completed`,
+        message: message,
+        urls: mediaUrls,
+      });
+      
+      navigation.goBack();
+    } catch (error: any) {
+      // Silently handle user cancellation
+      if (error?.message !== 'User did not share') {
+        console.error('Share error:', error);
+      }
+      navigation.goBack();
+    }
+  };
+  
+  // Handler for "Cancel" button in putting mode
+  const handlePuttCancel = () => {
+    // Exit putting mode and clear putting-related state
+    setIsPuttingMode(false);
+    setPuttingStrokes(0);
+    setCurrentPuttDistance('');
+    setCurrentShotType('');
+    setCurrentShotResults([]);
   };
 
   const handleSave = async () => {
@@ -796,8 +950,50 @@ const ShotTrackingScreen = () => {
           </View>
         )}
 
-        {/* Shot Type Selection OR Shot Result Selection */}
-        {!currentShotType ? (
+        {/* Putting Mode UI */}
+        {isPuttingMode ? (
+          <View style={styles.buttonSection}>
+            {/* Display putt distance */}
+            {currentPuttDistance && (
+              <View style={styles.puttingDistanceDisplay}>
+                <Text style={styles.puttingDistanceLabel}>Putt Distance</Text>
+                <Text style={styles.puttingDistanceValue}>{currentPuttDistance}</Text>
+                {puttingStrokes > 0 && (
+                  <Text style={styles.puttingStrokesCount}>
+                    {puttingStrokes} {puttingStrokes === 1 ? 'putt' : 'putts'} so far
+                  </Text>
+                )}
+              </View>
+            )}
+            
+            {/* Made It / Missed It / Cancel buttons */}
+            <View style={styles.puttingButtonContainer}>
+              <TouchableOpacity
+                style={[styles.puttingButton, styles.puttingButtonMade]}
+                onPress={handlePuttMade}
+              >
+                <Icon name="check-circle" size={32} color="#fff" />
+                <Text style={styles.puttingButtonText}>Made It!</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.puttingButton, styles.puttingButtonMissed]}
+                onPress={handlePuttMissed}
+              >
+                <Icon name="close" size={32} color="#fff" />
+                <Text style={styles.puttingButtonText}>Missed It</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.puttingButton, styles.puttingButtonCancel]}
+                onPress={handlePuttCancel}
+              >
+                <Icon name="undo" size={32} color="#fff" />
+                <Text style={styles.puttingButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : !currentShotType ? (
           // Show Shot Type buttons
           <View style={styles.buttonSection}>
             <View style={styles.buttonRowFour}>
@@ -1082,13 +1278,16 @@ const ShotTrackingScreen = () => {
 
       {/* Update link removed - updates are now sent with each putt */}
       
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={handleSave}
-        activeOpacity={0.8}
-      >
-        <Icon name="save" size={28} color="#fff" />
-      </TouchableOpacity>
+      {/* Hide FAB save button during putting mode */}
+      {!isPuttingMode && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={handleSave}
+          activeOpacity={0.8}
+        >
+          <Icon name="save" size={28} color="#fff" />
+        </TouchableOpacity>
+      )}
 
     </View>
   );
@@ -1698,6 +1897,60 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     textDecorationLine: 'underline',
+  },
+  puttingDistanceDisplay: {
+    alignItems: 'center',
+    marginBottom: 20,
+    padding: 15,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+  },
+  puttingDistanceLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 5,
+  },
+  puttingDistanceValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  puttingStrokesCount: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 5,
+    fontStyle: 'italic',
+  },
+  puttingButtonContainer: {
+    flexDirection: 'column',
+    gap: 12,
+  },
+  puttingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    borderRadius: 12,
+    gap: 10,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  puttingButtonMade: {
+    backgroundColor: '#4CAF50',
+  },
+  puttingButtonMissed: {
+    backgroundColor: '#FF9800',
+  },
+  puttingButtonCancel: {
+    backgroundColor: '#757575',
+  },
+  puttingButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
   },
 });
 
