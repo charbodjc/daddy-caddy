@@ -230,13 +230,6 @@ const HomeScreen = () => {
               <FontAwesome5 name="trophy" size={20} color="#4CAF50" />
               <Text style={styles.secondaryButtonText}>Tournaments</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.secondaryButton} 
-              onPress={() => navigation.navigate('Stats' as never)}
-            >
-              <Icon name="bar-chart" size={20} color="#4CAF50" />
-              <Text style={styles.secondaryButtonText}>Statistics</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </View>

@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, 
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import DatabaseService from '../services/database';
 
-const APP_VERSION = '1.1.4';
-const BUILD_NUMBER = '14'; // Increment this with each deploy
+const APP_VERSION = '1.2.7';
+const BUILD_NUMBER = '27'; // Increment this with each deploy
 const BUILD_DATE = '2025-10-13'; // Update this when deploying
 
 const SettingsScreen = ({ navigation }: any) => {
@@ -17,6 +17,24 @@ const SettingsScreen = ({ navigation }: any) => {
           <Text style={styles.versionText}>
             v{APP_VERSION} (build {BUILD_NUMBER}) • {BUILD_DATE}
           </Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Developer Tools</Text>
+          
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => navigation.navigate('DatabaseDiagnostic')}
+          >
+            <View style={styles.menuItemLeft}>
+              <MaterialIcon name="storage" size={24} color="#666" />
+              <View style={styles.menuItemContent}>
+                <Text style={styles.menuItemTitle}>Database Diagnostics</Text>
+                <Text style={styles.menuItemDescription}>Check if rounds are being deleted</Text>
+              </View>
+            </View>
+            <MaterialIcon name="chevron-right" size={24} color="#999" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>

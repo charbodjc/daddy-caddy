@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -44,6 +44,9 @@ const RoundTrackerScreen = () => {
   const [selectedHoleNumber, setSelectedHoleNumber] = useState<number>(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeletingRound, setIsDeletingRound] = useState(false);
+  
+  // Use a ref to track deletion state in real-time (not captured in closures)
+  const isDeletingRoundRef = useRef(false);
 
   useEffect(() => {
     // Always initialize holes first
@@ -57,9 +60,9 @@ const RoundTrackerScreen = () => {
   // Save round data when leaving the screen
   useEffect(() => {
     return () => {
-      // Don't autosave if we're in the middle of deleting the round
-      if (isDeletingRound) {
-        console.log('⏭️  Skipping autosave - round is being deleted');
+      // Don't autosave if we're in the middle of deleting the round (check ref for real-time value)
+      if (isDeletingRoundRef.current) {
+        console.log('⏭️  Skipping autosave - round is being deleted (ref check)');
         return;
       }
       
@@ -91,9 +94,27 @@ const RoundTrackerScreen = () => {
     };
   }, [isStarted, roundId, activeRound, holes, tournamentId, tournamentName, courseName, isDeletingRound]); // Reload when roundId changes
 
-  // Listen for round deletions
+  // Listen for round deletions AND verify round still exists when screen is focused
   useFocusEffect(
     React.useCallback(() => {
+      // When screen is focused, check if the current round still exists in the database
+      const checkRoundExists = async () => {
+        const currentRoundId = roundId || activeRound?.id;
+        if (currentRoundId && isStarted) {
+          console.log('🔍 Checking if round still exists:', currentRoundId);
+          const round = await DatabaseService.getRound(currentRoundId);
+          if (!round) {
+            console.log('⚠️ Current round no longer exists in database, clearing screen');
+            // Set BOTH state and ref to prevent autosave
+            setIsDeletingRound(true);
+            isDeletingRoundRef.current = true;
+            resetToDefaultState();
+          }
+        }
+      };
+      
+      checkRoundExists();
+      
       const cleanup = RoundDeletionManager.addListener((deletedRoundId) => {
         // Don't reset if we're already in the middle of deleting (avoid double-reset)
         if (isDeletingRound) {
@@ -104,19 +125,23 @@ const RoundTrackerScreen = () => {
         // If the deleted round is the current round, reset the screen
         if (deletedRoundId === roundId || deletedRoundId === activeRound?.id) {
           console.log('Current round was deleted externally, resetting screen');
+          // Set BOTH state and ref to prevent autosave
+          setIsDeletingRound(true);
+          isDeletingRoundRef.current = true;
           resetToDefaultState();
         }
       });
 
       return cleanup;
-    }, [roundId, activeRound, isDeletingRound])
+    }, [roundId, activeRound, isDeletingRound, isStarted])
   );
 
-  const resetToDefaultState = async () => {
+  const resetToDefaultState = () => {
     console.log('🔄 Resetting scoring screen to default state');
     
-    // Clear all state SYNCHRONOUSLY first
-    setIsDeletingRound(false); // Reset deletion flag
+    // DON'T clear isDeletingRound here - it must stay true to prevent autosave!
+    
+    // Clear ALL state to show "No Active Round" message
     setRoundId('');
     setActiveRound(null);
     setIsStarted(false);
@@ -124,19 +149,23 @@ const RoundTrackerScreen = () => {
     setSelectedTournamentId(undefined);
     setSelectedTournamentName(undefined);
     setCurrentHole(1);
+    setIsLoading(false); // Not loading, just empty
     
-    // Initialize fresh holes
-    const newHoles = initializeHoles();
-    setHoles(newHoles);
+    // Set holes to EMPTY array (don't initialize 18 holes)
+    // This way the "No Active Round" message will show (just like app launch)
+    setHoles([]);
     
     // Clear the active round preference
-    await DatabaseService.setPreference('active_round_id', '');
+    DatabaseService.setPreference('active_round_id', '');
     
-    // Reload from database (just like app launch does) to ensure clean state
-    await loadActiveRound();
+    // Clear isDeletingRound AFTER a delay to ensure autosave cleanup has completed
+    setTimeout(() => {
+      setIsDeletingRound(false);
+      isDeletingRoundRef.current = false;
+      console.log('✅ Scoring screen reset to empty state - deletion flag cleared');
+    }, 500);
     
-    // Navigate to Home tab after state is fully cleared and reloaded
-    navigation.getParent()?.navigate('Home' as never);
+    console.log('✅ Scoring screen reset to empty state (no holes)');
   };
 
   const loadActiveRound = async () => {
@@ -575,8 +604,9 @@ const RoundTrackerScreen = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Set deletion flag AND loading flag to prevent autosave and rendering issues
+              // Set deletion flag (both state and ref) AND loading flag to prevent autosave and rendering issues
               setIsDeletingRound(true);
+              isDeletingRoundRef.current = true;
               setIsLoading(true);
               console.log(`🗑️ Starting deletion of round ${currentRoundId} from scoring tab`);
               
@@ -597,6 +627,7 @@ const RoundTrackerScreen = () => {
             } catch (error) {
               console.error('❌ Failed to delete round from scoring tab:', error);
               setIsDeletingRound(false);
+              isDeletingRoundRef.current = false;
               setIsLoading(false);
               Alert.alert('Error', 'Failed to delete round.');
             }
@@ -638,7 +669,8 @@ const RoundTrackerScreen = () => {
   }
 
   // Show message when no round is selected (after deletion or initial load)
-  if (!isStarted && !routeRoundId && !tournamentId) {
+  // Check if there's no active round (either not started or no roundId/activeRound)
+  if (!isStarted || (!roundId && !activeRound)) {
     return (
       <View style={styles.container}>
         <View style={styles.noRoundContainer}>

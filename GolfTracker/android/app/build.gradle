@@ -82,8 +82,8 @@ android {
         applicationId "com.golftracker"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 14
-        versionName "1.1.4"
+        versionCode 27
+        versionName "1.2.7"
     }
     signingConfigs {
         debug {
