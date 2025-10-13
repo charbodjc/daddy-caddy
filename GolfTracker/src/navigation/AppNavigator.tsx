@@ -118,8 +118,6 @@ const AppNavigator = () => {
               return <FontAwesome5 name="golf-ball" size={size} color={color} />;
             } else if (route.name === 'Tournaments') {
               return <FontAwesome5 name="trophy" size={size} color={color} />;
-            } else if (route.name === 'Stats') {
-              return <FontAwesome5 name="chart-line" size={size} color={color} />;
             } else if (route.name === 'Settings') {
               return <Icon name="settings" size={size} color={color} />;
             }
@@ -134,7 +132,6 @@ const AppNavigator = () => {
         <Tab.Screen name="Home" component={HomeScreen} />
         <Tab.Screen name="Scoring" component={ScoringStack} />
         <Tab.Screen name="Tournaments" component={TournamentStack} />
-        <Tab.Screen name="Stats" component={StatsScreen} />
         <Tab.Screen name="Settings" component={SettingsStack} />
       </Tab.Navigator>
     </NavigationContainer>

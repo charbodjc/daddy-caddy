@@ -1,9 +1,27 @@
 #!/bin/bash
 
-echo "🚀 Building and deploying GolfTracker to charbomax..."
+# Legacy script - USE scripts/deploy_release_to_device.sh instead!
+# This script is kept for backwards compatibility
+
+echo "⚠️  DEPRECATED: Use ./scripts/deploy_release_to_device.sh instead"
+echo ""
+read -p "Continue with legacy script? (y/N) " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Redirecting to new script..."
+    exec ./scripts/deploy_release_to_device.sh
+fi
+
+echo "🚀 Building and deploying GolfTracker to charboMAX..."
 
 # Navigate to project directory
 cd /Users/dancharbonneau/projects/daddy-caddy/GolfTracker
+
+# Clear caches
+echo "🧹 Clearing caches..."
+watchman watch-del-all 2>/dev/null || true
+rm -rf $TMPDIR/metro-* $TMPDIR/react-* 2>/dev/null || true
+rm -rf ~/Library/Developer/Xcode/DerivedData/GolfTracker-* 2>/dev/null || true
 
 # Install npm dependencies if needed
 echo "📦 Checking npm dependencies..."
@@ -13,7 +31,6 @@ npm install --legacy-peer-deps
 echo "🧹 Cleaning build folder..."
 cd ios
 rm -rf build/
-rm -rf ~/Library/Developer/Xcode/DerivedData/GolfTracker-*
 
 # Try to install pods (will skip if pod is not available)
 if command -v pod &> /dev/null; then
@@ -23,34 +40,20 @@ else
     echo "⚠️ CocoaPods not found, skipping pod install"
 fi
 
-# Build the app for device
+# Build the app for device using React Native CLI (Release configuration)
 echo "🔨 Building app for device..."
-xcodebuild -workspace GolfTracker.xcworkspace \
-  -scheme GolfTracker \
-  -configuration Release \
-  -destination "platform=iOS,name=charboMAX" \
-  -derivedDataPath build \
-  CODE_SIGN_IDENTITY="Apple Development" \
-  DEVELOPMENT_TEAM="CXHZ8Z4F6P" \
-  -allowProvisioningUpdates \
-  clean build
+cd ..
+npx react-native run-ios --configuration Release --device "charboMAX"
 
 # Check if build was successful
 if [ $? -eq 0 ]; then
-  echo "✅ Build successful!"
-  
-  # Install on device
-  echo "📱 Installing on charbomax..."
-  xcrun devicectl device install app --device "charboMAX" "build/Build/Products/Release-iphoneos/GolfTracker.app"
-  
-  if [ $? -eq 0 ]; then
-    echo "✅ App deployed successfully to charbomax!"
-  else
-    echo "❌ Deployment failed"
-    exit 1
-  fi
+  echo ""
+  echo "✅ App deployed successfully to charboMAX!"
+  echo ""
+  echo "📋 IMPORTANT: Check version in Settings!"
+  echo "   If version didn't change, code didn't deploy!"
 else
-  echo "❌ Build failed"
+  echo "❌ Deployment failed"
+  echo "Try: ./scripts/deploy_release_to_device.sh"
   exit 1
 fi
-

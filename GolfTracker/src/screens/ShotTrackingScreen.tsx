@@ -351,12 +351,6 @@ const ShotTrackingScreen = () => {
       let message = `Hole ${hole.holeNumber} - Par ${par}\n`;
       message += `${distanceMessage}\n`;
       
-      // Add running score if available
-      if (totalRunningScore !== undefined) {
-        const scoreText = totalRunningScore === 0 ? 'E' : totalRunningScore > 0 ? `+${totalRunningScore}` : `${totalRunningScore}`;
-        message += `Running Total: ${scoreText}\n`;
-      }
-      
       // Add shot-by-shot summary if there are shots before the putt
       if (shots.length > 0) {
         message += `\nShots to green:\n`;

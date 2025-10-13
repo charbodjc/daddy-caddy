@@ -1,6 +1,6 @@
 import SQLite from 'react-native-sqlite-storage';
 import { GolfRound, GolfHole, MediaItem, Contact, Tournament } from '../types';
-import RoundDeletionManager from './roundManager';
+import RoundDeletionManager from '../utils/RoundDeletionManager';
 
 // Enable promise-based API
 SQLite.enablePromise(true);
@@ -468,13 +468,31 @@ class DatabaseService {
       if (!this.db) throw new Error('Database not initialized');
     }
 
-    await this.db.transaction(async (tx) => {
-      await tx.executeSql('DELETE FROM holes WHERE roundId = ?', [id]);
-      await tx.executeSql('DELETE FROM media WHERE roundId = ?', [id]);
-      await tx.executeSql('DELETE FROM rounds WHERE id = ?', [id]);
-    });
+    console.log(`🗑️ Deleting round: ${id}`);
     
-    // Notify listeners about the deletion
+    try {
+      // Delete in reverse dependency order (children first, then parent)
+      // Execute deletes individually like clearAllData for better error tracking
+      const [holesResult] = await this.db.executeSql('DELETE FROM holes WHERE roundId = ?', [id]);
+      console.log(`✅ Deleted ${holesResult.rowsAffected} holes for round ${id}`);
+      
+      const [mediaResult] = await this.db.executeSql('DELETE FROM media WHERE roundId = ?', [id]);
+      console.log(`✅ Deleted ${mediaResult.rowsAffected} media items for round ${id}`);
+      
+      const [roundsResult] = await this.db.executeSql('DELETE FROM rounds WHERE id = ?', [id]);
+      console.log(`✅ Deleted ${roundsResult.rowsAffected} round(s) with id ${id}`);
+      
+      if (roundsResult.rowsAffected === 0) {
+        console.warn(`⚠️ No round found with id ${id} to delete`);
+      }
+      
+      console.log(`✅ Round ${id} deletion completed`);
+    } catch (error) {
+      console.error(`❌ Error deleting round ${id}:`, error);
+      throw error;
+    }
+    
+    // Notify listeners about the deletion AFTER successful delete
     RoundDeletionManager.notifyRoundDeleted(id);
   }
 

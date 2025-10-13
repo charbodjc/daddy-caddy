@@ -3,6 +3,10 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, 
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import DatabaseService from '../services/database';
 
+const APP_VERSION = '1.1.4';
+const BUILD_NUMBER = '14'; // Increment this with each deploy
+const BUILD_DATE = '2025-10-13'; // Update this when deploying
+
 const SettingsScreen = ({ navigation }: any) => {
 
   return (
@@ -10,117 +14,14 @@ const SettingsScreen = ({ navigation }: any) => {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.headerText}>Settings</Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Developer Tools</Text>
-          
-          <TouchableOpacity 
-            style={styles.menuItem}
-            onPress={() => navigation.navigate('DatabaseDiagnostic')}
-          >
-            <View style={styles.menuItemLeft}>
-              <MaterialIcon name="storage" size={24} color="#666" />
-              <View style={styles.menuItemContent}>
-                <Text style={styles.menuItemTitle}>Database Diagnostics</Text>
-                <Text style={styles.menuItemDescription}>View database tables and data</Text>
-              </View>
-            </View>
-            <MaterialIcon name="chevron-right" size={24} color="#999" />
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.menuItem, { backgroundColor: '#fffbf0' }]}
-            onPress={async () => {
-              try {
-                console.log('🧪 Starting test hole save...');
-                
-                // Test saving a hole directly to database
-                const testRoundId = 'test-round-' + Date.now();
-                const testResult = await DatabaseService.testSaveHole(testRoundId, 1);
-                
-                if (testResult) {
-                  console.log('✅ Test hole saved successfully!');
-                  
-                  // Now try to read it back
-                  const db = await DatabaseService.getDb();
-                  if (db) {
-                    const [result] = await db.executeSql(
-                      'SELECT * FROM holes WHERE roundId = ?',
-                      [testRoundId]
-                    );
-                    
-                    if (result.rows.length > 0) {
-                      const savedHole = result.rows.item(0);
-                      console.log('📖 Retrieved saved hole:', savedHole);
-                      Alert.alert(
-                        'Test Successful!', 
-                        `Hole saved and retrieved:\nID: ${savedHole.id}\nRound: ${savedHole.roundId}\nHole: ${savedHole.holeNumber}\nPar: ${savedHole.par}\nStrokes: ${savedHole.strokes}\n\nNOTE: Test data NOT deleted - check Database Diagnostics`
-                      );
-                      
-                      // DO NOT CLEAN UP - Let's see if it persists
-                      console.log('⚠️ Test data NOT cleaned up - check if it persists');
-                    } else {
-                      Alert.alert('Test Failed', 'Hole was saved but could not be retrieved');
-                    }
-                  }
-                } else {
-                  Alert.alert('Test Failed', 'Could not save test hole to database');
-                }
-              } catch (error: any) {
-                console.error('❌ Test hole save error:', error);
-                Alert.alert('Test Error', error.message || 'Unknown error occurred');
-              }
-            }}
-          >
-            <View style={styles.menuItemLeft}>
-              <MaterialIcon name="science" size={24} color="#ff9800" />
-              <View style={styles.menuItemContent}>
-                <Text style={styles.menuItemTitle}>Test Holes Table Save</Text>
-                <Text style={styles.menuItemDescription}>Test saving data to holes table</Text>
-              </View>
-            </View>
-            <MaterialIcon name="play-arrow" size={24} color="#ff9800" />
-          </TouchableOpacity>
+          <Text style={styles.versionText}>
+            v{APP_VERSION} (build {BUILD_NUMBER}) • {BUILD_DATE}
+          </Text>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Data Management</Text>
           
-          <TouchableOpacity 
-            style={styles.menuItem}
-            onPress={async () => {
-              Alert.alert(
-                'Export Data',
-                'Export all your golf data as JSON?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Export',
-                    onPress: async () => {
-                      try {
-                        const data = await DatabaseService.exportData();
-                        console.log('Exported data:', JSON.stringify(data));
-                        Alert.alert('Success', 'Data exported to console (check logs)');
-                      } catch (error) {
-                        Alert.alert('Error', 'Failed to export data');
-                      }
-                    },
-                  },
-                ]
-              );
-            }}
-          >
-            <View style={styles.menuItemLeft}>
-              <MaterialIcon name="file-download" size={24} color="#666" />
-              <View style={styles.menuItemContent}>
-                <Text style={styles.menuItemTitle}>Export Data</Text>
-                <Text style={styles.menuItemDescription}>Export all data as JSON</Text>
-              </View>
-            </View>
-            <MaterialIcon name="chevron-right" size={24} color="#999" />
-          </TouchableOpacity>
-
           <TouchableOpacity 
             style={[styles.menuItem, styles.dangerItem]}
             onPress={() => {
@@ -188,6 +89,12 @@ const styles = StyleSheet.create({
     fontSize: 24, 
     fontWeight: 'bold', 
     color: '#fff',
+  },
+  versionText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 4,
+    fontWeight: '500',
   },
   card: { 
     backgroundColor: '#fff', 

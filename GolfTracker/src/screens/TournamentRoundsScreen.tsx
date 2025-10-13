@@ -31,12 +31,15 @@ const TournamentRoundsScreen = () => {
       
       // Also listen for round deletions
       const cleanup = RoundDeletionManager.addListener((deletedRoundId) => {
-        console.log('Round deleted, refreshing TournamentRoundsScreen');
-        loadRounds();
+        console.log('Round deleted, refreshing TournamentRoundsScreen for tournament:', tournament.id);
+        // Reload rounds after a brief delay to ensure database has completed the delete
+        setTimeout(() => {
+          loadRounds();
+        }, 100);
       });
 
       return cleanup;
-    }, [])
+    }, [tournament.id])
   );
 
   const loadRounds = async () => {
@@ -99,9 +102,27 @@ const TournamentRoundsScreen = () => {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log(`🗑️ Starting deletion of round ${round.id} from tournament screen`);
+              
+              // If this round is the active round, clear it first
+              const activeRoundId = await DatabaseService.getPreference('active_round_id');
+              if (activeRoundId === round.id) {
+                await DatabaseService.setPreference('active_round_id', '');
+                console.log('✅ Cleared active round preference');
+              }
+              
+              // Delete the round from database
               await DatabaseService.deleteRound(round.id);
-              loadRounds();
+              console.log(`✅ Database deleteRound completed for ${round.id}`);
+              
+              // Wait for deletion to propagate
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              // Force reload the rounds list
+              await loadRounds();
+              console.log('✅ Tournament rounds list reloaded');
             } catch (e) {
+              console.error('❌ Failed to delete round from tournament:', e);
               Alert.alert('Error', 'Failed to delete round');
             }
           },
