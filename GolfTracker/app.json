@@ -13,7 +13,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.daddycaddy.golftracker",
+      "bundleIdentifier": "com.daddycaddy.golf",
       "buildNumber": "1"
     },
     "android": {
@@ -21,7 +21,7 @@
         "foregroundImage": "./assets/daddy_caddy_logo.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.daddycaddy.golftracker",
+      "package": "com.daddycaddy.golf",
       "versionCode": 1
     },
     "web": {
