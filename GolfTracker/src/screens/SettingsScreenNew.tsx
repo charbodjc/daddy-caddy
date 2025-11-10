@@ -20,6 +20,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { exportLegacyData, shareExportFile } from '../utils/migration/exportData';
 import { database } from '../database/watermelon/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { resetOnboarding } from '../utils/onboarding';
 
 const SettingsScreenNew: React.FC = () => {
   const navigation = useNavigation();
@@ -84,6 +85,40 @@ const SettingsScreenNew: React.FC = () => {
     navigation.navigate('DatabaseDiagnostic' as never);
   };
   
+  const handleReplayOnboarding = async () => {
+    Alert.alert(
+      'Replay Onboarding',
+      'Would you like to see the app tutorial again?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Show Tutorial',
+          onPress: async () => {
+            try {
+              await resetOnboarding();
+              Alert.alert(
+                'Tutorial Reset',
+                'The app tutorial will show the next time you restart the app.',
+                [
+                  {
+                    text: 'Restart Now',
+                    onPress: () => {
+                      // In a real app, you'd use a state management solution or reload
+                      Alert.alert('Info', 'Please close and reopen the app to see the tutorial.');
+                    },
+                  },
+                  { text: 'Later', style: 'cancel' },
+                ]
+              );
+            } catch (error) {
+              Alert.alert('Error', 'Failed to reset tutorial');
+            }
+          },
+        },
+      ]
+    );
+  };
+  
   return (
     <ScrollView style={styles.container}>
       {/* Header */}
@@ -128,6 +163,22 @@ const SettingsScreenNew: React.FC = () => {
             thumbColor="#fff"
           />
         </View>
+        
+        <TouchableOpacity
+          style={styles.settingItem}
+          onPress={handleReplayOnboarding}
+        >
+          <View style={styles.settingInfo}>
+            <Icon name="help-outline" size={24} color="#4CAF50" />
+            <View style={styles.settingText}>
+              <Text style={styles.settingLabel}>Tutorial</Text>
+              <Text style={styles.settingDescription}>
+                Replay the app tutorial
+              </Text>
+            </View>
+          </View>
+          <Icon name="chevron-right" size={24} color="#ccc" />
+        </TouchableOpacity>
       </View>
       
       {/* Data Management */}
