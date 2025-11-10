@@ -69,7 +69,7 @@ describe('Button Component', () => {
   
   it('should be disabled when loading', () => {
     const mockOnPress = jest.fn();
-    const { getByTestId, UNSAFE_getByType } = render(
+    const { UNSAFE_getByType } = render(
       <Button title="Loading" onPress={mockOnPress} loading={true} />
     );
     
