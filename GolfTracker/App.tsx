@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import DatabaseService from './src/services/database';
+import { ErrorBoundary } from './src/components/common/ErrorBoundary';
 
 const App = () => {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -40,7 +41,11 @@ const App = () => {
     );
   }
 
-  return <AppNavigator />;
+  return (
+    <ErrorBoundary>
+      <AppNavigator />
+    </ErrorBoundary>
+  );
 };
 
 const styles = StyleSheet.create({
