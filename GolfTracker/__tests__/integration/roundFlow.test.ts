@@ -8,7 +8,7 @@ import { database } from '../../src/database/watermelon/database';
 import { useRoundStore } from '../../src/stores/roundStore';
 import { act } from '@testing-library/react-hooks';
 import Round from '../../src/database/watermelon/models/Round';
-import Hole from '../../src/database/watermelon/models/Hole';
+// import Hole from '../../src/database/watermelon/models/Hole';
 
 describe('Round Flow Integration Test', () => {
   beforeEach(async () => {

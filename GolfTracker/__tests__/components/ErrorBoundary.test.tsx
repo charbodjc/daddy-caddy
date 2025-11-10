@@ -53,7 +53,7 @@ describe('ErrorBoundary Component', () => {
   });
   
   it('should reset error when Try Again is pressed', () => {
-    const { getByText, queryByText } = render(
+    const { getByText } = render(
       <ErrorBoundary>
         <ThrowError shouldThrow={true} />
       </ErrorBoundary>

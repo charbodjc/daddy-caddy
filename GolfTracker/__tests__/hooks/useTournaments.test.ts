@@ -1,4 +1,4 @@
-import { renderHook, act, waitFor } from '@testing-library/react-hooks';
+import { renderHook, waitFor } from '@testing-library/react-hooks';
 import { useTournaments, useTournament } from '../../src/hooks/useTournaments';
 import { useTournamentStore } from '../../src/stores/tournamentStore';
 import { database } from '../../src/database/watermelon/database';
