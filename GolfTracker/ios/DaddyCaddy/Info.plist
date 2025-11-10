@@ -50,6 +50,10 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Daddy Caddy needs access to your photo library to attach photos to your golf rounds and tournaments.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Daddy Caddy needs access to your camera to take photos of your golf rounds and tournaments.</string>
     <key>RCTNewArchEnabled</key>
     <true/>
     <key>UILaunchStoryboardName</key>
