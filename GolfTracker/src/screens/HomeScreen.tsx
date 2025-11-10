@@ -18,7 +18,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import DatabaseService from '../services/database';
 import { GolfRound, Tournament } from '../types';
-import RoundDeletionManager from '../services/roundManager';
+import RoundDeletionManager from '../utils/RoundDeletionManager';
 
 const HomeScreen = () => {
   const navigation = useNavigation();
@@ -118,11 +118,12 @@ const HomeScreen = () => {
     React.useCallback(() => {
       loadData();
       
-      const subscription = RoundDeletionManager.subscribe(() => {
+      const cleanup = RoundDeletionManager.addListener((deletedRoundId) => {
+        console.log('Round deleted, refreshing HomeScreen');
         loadData();
       });
 
-      return () => subscription();
+      return cleanup;
     }, [])
   );
 
@@ -192,15 +193,15 @@ const HomeScreen = () => {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Image 
-            source={require('../../assets/daddy_caddy_logo.png')} 
-            style={styles.headerLogo}
-            resizeMode="contain"
-          />
-          <Text style={styles.headerTitle}>Daddy Caddy</Text>
+      {/* Banner Header */}
+      <View style={styles.bannerContainer}>
+        <Image 
+          source={require('../../assets/daddy-caddy-banner.jpg')} 
+          style={styles.bannerImage}
+          resizeMode="cover"
+        />
+        <View style={styles.bannerOverlay}>
+          <Text style={styles.bannerTitle}>Daddy Caddy</Text>
         </View>
       </View>
 
@@ -228,13 +229,6 @@ const HomeScreen = () => {
             <TouchableOpacity style={styles.secondaryButton} onPress={goToTournaments}>
               <FontAwesome5 name="trophy" size={20} color="#4CAF50" />
               <Text style={styles.secondaryButtonText}>Tournaments</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.secondaryButton} 
-              onPress={() => navigation.navigate('Stats' as never)}
-            >
-              <Icon name="bar-chart" size={20} color="#4CAF50" />
-              <Text style={styles.secondaryButtonText}>Statistics</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -357,27 +351,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
   },
-  header: {
-    backgroundColor: '#4CAF50',
-    paddingTop: 60,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
+  bannerContainer: {
+    position: 'relative',
+    width: '100%',
+    height: 220,
+    overflow: 'hidden',
+  },
+  bannerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  bannerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    justifyContent: 'center',
     alignItems: 'center',
+    paddingTop: 40,
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  headerLogo: {
-    width: 50,
-    height: 50,
-    marginRight: 8,
-  },
-  headerTitle: {
-    fontSize: 32,
+  bannerTitle: {
+    fontSize: 42,
     fontWeight: 'bold',
     color: '#fff',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    opacity: 0.9,
   },
   section: {
     backgroundColor: '#fff',

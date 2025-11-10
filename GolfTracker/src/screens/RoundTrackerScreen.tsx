@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -43,6 +43,10 @@ const RoundTrackerScreen = () => {
   const [parSelectionModal, setParSelectionModal] = useState(false);
   const [selectedHoleNumber, setSelectedHoleNumber] = useState<number>(1);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeletingRound, setIsDeletingRound] = useState(false);
+  
+  // Use a ref to track deletion state in real-time (not captured in closures)
+  const isDeletingRoundRef = useRef(false);
 
   useEffect(() => {
     // Always initialize holes first
@@ -56,6 +60,12 @@ const RoundTrackerScreen = () => {
   // Save round data when leaving the screen
   useEffect(() => {
     return () => {
+      // Don't autosave if we're in the middle of deleting the round (check ref for real-time value)
+      if (isDeletingRoundRef.current) {
+        console.log('⏭️  Skipping autosave - round is being deleted (ref check)');
+        return;
+      }
+      
       if (isStarted && (roundId || activeRound?.id) && holes.length > 0) {
         const completedHoles = holes.filter(h => h.strokes > 0);
         const partialRound: GolfRound = {
@@ -82,35 +92,80 @@ const RoundTrackerScreen = () => {
         })();
       }
     };
-  }, [isStarted, roundId, activeRound, holes, tournamentId, tournamentName, courseName]); // Reload when roundId changes
+  }, [isStarted, roundId, activeRound, holes, tournamentId, tournamentName, courseName, isDeletingRound]); // Reload when roundId changes
 
-  // Listen for round deletions
+  // Listen for round deletions AND verify round still exists when screen is focused
   useFocusEffect(
     React.useCallback(() => {
+      // When screen is focused, check if the current round still exists in the database
+      const checkRoundExists = async () => {
+        const currentRoundId = roundId || activeRound?.id;
+        if (currentRoundId && isStarted) {
+          console.log('🔍 Checking if round still exists:', currentRoundId);
+          const round = await DatabaseService.getRound(currentRoundId);
+          if (!round) {
+            console.log('⚠️ Current round no longer exists in database, clearing screen');
+            // Set BOTH state and ref to prevent autosave
+            setIsDeletingRound(true);
+            isDeletingRoundRef.current = true;
+            resetToDefaultState();
+          }
+        }
+      };
+      
+      checkRoundExists();
+      
       const cleanup = RoundDeletionManager.addListener((deletedRoundId) => {
+        // Don't reset if we're already in the middle of deleting (avoid double-reset)
+        if (isDeletingRound) {
+          console.log('⏭️  Already deleting, skipping listener reset to avoid double-reset');
+          return;
+        }
+        
         // If the deleted round is the current round, reset the screen
         if (deletedRoundId === roundId || deletedRoundId === activeRound?.id) {
-          console.log('Current round was deleted, resetting screen');
+          console.log('Current round was deleted externally, resetting screen');
+          // Set BOTH state and ref to prevent autosave
+          setIsDeletingRound(true);
+          isDeletingRoundRef.current = true;
           resetToDefaultState();
         }
       });
 
       return cleanup;
-    }, [roundId, activeRound])
+    }, [roundId, activeRound, isDeletingRound, isStarted])
   );
 
   const resetToDefaultState = () => {
+    console.log('🔄 Resetting scoring screen to default state');
+    
+    // DON'T clear isDeletingRound here - it must stay true to prevent autosave!
+    
+    // Clear ALL state to show "No Active Round" message
     setRoundId('');
     setActiveRound(null);
     setIsStarted(false);
     setCourseName('');
     setSelectedTournamentId(undefined);
     setSelectedTournamentName(undefined);
-    const newHoles = initializeHoles();
-    setHoles(newHoles);
     setCurrentHole(1);
+    setIsLoading(false); // Not loading, just empty
+    
+    // Set holes to EMPTY array (don't initialize 18 holes)
+    // This way the "No Active Round" message will show (just like app launch)
+    setHoles([]);
+    
     // Clear the active round preference
     DatabaseService.setPreference('active_round_id', '');
+    
+    // Clear isDeletingRound AFTER a delay to ensure autosave cleanup has completed
+    setTimeout(() => {
+      setIsDeletingRound(false);
+      isDeletingRoundRef.current = false;
+      console.log('✅ Scoring screen reset to empty state - deletion flag cleared');
+    }, 500);
+    
+    console.log('✅ Scoring screen reset to empty state (no holes)');
   };
 
   const loadActiveRound = async () => {
@@ -532,6 +587,13 @@ const RoundTrackerScreen = () => {
   };
 
   const deleteRound = async () => {
+    const currentRoundId = roundId || activeRound?.id;
+    
+    if (!currentRoundId) {
+      Alert.alert('No Round', 'No round is currently loaded to delete.');
+      return;
+    }
+    
     Alert.alert(
       'Delete Round?',
       'Are you sure you want to delete this round? This action cannot be undone.',
@@ -542,17 +604,32 @@ const RoundTrackerScreen = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Clear the active round preference
+              // Set deletion flag (both state and ref) AND loading flag to prevent autosave and rendering issues
+              setIsDeletingRound(true);
+              isDeletingRoundRef.current = true;
+              setIsLoading(true);
+              console.log(`🗑️ Starting deletion of round ${currentRoundId} from scoring tab`);
+              
+              // Clear the active round preference to prevent reload
               await DatabaseService.setPreference('active_round_id', '');
-              // Delete the round if we have an id
-              if (roundId) {
-                await DatabaseService.deleteRound(roundId);
-              }
-              // Reset the screen to default state (no round selected)
+              console.log('✅ Cleared active round preference');
+              
+              // Delete the round from database (this will trigger RoundDeletionManager)
+              await DatabaseService.deleteRound(currentRoundId);
+              console.log(`✅ Database deleteRound completed for ${currentRoundId}`);
+              
+              // Wait a moment to ensure all async operations complete
+              await new Promise(resolve => setTimeout(resolve, 150));
+              
+              // Reset the screen to default state and navigate to Home
+              // isLoading will be cleared in resetToDefaultState when it sets isStarted=false
               resetToDefaultState();
             } catch (error) {
+              console.error('❌ Failed to delete round from scoring tab:', error);
+              setIsDeletingRound(false);
+              isDeletingRoundRef.current = false;
+              setIsLoading(false);
               Alert.alert('Error', 'Failed to delete round.');
-              console.error('Delete round error:', error);
             }
           },
         },
@@ -592,7 +669,8 @@ const RoundTrackerScreen = () => {
   }
 
   // Show message when no round is selected (after deletion or initial load)
-  if (!isStarted && !routeRoundId && !tournamentId) {
+  // Check if there's no active round (either not started or no roundId/activeRound)
+  if (!isStarted || (!roundId && !activeRound)) {
     return (
       <View style={styles.container}>
         <View style={styles.noRoundContainer}>
@@ -732,13 +810,6 @@ const RoundTrackerScreen = () => {
         </View>
         
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={deleteRound}
-          >
-            <Icon name="delete" size={20} color="#ff6b6b" />
-          </TouchableOpacity>
-          
           <TouchableOpacity
             style={styles.headerIconButton}
             onPress={viewSummary}

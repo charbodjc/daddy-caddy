@@ -9,7 +9,9 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import { useFocusEffect } from '@react-navigation/native';
 import DatabaseService from '../services/database';
+import RoundDeletionManager from '../utils/RoundDeletionManager';
 import { GolfRound, Tournament } from '../types';
 
 const StatsScreen = () => {
@@ -20,6 +22,27 @@ const StatsScreen = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Reload data when screen is focused and listen for round deletions
+  useFocusEffect(
+    React.useCallback(() => {
+      loadData();
+      
+      const cleanup = RoundDeletionManager.addListener((deletedRoundId) => {
+        console.log('Round deleted, refreshing StatsScreen');
+        
+        // If the currently selected round was deleted, clear the selection
+        if (selectedRound && selectedRound.id === deletedRoundId) {
+          setSelectedRound(null);
+        }
+        
+        // Reload all data to reflect the deletion
+        loadData();
+      });
+
+      return cleanup;
+    }, [selectedRound])
+  );
 
   const loadData = async () => {
     setLoading(true);
