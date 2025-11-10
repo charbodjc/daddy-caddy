@@ -7,12 +7,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "ios": {
-        "resourceClass": "m-medium",
-        "cocoapods": {
-          "install": {
-            "repoUpdate": true
-          }
-        }
+        "resourceClass": "m-medium"
       },
       "android": {
         "buildType": "apk"
@@ -21,12 +16,7 @@
     "preview": {
       "distribution": "internal",
       "ios": {
-        "resourceClass": "m-medium",
-        "cocoapods": {
-          "install": {
-            "repoUpdate": true
-          }
-        }
+        "resourceClass": "m-medium"
       },
       "android": {
         "buildType": "apk"
@@ -34,12 +24,7 @@
     },
     "production": {
       "ios": {
-        "resourceClass": "m-medium",
-        "cocoapods": {
-          "install": {
-            "repoUpdate": true
-          }
-        }
+        "resourceClass": "m-medium"
       },
       "android": {
         "buildType": "app-bundle"
