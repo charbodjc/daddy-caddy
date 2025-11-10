@@ -5,6 +5,9 @@ require Pod::Executable.execute_command('node', ['-p',
     {paths: [process.argv[1]]},
   )', __dir__]).strip
 
+# Expo modules autolinking
+require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")
+
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
@@ -15,6 +18,7 @@ if linkage != nil
 end
 
 target 'GolfTracker' do
+  use_expo_modules!
   config = use_native_modules!
 
   use_react_native!(
@@ -23,6 +27,9 @@ target 'GolfTracker' do
     :app_path => "#{Pod::Config.instance.installation_root}/..",
     :new_arch_enabled => false
   )
+  
+  # WatermelonDB dependency
+  pod 'simdjson', path: '../node_modules/@nozbe/simdjson', modular_headers: true
 
   post_install do |installer|
     # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
