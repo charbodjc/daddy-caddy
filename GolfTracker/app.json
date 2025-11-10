@@ -1,4 +1,40 @@
 {
-  "name": "GolfTracker",
-  "displayName": "Daddy Caddy"
+  "expo": {
+    "name": "Daddy Caddy",
+    "slug": "daddy-caddy",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/daddy_caddy_logo.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/daddy_caddy_logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.daddycaddy.golf",
+      "buildNumber": "1"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/daddy_caddy_logo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.daddycaddy.golf",
+      "versionCode": 1
+    },
+    "web": {
+      "favicon": "./assets/daddy_caddy_logo.png"
+    },
+    "plugins": [
+      "expo-dev-client"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "51d0c2b9-e841-417f-b6b7-682603ce5779"
+      }
+    },
+    "owner": "charbo"
+  }
 }

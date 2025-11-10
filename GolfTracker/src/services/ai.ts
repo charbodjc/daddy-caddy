@@ -53,7 +53,7 @@ class AIService {
       `;
 
       const response = await this.openai.chat.completions.create({
-        model: (Config.OPENAI_MODEL || 'gpt-5') as any,
+        model: (Config.OPENAI_MODEL || 'gpt-4-turbo') as 'gpt-4-turbo' | 'gpt-4o' | 'gpt-3.5-turbo',
         messages: [
           {
             role: 'system',
@@ -181,7 +181,7 @@ class AIService {
       `;
 
       const response = await this.openai.chat.completions.create({
-        model: (Config.OPENAI_MODEL || 'gpt-5') as any,
+        model: (Config.OPENAI_MODEL || 'gpt-4-turbo') as 'gpt-4-turbo' | 'gpt-4o' | 'gpt-3.5-turbo',
         messages: [
           {
             role: 'system',
