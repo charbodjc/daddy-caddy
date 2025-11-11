@@ -28,11 +28,6 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>daddycaddy</string>
-        </array>
-      </dict>
-      <dict>
-        <key>CFBundleURLSchemes</key>
-        <array>
           <string>com.daddycaddy.golf</string>
         </array>
       </dict>
@@ -56,10 +51,12 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
-    <key>NSPhotoLibraryUsageDescription</key>
-    <string>Daddy Caddy needs access to your photo library to attach photos to your golf rounds and tournaments.</string>
     <key>NSCameraUsageDescription</key>
     <string>Daddy Caddy needs access to your camera to take photos of your golf rounds and tournaments.</string>
+    <key>NSContactsUsageDescription</key>
+    <string>Daddy Caddy needs access to your contacts to select recipients for golf score updates and messages.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Daddy Caddy needs access to your photo library to attach photos to your golf rounds and tournaments.</string>
     <key>RCTNewArchEnabled</key>
     <true/>
     <key>UILaunchStoryboardName</key>
