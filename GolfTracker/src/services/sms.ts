@@ -262,7 +262,7 @@ class SMSService {
     hole: any,
     aiSummary: string,
     mediaCount: { photos: number; videos: number },
-    letUserSelectRecipients: boolean = false
+    contacts?: any[]
   ): Promise<{ success: boolean; errors: string[] }> {
     // Create message with AI summary
     let message = `Hole ${hole.holeNumber} Update\n`;
@@ -296,12 +296,14 @@ class SMSService {
       message += ' attached';
     }
     
-    if (letUserSelectRecipients) {
-      // Open SMS without pre-selected recipients
-      const errors: string[] = [];
-      const fallback = await this.openSMS('', message);
-      return { success: fallback, errors: fallback ? [] : ['Failed to open SMS app'] };
+    if (contacts && contacts.length > 0) {
+      // Use specified contacts
+      const phoneNumbers = contacts.map(c => c.phoneNumber).join(',');
+      const success = await this.openSMS(phoneNumbers, message);
+      return { success, errors: success ? [] : ['Failed to open SMS app'] };
     }
+    
+    // Use default recipients
     return this.sendQuickUpdate(message);
   }
 

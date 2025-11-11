@@ -1755,10 +1755,6 @@ const styles = StyleSheet.create({
   puttDistanceTextActive: {
     color: '#fff',
   },
-  parButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1783,17 +1779,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     gap: 10,
-  },
-  parButtonActive: {
-    backgroundColor: '#4CAF50',
-  },
-  parButtonText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '600',
-  },
-  parButtonTextActive: {
-    color: '#fff',
   },
   headerLeft: {
     width: 40,  // Same width as media buttons to keep center balanced
