@@ -2,6 +2,7 @@
   "expo": {
     "name": "Daddy Caddy",
     "slug": "daddy-caddy",
+    "scheme": "daddycaddy",
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/daddy_caddy_logo.png",
