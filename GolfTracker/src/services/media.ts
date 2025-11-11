@@ -11,11 +11,18 @@ import RNFS from 'react-native-fs';
 import { MediaItem } from '../types';
 
 class MediaService {
-  private mediaDir: string = `${RNFS.DocumentDirectoryPath}/media`;
+  // Use getter to avoid accessing native module at class initialization time
+  private get mediaDir(): string {
+    return `${RNFS.DocumentDirectoryPath}/media`;
+  }
 
   constructor() {
-    // Ensure media directory exists
-    this.ensureMediaDirectory();
+    // Ensure media directory exists - but delay until first use
+    // this.ensureMediaDirectory(); // Commented out - will be called when first needed
+  }
+
+  async init(): Promise<void> {
+    await this.ensureMediaDirectory();
   }
 
   private async ensureMediaDirectory(): Promise<void> {

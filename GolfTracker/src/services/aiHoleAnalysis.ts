@@ -3,8 +3,16 @@ import Config from 'react-native-config';
 
 class AIHoleAnalysisService {
   private openai: OpenAI | null = null;
+  private initialized: boolean = false;
 
   constructor() {
+    // Delay initialization to avoid accessing native module at load time
+  }
+
+  private initializeOpenAI() {
+    if (this.initialized) return;
+    this.initialized = true;
+
     try {
       if (Config.OPENAI_API_KEY) {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -21,6 +29,7 @@ class AIHoleAnalysisService {
     hole: GolfHole,
     mediaItems: MediaItem[]
   ): Promise<string> {
+    this.initializeOpenAI();
     if (!this.openai) {
       return this.generateBasicSummary(hole, mediaItems);
     }

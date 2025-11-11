@@ -3,8 +3,16 @@ import Config from 'react-native-config';
 
 class AIService {
   private openai: OpenAI | null = null;
+  private initialized: boolean = false;
 
   constructor() {
+    // Delay initialization to avoid accessing native module at load time
+  }
+
+  private initializeOpenAI() {
+    if (this.initialized) return;
+    this.initialized = true;
+
     // Initialize with API key from environment (guarded dynamic require)
     try {
       if (Config.OPENAI_API_KEY) {
@@ -19,6 +27,7 @@ class AIService {
   }
 
   async analyzeRound(round: GolfRound): Promise<string> {
+    this.initializeOpenAI();
     if (!this.openai) {
       return 'AI analysis unavailable. Please configure OpenAI API key.';
     }
@@ -166,6 +175,7 @@ class AIService {
     distance?: number,
     conditions?: string
   ): Promise<string> {
+    this.initializeOpenAI();
     if (!this.openai) {
       return 'Shot recommendations unavailable.';
     }
