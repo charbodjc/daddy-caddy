@@ -20,6 +20,24 @@ const SettingsScreen = ({ navigation }: any) => {
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Preferences</Text>
+          
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => navigation.navigate('Contacts')}
+          >
+            <View style={styles.menuItemLeft}>
+              <MaterialIcon name="group" size={24} color="#4CAF50" />
+              <View style={styles.menuItemContent}>
+                <Text style={styles.menuItemTitle}>Default Text Group</Text>
+                <Text style={styles.menuItemDescription}>Set default recipients for score updates</Text>
+              </View>
+            </View>
+            <MaterialIcon name="chevron-right" size={24} color="#999" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Developer Tools</Text>
           
           <TouchableOpacity 

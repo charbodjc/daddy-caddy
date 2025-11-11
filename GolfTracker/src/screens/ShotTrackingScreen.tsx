@@ -1259,12 +1259,26 @@ const ShotTrackingScreen = () => {
                 />
                 <Text style={styles.distanceUnit}>ft</Text>
               </View>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSend, { width: '100%' }]}
-                onPress={sendPuttUpdate}
-              >
-                <Text style={styles.modalButtonSendText}>Update</Text>
-              </TouchableOpacity>
+              <View style={styles.modalButtonRow}>
+                <TouchableOpacity
+                  style={[styles.modalIconButton, styles.modalButtonCancel]}
+                  onPress={() => {
+                    setShowDistanceModal(false);
+                    if (currentShotType === 'Putt') {
+                      setCurrentShotType('');
+                      setDistanceToHole('');
+                    }
+                  }}
+                >
+                  <Icon name="close" size={32} color="#666" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalIconButton, styles.modalButtonSend]}
+                  onPress={sendPuttUpdate}
+                >
+                  <Icon name="check" size={32} color="#fff" />
+                </TouchableOpacity>
+              </View>
             </View>
           </TouchableOpacity>
         </KeyboardAvoidingView>
@@ -1741,10 +1755,6 @@ const styles = StyleSheet.create({
   puttDistanceTextActive: {
     color: '#fff',
   },
-  parButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1769,17 +1779,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     gap: 10,
-  },
-  parButtonActive: {
-    backgroundColor: '#4CAF50',
-  },
-  parButtonText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '600',
-  },
-  parButtonTextActive: {
-    color: '#fff',
   },
   headerLeft: {
     width: 40,  // Same width as media buttons to keep center balanced
@@ -1874,6 +1873,25 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+    width: '100%',
+    gap: 15,
+    marginTop: 10,
+  },
+  modalIconButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   updateLink: {
     position: 'absolute',
