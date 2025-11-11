@@ -15,7 +15,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.daddycaddy.golf",
-      "buildNumber": "2"
+      "buildNumber": "2",
+      "infoPlist": {
+        "NSContactsUsageDescription": "Daddy Caddy needs access to your contacts to select recipients for golf score updates and messages."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +26,10 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.daddycaddy.golf",
-      "versionCode": 1
+      "versionCode": 1,
+      "permissions": [
+        "READ_CONTACTS"
+      ]
     },
     "web": {
       "favicon": "./assets/daddy_caddy_logo.png"
