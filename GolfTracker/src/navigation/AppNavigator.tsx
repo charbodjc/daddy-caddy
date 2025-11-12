@@ -18,6 +18,7 @@ import RoundSummaryScreen from '../screens/RoundSummaryScreen';
 import CameraScreen from '../screens/CameraScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import DatabaseDiagnosticScreen from '../screens/DatabaseDiagnosticScreen';
+import ContactsScreen from '../screens/ContactsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -96,6 +97,11 @@ const SettingsStack = () => {
         name="SettingsList" 
         component={SettingsScreen}
         options={{ title: 'Settings', headerShown: false }}
+      />
+      <Stack.Screen 
+        name="Contacts" 
+        component={ContactsScreen}
+        options={{ title: 'Default Text Group', headerShown: false }}
       />
       <Stack.Screen 
         name="DatabaseDiagnostic" 
