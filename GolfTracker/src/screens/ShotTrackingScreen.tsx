@@ -19,7 +19,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import MediaService from '../services/media';
-import Share from 'react-native-share';
+import SMSService from '../services/sms';
 import AIHoleAnalysisService from '../services/aiHoleAnalysis';
 import DatabaseService from '../services/database';
 import { GolfHole, MediaItem } from '../types';
@@ -346,6 +346,9 @@ const ShotTrackingScreen = () => {
     const formattedDistance = getFormattedDistance();
     const distanceMessage = formattedDistance ? `${formattedDistance}${puttFor}` : `Putting${puttFor}`;
     
+    // Check if default contact group is configured
+    const defaultGroup = await DatabaseService.getPreference('default_sms_group');
+    
     try {
       // Send full hole summary with all shots up to this point
       let message = `Hole ${hole.holeNumber} - Par ${par}\n`;
@@ -370,14 +373,20 @@ const ShotTrackingScreen = () => {
         });
       }
       
-      await Share.open({
-        title: `Hole ${hole.holeNumber} - On Green`,
-        message: message,
-      });
-    } catch (error: any) {
-      if (error?.message !== 'User did not share') {
-        console.error('Share error:', error);
+      // Send SMS to default contact group
+      const result = await SMSService.sendQuickUpdate(message);
+      if (!result.success) {
+        console.error('SMS error:', result.errors);
+      } else if (!defaultGroup || defaultGroup.trim() === '') {
+        // Alert user if no contacts configured
+        Alert.alert(
+          'No Default Contacts',
+          'SMS app opened with your message. Add recipients manually, or set up a default contact group in Settings.',
+          [{ text: 'OK' }]
+        );
       }
+    } catch (error: any) {
+      console.error('Error sending SMS:', error);
     }
     
     // Save the putt distance for the current shot
@@ -449,7 +458,10 @@ const ShotTrackingScreen = () => {
       return `+${diff}`;
     })();
     
-    // Automatically trigger share dialog with putting summary only
+    // Check if default contact group is configured
+    const defaultGroup = await DatabaseService.getPreference('default_sms_group');
+    
+    // Automatically send SMS to default contact group
     try {
       let message = `Hole ${hole.holeNumber} - Par ${par}\n`;
       message += `Score: ${newShots.length} (${scoreName})\n`;
@@ -479,23 +491,28 @@ const ShotTrackingScreen = () => {
         message += '\n\n⛳ Solid par!';
       }
       
-      // Get media for the hole
+      // Check for media
       const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
-      const mediaUrls = media.map(m => m.uri).filter(uri => uri);
+      if (media.length > 0) {
+        message += `\n\n📸 ${media.length} photo${media.length !== 1 ? 's' : ''} captured`;
+      }
       
-      // Share using react-native-share
-      await Share.open({
-        title: `Hole ${hole.holeNumber} - Completed`,
-        message: message,
-        urls: mediaUrls,
-      });
+      // Send SMS to default contact group
+      const result = await SMSService.sendQuickUpdate(message);
+      if (!result.success) {
+        console.error('SMS error:', result.errors);
+      } else if (!defaultGroup || defaultGroup.trim() === '') {
+        // Alert user if no contacts configured
+        Alert.alert(
+          'No Default Contacts',
+          'SMS app opened with your message. Add recipients manually, or set up a default contact group in Settings.',
+          [{ text: 'OK' }]
+        );
+      }
       
       navigation.goBack();
     } catch (error: any) {
-      // Silently handle user cancellation
-      if (error?.message !== 'User did not share') {
-        console.error('Share error:', error);
-      }
+      console.error('Error sending SMS:', error);
       navigation.goBack();
     }
   };
