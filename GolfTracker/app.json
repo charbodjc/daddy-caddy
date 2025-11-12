@@ -18,6 +18,9 @@
       "buildNumber": "2",
       "infoPlist": {
         "NSContactsUsageDescription": "Daddy Caddy needs access to your contacts to select recipients for golf score updates and messages."
+      },
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
