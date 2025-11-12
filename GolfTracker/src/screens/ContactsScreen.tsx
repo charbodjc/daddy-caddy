@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView, FlatList, ActivityIndicator, TextInput } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome5';
 import * as Contacts from 'expo-contacts';
 import DatabaseService from '../services/database';
@@ -20,9 +21,17 @@ const ContactsScreen = () => {
   const [showPicker, setShowPicker] = useState(false);
   const [availableContacts, setAvailableContacts] = useState<Contact[]>([]);
 
+  // Load saved contacts when screen is first mounted
   useEffect(() => {
     loadSavedContacts();
   }, []);
+
+  // Refresh contacts when screen gains focus (e.g., after clearing data)
+  useFocusEffect(
+    useCallback(() => {
+      loadSavedContacts();
+    }, [])
+  );
 
   const loadSavedContacts = async () => {
     try {
@@ -54,6 +63,9 @@ const ContactsScreen = () => {
 
   const pickContacts = async () => {
     try {
+      // Always clear cached contacts to ensure we fetch fresh data from device
+      setAvailableContacts([]);
+      
       // Request permission
       const { status } = await Contacts.requestPermissionsAsync();
       
@@ -66,10 +78,12 @@ const ContactsScreen = () => {
         return;
       }
 
-      // Get all contacts with phone numbers
+      // Get all contacts with phone numbers - this ALWAYS fetches fresh from device
+      console.log('📱 Fetching fresh contacts from device...');
       const { data } = await Contacts.getContactsAsync({
         fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
       });
+      console.log(`📱 Found ${data.length} total contacts on device`);
 
       if (data.length === 0) {
         Alert.alert('No Contacts', 'No contacts with phone numbers found');
@@ -85,6 +99,8 @@ const ContactsScreen = () => {
           phoneNumber: contact.phoneNumbers?.[0]?.number || '',
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
+
+      console.log(`📱 Filtered to ${contactsWithPhones.length} contacts with phone numbers`);
 
       // Store contacts and show picker modal
       setAvailableContacts(contactsWithPhones);
