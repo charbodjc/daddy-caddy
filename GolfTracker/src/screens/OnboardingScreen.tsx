@@ -4,15 +4,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
-  Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-
-const { width } = Dimensions.get('window');
 
 interface OnboardingScreenProps {
   onComplete: () => void;
