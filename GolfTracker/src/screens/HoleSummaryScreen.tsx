@@ -38,9 +38,8 @@ const HoleSummaryScreen = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [aiSummary, setAiSummary] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [defaultRecipient, setDefaultRecipient] = useState<Contact | null>(null);
+  const [groupName, setGroupName] = useState<string>('your text group');
 
   useEffect(() => {
     loadData();
@@ -53,20 +52,30 @@ const HoleSummaryScreen = () => {
       const holeMedia = allMedia.filter(m => m.holeNumber === hole.holeNumber);
       setMediaItems(holeMedia);
 
-      // Load contacts
-      const contactsList = await DatabaseService.getContacts();
-      setContacts(contactsList);
+      // Load group name and contacts
+      const savedGroupName = await DatabaseService.getPreference('default_sms_group_name');
+      setGroupName(savedGroupName || 'your text group');
       
-      // Check for default recipient
-      const defaultRec = await DatabaseService.getDefaultSMSRecipient();
-      setDefaultRecipient(defaultRec);
-      
-      if (defaultRec) {
-        // Only select the default recipient
-        setSelectedContacts([defaultRec.id]);
-      } else {
-        // If no default, pre-select all active contacts (old behavior)
-        setSelectedContacts(contactsList.map(c => c.id));
+      // Load contacts to get count
+      const raw = await DatabaseService.getPreference('default_sms_group');
+      if (raw) {
+        try {
+          // Try to parse as JSON first (new format)
+          const parsedContacts = JSON.parse(raw);
+          if (Array.isArray(parsedContacts)) {
+            setContacts(parsedContacts);
+          }
+        } catch {
+          // Fallback: Parse old format
+          const phoneNumbers = raw.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+          const contactsList = phoneNumbers.map((phone, index) => ({
+            id: `saved-${index}`,
+            name: phone,
+            phoneNumber: phone,
+            isActive: true
+          }));
+          setContacts(contactsList);
+        }
       }
 
       // Generate AI summary
@@ -182,29 +191,27 @@ const HoleSummaryScreen = () => {
   };
 
   const sendSMSUpdate = async () => {
-    if (selectedContacts.length === 0) {
-      showToast('Please select at least one contact', 'error');
+    if (contacts.length === 0) {
+      showToast('Please add contacts in Settings first', 'error');
       return;
     }
-
-    const selectedContactsData = contacts.filter(c => selectedContacts.includes(c.id));
     
     // Calculate media counts
     const photos = mediaItems.filter(m => m.type === 'photo').length;
     const videos = mediaItems.filter(m => m.type === 'video').length;
     
-    // Use SMS service to send the hole summary as a group text
+    // Use SMS service to send the hole summary as a group text to all contacts
     const result = await SMSService.sendHoleSummary(
       hole,
       aiSummary,
       { photos, videos },
-      selectedContactsData
+      contacts
     );
     
     if (result.success) {
       if (result.sent) {
         const mediaNote = mediaItems.length > 0 ? ' (Note: photos/videos sent separately)' : '';
-        showToast(`Message sent to ${result.groupName}${mediaNote}`, 'success');
+        showToast(`Message sent to ${groupName}${mediaNote}`, 'success');
       } else {
         showToast('Message cancelled', 'info');
       }
@@ -226,14 +233,6 @@ const HoleSummaryScreen = () => {
     } catch (error) {
       Alert.alert('Error', 'Failed to share update');
     }
-  };
-
-  const toggleContact = (contactId: string) => {
-    setSelectedContacts(prev => 
-      prev.includes(contactId)
-        ? prev.filter(id => id !== contactId)
-        : [...prev, contactId]
-    );
   };
 
   if (loading) {
@@ -315,35 +314,26 @@ const HoleSummaryScreen = () => {
         </View>
       )}
 
-      {/* Contact Selection */}
+      {/* SMS Group Info */}
       <View style={styles.section}>
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Share With</Text>
-          {defaultRecipient && (
-            <Text style={styles.defaultRecipientBadge}>
-              ⭐ Default: {defaultRecipient.name}
-            </Text>
-          )}
-        </View>
+        <Text style={styles.sectionTitle}>Share With</Text>
         {contacts.length > 0 ? (
-          <View style={styles.contactsList}>
-            {contacts.map(contact => (
-              <TouchableOpacity
-                key={contact.id}
-                style={[
-                  styles.contactItem,
-                  selectedContacts.includes(contact.id) && styles.contactSelected
-                ]}
-                onPress={() => toggleContact(contact.id)}
-              >
-                <Icon 
-                  name={selectedContacts.includes(contact.id) ? 'check-box' : 'check-box-outline-blank'} 
-                  size={24} 
-                  color={selectedContacts.includes(contact.id) ? '#4CAF50' : '#666'}
-                />
-                <Text style={styles.contactName}>{contact.name}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.groupInfo}>
+            <View style={styles.groupInfoRow}>
+              <Icon name="group" size={24} color="#4CAF50" />
+              <View style={styles.groupDetails}>
+                <Text style={styles.groupNameText}>{groupName}</Text>
+                <Text style={styles.groupCountText}>
+                  {contacts.length} recipient{contacts.length !== 1 ? 's' : ''}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.editGroupButton}
+              onPress={() => navigation.navigate('Contacts' as never)}
+            >
+              <Icon name="edit" size={18} color="#4CAF50" />
+            </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity
@@ -475,15 +465,6 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
   },
-  defaultRecipientBadge: {
-    fontSize: 12,
-    color: '#2196F3',
-    backgroundColor: '#F0F8FF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    fontWeight: '600',
-  },
   refreshButton: {
     padding: 5,
   },
@@ -542,24 +523,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 5,
   },
-  contactsList: {
+  groupInfo: {
     marginTop: 10,
-  },
-  contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    gap: 10,
-  },
-  contactSelected: {
-    backgroundColor: '#E8F5E9',
-    marginHorizontal: -10,
-    paddingHorizontal: 10,
+    justifyContent: 'space-between',
+    padding: 15,
+    backgroundColor: '#f9f9f9',
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
-  contactName: {
+  groupInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  groupDetails: {
+    flex: 1,
+  },
+  groupNameText: {
     fontSize: 16,
+    fontWeight: '600',
     color: '#333',
+    marginBottom: 4,
+  },
+  groupCountText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  editGroupButton: {
+    padding: 8,
   },
   addContactsButton: {
     flexDirection: 'row',
