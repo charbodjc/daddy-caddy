@@ -319,7 +319,25 @@ class SMSService {
   private async getDefaultRecipients(): Promise<string> {
     const raw = await DatabaseService.getPreference('default_sms_group');
     if (!raw) return '';
-    // Normalize separators to commas
+    
+    try {
+      // Try to parse as JSON first (new format with names and numbers)
+      const contacts = JSON.parse(raw);
+      if (Array.isArray(contacts)) {
+        // Extract phone numbers from contact objects
+        const phoneNumbers = contacts
+          .map((c: any) => c.phoneNumber)
+          .filter(Boolean)
+          .join(',');
+        console.log(`📱 Loaded ${contacts.length} contacts from JSON: ${contacts.map((c: any) => c.name).join(', ')}`);
+        return phoneNumbers;
+      }
+    } catch {
+      // Fallback: Parse old format (comma-separated phone numbers only)
+      console.log('📱 Using legacy format (numbers only)');
+    }
+    
+    // Normalize separators to commas (legacy format)
     return raw
       .split(/[\n,;]/)
       .map(s => s.trim())

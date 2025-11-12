@@ -37,15 +37,25 @@ const ContactsScreen = () => {
     try {
       const raw = await DatabaseService.getPreference('default_sms_group');
       if (raw) {
-        // Parse saved phone numbers into Contact objects
-        const phoneNumbers = raw.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
-        const contacts = phoneNumbers.map((phone, index) => ({
-          id: `saved-${index}`,
-          name: phone, // We'll just display the number if we don't have the name
-          phoneNumber: phone,
-        }));
-        setSelectedContacts(contacts);
-        setSavedContacts(contacts);
+        try {
+          // Try to parse as JSON first (new format with names and numbers)
+          const parsedContacts = JSON.parse(raw);
+          if (Array.isArray(parsedContacts)) {
+            setSelectedContacts(parsedContacts);
+            setSavedContacts(parsedContacts);
+          }
+        } catch {
+          // Fallback: Parse old format (comma-separated phone numbers only)
+          console.log('📱 Migrating from old format (numbers only) to new format (names + numbers)');
+          const phoneNumbers = raw.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+          const contacts = phoneNumbers.map((phone, index) => ({
+            id: `saved-${index}`,
+            name: phone, // Display the number as the name for old data
+            phoneNumber: phone,
+          }));
+          setSelectedContacts(contacts);
+          setSavedContacts(contacts);
+        }
       }
       
       // Load saved group name
@@ -90,17 +100,28 @@ const ContactsScreen = () => {
         return;
       }
 
-      // Filter contacts that have phone numbers
+      // Filter contacts that have phone numbers and prefer mobile numbers
       const contactsWithPhones = data
         .filter(contact => contact.phoneNumbers && contact.phoneNumbers.length > 0)
-        .map(contact => ({
-          id: contact.id,
-          name: contact.name || 'Unknown',
-          phoneNumber: contact.phoneNumbers?.[0]?.number || '',
-        }))
+        .map(contact => {
+          // Prefer mobile/cell numbers, fallback to first available
+          const mobileNumber = contact.phoneNumbers?.find(
+            phone => phone.label?.toLowerCase().includes('mobile') || 
+                     phone.label?.toLowerCase().includes('cell') ||
+                     phone.label?.toLowerCase().includes('iphone')
+          );
+          
+          const phoneNumber = mobileNumber?.number || contact.phoneNumbers?.[0]?.number || '';
+          
+          return {
+            id: contact.id,
+            name: contact.name || 'Unknown',
+            phoneNumber: phoneNumber,
+          };
+        })
         .sort((a, b) => a.name.localeCompare(b.name));
 
-      console.log(`📱 Filtered to ${contactsWithPhones.length} contacts with phone numbers`);
+      console.log(`📱 Filtered to ${contactsWithPhones.length} contacts with phone numbers (preferring mobile)`);
 
       // Store contacts and show picker modal
       setAvailableContacts(contactsWithPhones);
@@ -127,18 +148,20 @@ const ContactsScreen = () => {
         return;
       }
 
-      const phoneNumbers = selectedContacts
-        .map(c => c.phoneNumber)
-        .join(', ');
+      // Save contacts as JSON array with names and phone numbers
+      const contactsJson = JSON.stringify(selectedContacts);
       
-      await DatabaseService.setPreference('default_sms_group', phoneNumbers);
+      await DatabaseService.setPreference('default_sms_group', contactsJson);
       await DatabaseService.setPreference('default_sms_group_name', groupName.trim() || 'your text group');
       setSavedContacts([...selectedContacts]);
       setSavedGroupName(groupName.trim() || 'your text group');
       
       const groupLabel = groupName.trim() || 'your text group';
+      const contactNames = selectedContacts.map(c => c.name).join(', ');
+      console.log(`💾 Saved contacts: ${contactNames}`);
       Alert.alert('Saved', `Default SMS group "${groupLabel}" updated with ${selectedContacts.length} contact${selectedContacts.length !== 1 ? 's' : ''}`);
     } catch (e) {
+      console.error('Failed to save contacts:', e);
       Alert.alert('Error', 'Failed to save settings');
     }
   };
