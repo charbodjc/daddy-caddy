@@ -866,6 +866,12 @@ class DatabaseService {
       const [preferencesResult] = await this.db.executeSql('DELETE FROM preferences');
       console.log(`✅ Deleted ${preferencesResult.rowsAffected} preferences`);
       
+      // Also clear AsyncStorage items that might cache data
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      await AsyncStorage.removeItem('active_round_id');
+      await AsyncStorage.removeItem('onboarding_completed');
+      console.log('✅ Cleared AsyncStorage cached data');
+      
       console.log('✅ All data cleared successfully');
     } catch (error) {
       console.error('❌ Error clearing data:', error);

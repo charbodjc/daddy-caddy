@@ -96,7 +96,7 @@ const SettingsScreen = ({ navigation }: any) => {
               <MaterialIcon name="delete-forever" size={24} color="#f44336" />
               <View style={styles.menuItemContent}>
                 <Text style={[styles.menuItemTitle, styles.dangerText]}>Clear All Data</Text>
-                <Text style={styles.menuItemDescription}>Delete all rounds, tournaments, and media</Text>
+                <Text style={styles.menuItemDescription}>Delete all rounds, tournaments, contacts, and media</Text>
               </View>
             </View>
             <MaterialIcon name="chevron-right" size={24} color="#999" />
