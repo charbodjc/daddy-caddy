@@ -1,4 +1,5 @@
-import { Linking, Platform } from 'react-native';
+import { Platform } from 'react-native';
+import * as SMS from 'expo-sms';
 import { GolfRound, MediaItem } from '../types';
 import AIService from './ai';
 import DatabaseService from './database';
@@ -7,7 +8,7 @@ class SMSService {
   async sendRoundSummary(
     round: GolfRound,
     mediaItems: MediaItem[]
-  ): Promise<{ success: boolean; errors: string[] }> {
+  ): Promise<{ success: boolean; sent: boolean; errors: string[]; groupName?: string }> {
     const errors: string[] = [];
 
     try {
@@ -22,62 +23,60 @@ class SMSService {
 
       // Load default recipients list from settings (comma or newline separated)
       const recipients = await this.getDefaultRecipients();
+      const groupName = await DatabaseService.getPreference('default_sms_group_name') || 'your text group';
 
-      // Open native SMS app with pre-filled message
-      const success = await this.openSMS(recipients, message);
+      // Open in-app SMS composer
+      const result = await this.openSMS(recipients, message);
 
-      if (!success) {
+      if (!result.success) {
         errors.push('Failed to open SMS app');
       }
 
       return {
-        success,
+        success: result.success,
+        sent: result.sent,
         errors,
+        groupName,
       };
     } catch (error) {
       return {
         success: false,
+        sent: false,
         errors: [`Failed to prepare message: ${error}`],
       };
     }
   }
 
-  private async openSMS(recipients: string, body: string): Promise<boolean> {
+  private async openSMS(
+    recipients: string,
+    body: string
+  ): Promise<{ success: boolean; sent: boolean }> {
     try {
-      let url: string;
+      // Check if SMS is available on this device
+      const isAvailable = await SMS.isAvailableAsync();
       
-      if (Platform.OS === 'ios') {
-        // Try the iOS "open with addresses" scheme; if it fails, fall back
-        const addressesParam = recipients
-          .split(/[\n,;]/)
-          .map(r => r.trim())
-          .filter(Boolean)
-          .join(',');
-        url = `sms:/open?addresses=${encodeURIComponent(addressesParam)}&body=${encodeURIComponent(body)}`;
-      } else {
-        // Android handles multiple recipients better
-        url = `sms:${recipients}?body=${encodeURIComponent(body)}`;
+      if (!isAvailable) {
+        console.warn('SMS is not available on this device');
+        return { success: false, sent: false };
       }
 
-      const canOpen = await Linking.canOpenURL(url);
-      
-      if (canOpen) {
-        await Linking.openURL(url);
-        return true;
-      } else {
-        // Fallback: open composer without recipients
-        const fallback = `sms:&body=${encodeURIComponent(body)}`;
-        const canOpenFallback = await Linking.canOpenURL(fallback);
-        if (canOpenFallback) {
-          await Linking.openURL(fallback);
-          return true;
-        }
-        console.warn('SMS app is not available');
-        return false;
-      }
+      // Parse recipients into array
+      const recipientArray = recipients
+        .split(/[\n,;]/)
+        .map(r => r.trim())
+        .filter(Boolean);
+
+      // Open in-app SMS composer
+      const result = await SMS.sendSMSAsync(recipientArray, body);
+
+      // result.result can be 'sent', 'cancelled', or 'unknown'
+      return {
+        success: true,
+        sent: result.result === 'sent',
+      };
     } catch (error) {
       console.error('Error opening SMS:', error);
-      return false;
+      return { success: false, sent: false };
     }
   }
 
@@ -224,26 +223,30 @@ class SMSService {
 
   async sendQuickUpdate(
     message: string
-  ): Promise<{ success: boolean; errors: string[] }> {
+  ): Promise<{ success: boolean; sent: boolean; errors: string[]; groupName?: string }> {
     const errors: string[] = [];
 
     try {
       const recipients = await this.getDefaultRecipients();
+      const groupName = await DatabaseService.getPreference('default_sms_group_name') || 'your text group';
 
-      // Open native SMS app with pre-filled message
-      const success = await this.openSMS(recipients, message);
+      // Open in-app SMS composer
+      const result = await this.openSMS(recipients, message);
 
-      if (!success) {
+      if (!result.success) {
         errors.push('Failed to open SMS app');
       }
 
       return {
-        success,
+        success: result.success,
+        sent: result.sent,
         errors,
+        groupName,
       };
     } catch (error) {
       return {
         success: false,
+        sent: false,
         errors: [`Failed to send message: ${error}`],
       };
     }
@@ -253,7 +256,7 @@ class SMSService {
     hole: number,
     score: string,
     notes: string,
-  ): Promise<{ success: boolean; errors: string[] }> {
+  ): Promise<{ success: boolean; sent: boolean; errors: string[]; groupName?: string }> {
     const message = `⛳ Hole ${hole} Update\n🏌️ Score: ${score}\n${notes ? `📝 ${notes}` : ''}`;
     return this.sendQuickUpdate(message);
   }
@@ -263,7 +266,7 @@ class SMSService {
     aiSummary: string,
     mediaCount: { photos: number; videos: number },
     contacts?: any[]
-  ): Promise<{ success: boolean; errors: string[] }> {
+  ): Promise<{ success: boolean; sent: boolean; errors: string[]; groupName?: string }> {
     // Create message with AI summary
     let message = `Hole ${hole.holeNumber} Update\n`;
     message += `${aiSummary}\n\n`;
@@ -299,8 +302,14 @@ class SMSService {
     if (contacts && contacts.length > 0) {
       // Use specified contacts
       const phoneNumbers = contacts.map(c => c.phoneNumber).join(',');
-      const success = await this.openSMS(phoneNumbers, message);
-      return { success, errors: success ? [] : ['Failed to open SMS app'] };
+      const groupName = 'selected contacts';
+      const result = await this.openSMS(phoneNumbers, message);
+      return {
+        success: result.success,
+        sent: result.sent,
+        errors: result.success ? [] : ['Failed to open SMS app'],
+        groupName,
+      };
     }
     
     // Use default recipients

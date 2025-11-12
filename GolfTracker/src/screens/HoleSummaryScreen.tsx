@@ -20,6 +20,7 @@ import DatabaseService from '../services/database';
 import AIHoleAnalysisService from '../services/aiHoleAnalysis';
 import SMSService from '../services/sms';
 import { GolfHole, MediaItem, Contact } from '../types';
+import { Toast, useToast } from '../components/Toast';
 
 const aiService = new AIHoleAnalysisService();
 
@@ -31,6 +32,7 @@ const HoleSummaryScreen = () => {
     roundId: string;
     onNext?: () => void;
   };
+  const { toastConfig, showToast, hideToast } = useToast();
 
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -181,7 +183,7 @@ const HoleSummaryScreen = () => {
 
   const sendSMSUpdate = async () => {
     if (selectedContacts.length === 0) {
-      Alert.alert('No Recipients', 'Please select at least one contact');
+      showToast('Please select at least one contact', 'error');
       return;
     }
 
@@ -200,22 +202,14 @@ const HoleSummaryScreen = () => {
     );
     
     if (result.success) {
-      // Note about media attachments
-      if (mediaItems.length > 0) {
-        Alert.alert(
-          'SMS Opened',
-          `Message prepared for ${selectedContactsData.length} recipient${selectedContactsData.length > 1 ? 's as a group text' : ''}. Note: Photos/videos need to be manually attached in your SMS app.`,
-          [{ text: 'OK' }]
-        );
+      if (result.sent) {
+        const mediaNote = mediaItems.length > 0 ? ' (Note: photos/videos sent separately)' : '';
+        showToast(`Message sent to ${result.groupName}${mediaNote}`, 'success');
       } else {
-        Alert.alert(
-          'SMS Opened',
-          `Message prepared for ${selectedContactsData.length} recipient${selectedContactsData.length > 1 ? 's as a group text' : ''}.`,
-          [{ text: 'OK' }]
-        );
+        showToast('Message cancelled', 'info');
       }
     } else {
-      Alert.alert('Error', result.errors.join('\n'));
+      showToast(result.errors.join(', '), 'error');
     }
   };
 
@@ -394,6 +388,14 @@ const HoleSummaryScreen = () => {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Toast Notification */}
+      <Toast
+        visible={toastConfig.visible}
+        message={toastConfig.message}
+        type={toastConfig.type}
+        onHide={hideToast}
+      />
     </ScrollView>
   );
 };
