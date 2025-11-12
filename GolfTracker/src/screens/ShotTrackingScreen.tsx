@@ -20,6 +20,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import MediaService from '../services/media';
 import SMSService from '../services/sms';
+import Share from 'react-native-share';
 import AIHoleAnalysisService from '../services/aiHoleAnalysis';
 import DatabaseService from '../services/database';
 import { GolfHole, MediaItem } from '../types';
