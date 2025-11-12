@@ -24,6 +24,7 @@ import Share from 'react-native-share';
 import AIHoleAnalysisService from '../services/aiHoleAnalysis';
 import DatabaseService from '../services/database';
 import { GolfHole, MediaItem } from '../types';
+import { Toast, useToast } from '../components/Toast';
 
 // Shot types with icons - organized into 2 rows of 4
 const SHOT_TYPES = {
@@ -69,6 +70,7 @@ const ShotTrackingScreen = () => {
   const route = useRoute();
   const scrollViewRef = useRef<ScrollView>(null);
   const { hole, onSave, roundId, roundName, tournamentName, preselectedShotType } = route.params as { hole: GolfHole; onSave: (hole: GolfHole) => Promise<void>; roundId?: string; roundName?: string; tournamentName?: string; preselectedShotType?: string };
+  const { toastConfig, showToast, hideToast } = useToast();
 
   // Initialize state from saved data if available
   const loadSavedShotData = () => {
@@ -378,16 +380,19 @@ const ShotTrackingScreen = () => {
       const result = await SMSService.sendQuickUpdate(message);
       if (!result.success) {
         console.error('SMS error:', result.errors);
+        showToast('Failed to open message composer', 'error');
       } else if (!defaultGroup || defaultGroup.trim() === '') {
         // Alert user if no contacts configured
-        Alert.alert(
-          'No Default Contacts',
-          'SMS app opened with your message. Add recipients manually, or set up a default contact group in Settings.',
-          [{ text: 'OK' }]
-        );
+        showToast('Add recipients in settings for automatic text group', 'info');
+      } else if (result.sent) {
+        showToast(`Message sent to ${result.groupName}`, 'success');
+      } else {
+        // User cancelled
+        showToast('Message cancelled', 'info');
       }
     } catch (error: any) {
       console.error('Error sending SMS:', error);
+      showToast('Error sending message', 'error');
     }
     
     // Save the putt distance for the current shot
@@ -502,18 +507,21 @@ const ShotTrackingScreen = () => {
       const result = await SMSService.sendQuickUpdate(message);
       if (!result.success) {
         console.error('SMS error:', result.errors);
+        showToast('Failed to open message composer', 'error');
       } else if (!defaultGroup || defaultGroup.trim() === '') {
         // Alert user if no contacts configured
-        Alert.alert(
-          'No Default Contacts',
-          'SMS app opened with your message. Add recipients manually, or set up a default contact group in Settings.',
-          [{ text: 'OK' }]
-        );
+        showToast('Add recipients in settings for automatic text group', 'info');
+      } else if (result.sent) {
+        showToast(`Message sent to ${result.groupName}`, 'success');
+      } else {
+        // User cancelled
+        showToast('Message cancelled', 'info');
       }
       
       navigation.goBack();
     } catch (error: any) {
       console.error('Error sending SMS:', error);
+      showToast('Error sending message', 'error');
       navigation.goBack();
     }
   };
@@ -1315,6 +1323,13 @@ const ShotTrackingScreen = () => {
         </TouchableOpacity>
       )}
 
+      {/* Toast Notification */}
+      <Toast
+        visible={toastConfig.visible}
+        message={toastConfig.message}
+        type={toastConfig.type}
+        onHide={hideToast}
+      />
     </View>
   );
 };

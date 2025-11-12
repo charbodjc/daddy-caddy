@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView, FlatList, ActivityIndicator, TextInput } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome5';
 import * as Contacts from 'expo-contacts';
 import DatabaseService from '../services/database';
@@ -14,6 +14,8 @@ interface Contact {
 const ContactsScreen = () => {
   const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
   const [savedContacts, setSavedContacts] = useState<Contact[]>([]);
+  const [groupName, setGroupName] = useState<string>('');
+  const [savedGroupName, setSavedGroupName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
   const [availableContacts, setAvailableContacts] = useState<Contact[]>([]);
@@ -35,6 +37,13 @@ const ContactsScreen = () => {
         }));
         setSelectedContacts(contacts);
         setSavedContacts(contacts);
+      }
+      
+      // Load saved group name
+      const savedName = await DatabaseService.getPreference('default_sms_group_name');
+      if (savedName) {
+        setGroupName(savedName);
+        setSavedGroupName(savedName);
       }
     } catch (e) {
       console.error('Failed to load contacts:', e);
@@ -107,8 +116,12 @@ const ContactsScreen = () => {
         .join(', ');
       
       await DatabaseService.setPreference('default_sms_group', phoneNumbers);
+      await DatabaseService.setPreference('default_sms_group_name', groupName.trim() || 'your text group');
       setSavedContacts([...selectedContacts]);
-      Alert.alert('Saved', `Default SMS group updated with ${selectedContacts.length} contact${selectedContacts.length !== 1 ? 's' : ''}`);
+      setSavedGroupName(groupName.trim() || 'your text group');
+      
+      const groupLabel = groupName.trim() || 'your text group';
+      Alert.alert('Saved', `Default SMS group "${groupLabel}" updated with ${selectedContacts.length} contact${selectedContacts.length !== 1 ? 's' : ''}`);
     } catch (e) {
       Alert.alert('Error', 'Failed to save settings');
     }
@@ -125,8 +138,11 @@ const ContactsScreen = () => {
           style: 'destructive',
           onPress: async () => {
             setSelectedContacts([]);
+            setGroupName('');
             await DatabaseService.setPreference('default_sms_group', '');
+            await DatabaseService.setPreference('default_sms_group_name', '');
             setSavedContacts([]);
+            setSavedGroupName('');
             Alert.alert('Cleared', 'Default SMS group cleared');
           }
         }
@@ -136,6 +152,7 @@ const ContactsScreen = () => {
 
   const hasChanges = () => {
     if (selectedContacts.length !== savedContacts.length) return true;
+    if (groupName.trim() !== savedGroupName) return true;
     return !selectedContacts.every((contact, index) => 
       contact.phoneNumber === savedContacts[index]?.phoneNumber
     );
@@ -157,6 +174,24 @@ const ContactsScreen = () => {
             <Text style={styles.headerText}>Default SMS Group</Text>
             <Text style={styles.headerSubtext}>
               Select contacts to receive your golf updates
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Icon name="tag" size={18} color="#4CAF50" />
+              <Text style={styles.cardTitle}>Group Name</Text>
+            </View>
+            <TextInput
+              style={styles.groupNameInput}
+              placeholder="e.g., Golf Buddies, Family, etc."
+              placeholderTextColor="#999"
+              value={groupName}
+              onChangeText={setGroupName}
+              maxLength={30}
+            />
+            <Text style={styles.groupNameHint}>
+              This name will appear in toast notifications when messages are sent
             </Text>
           </View>
 
@@ -430,6 +465,21 @@ const styles = StyleSheet.create({
     color: '#1565C0',
     marginBottom: 4,
     lineHeight: 18,
+  },
+  groupNameInput: {
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    color: '#333',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  groupNameHint: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });
 

@@ -15,12 +15,14 @@ import DatabaseService from '../services/database';
 import AIService from '../services/ai';
 import SMSService from '../services/sms';
 import { GolfRound, Contact, MediaItem } from '../types';
+import { Toast, useToast } from '../components/Toast';
 
 const RoundSummaryScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const params = route.params as { roundId?: string } | undefined;
   const roundId = params?.roundId;
+  const { toastConfig, showToast, hideToast } = useToast();
 
   const [round, setRound] = useState<GolfRound | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -90,7 +92,7 @@ const RoundSummaryScreen = () => {
 
   const sendSummary = async () => {
     if (!round) {
-      Alert.alert('Error', 'No round data available');
+      showToast('No round data available', 'error');
       return;
     }
 
@@ -105,13 +107,17 @@ const RoundSummaryScreen = () => {
       const result = await SMSService.sendRoundSummary(round, mediaItems);
       
       if (result.success) {
-        Alert.alert('Success', 'SMS app opened with your round summary');
+        if (result.sent) {
+          showToast(`Round summary sent to ${result.groupName}`, 'success');
+        } else {
+          showToast('Message cancelled', 'info');
+        }
       } else {
-        Alert.alert('Error', result.errors.join('\n'));
+        showToast(result.errors.join(', '), 'error');
       }
     } catch (error) {
       console.error('Error sending summary:', error);
-      Alert.alert('Error', `Failed to send summary: ${error}`);
+      showToast(`Failed to send summary: ${error}`, 'error');
     }
   };
 
@@ -361,6 +367,14 @@ const RoundSummaryScreen = () => {
           <Text style={styles.homeButtonText}>Back to Home</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Toast Notification */}
+      <Toast
+        visible={toastConfig.visible}
+        message={toastConfig.message}
+        type={toastConfig.type}
+        onHide={hideToast}
+      />
     </ScrollView>
   );
 };
