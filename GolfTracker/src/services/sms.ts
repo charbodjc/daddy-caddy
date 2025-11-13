@@ -1,8 +1,28 @@
 import { Platform } from 'react-native';
 import * as SMS from 'expo-sms';
-import { GolfRound, MediaItem } from '../types';
+import { GolfRound, MediaItem, GolfHole } from '../types';
 import AIService from './ai';
 import DatabaseService from './database';
+
+interface RoundStats {
+  totalScore: number;
+  scoreVsPar: string;
+  eagles: number;
+  birdies: number;
+  pars: number;
+  bogeys: number;
+  doubleBogeys: number;
+  fairwaysHit: number;
+  greensInRegulation: number;
+  totalPutts: number;
+  playedHoles: number;
+}
+
+interface Contact {
+  name: string;
+  phoneNumber: string;
+  isActive: boolean;
+}
 
 class SMSService {
   async sendRoundSummary(
@@ -135,7 +155,7 @@ class SMSService {
 
   private formatMessage(
     round: GolfRound,
-    stats: any,
+    stats: RoundStats,
     aiAnalysis: string,
     mediaItems: MediaItem[]
   ): string {
@@ -262,10 +282,10 @@ class SMSService {
   }
 
   async sendHoleSummary(
-    hole: any,
+    hole: GolfHole,
     aiSummary: string,
     mediaCount: { photos: number; videos: number },
-    contacts?: any[]
+    contacts?: Contact[]
   ): Promise<{ success: boolean; sent: boolean; errors: string[]; groupName?: string }> {
     // Create message with AI summary
     let message = `Hole ${hole.holeNumber} Update\n`;
@@ -322,14 +342,14 @@ class SMSService {
     
     try {
       // Try to parse as JSON first (new format with names and numbers)
-      const contacts = JSON.parse(raw);
+      const contacts: Contact[] = JSON.parse(raw);
       if (Array.isArray(contacts)) {
         // Extract phone numbers from contact objects
         const phoneNumbers = contacts
-          .map((c: any) => c.phoneNumber)
+          .map((c: Contact) => c.phoneNumber)
           .filter(Boolean)
           .join(',');
-        console.log(`📱 Loaded ${contacts.length} contacts from JSON: ${contacts.map((c: any) => c.name).join(', ')}`);
+        console.log(`📱 Loaded ${contacts.length} contacts from JSON: ${contacts.map((c: Contact) => c.name).join(', ')}`);
         return phoneNumbers;
       }
     } catch {
