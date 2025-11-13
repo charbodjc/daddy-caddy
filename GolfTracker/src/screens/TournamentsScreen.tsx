@@ -24,6 +24,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useTournaments } from '../hooks/useTournaments';
 import { useTournamentStore } from '../stores/tournamentStore';
@@ -33,16 +34,14 @@ import { Button } from '../components/common/Button';
 import { TournamentCard } from '../components/tournament/TournamentCard';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { format } from 'date-fns';
 import Tournament from '../database/watermelon/models/Tournament';
 import { TournamentStackParamList } from '../types/navigation';
 
 type TournamentsScreenNavigationProp = StackNavigationProp<TournamentStackParamList, 'TournamentsList'>;
 
-interface Props {
-  navigation: TournamentsScreenNavigationProp;
-}
-
-const TournamentsScreenNew: React.FC<Props> = ({ navigation }) => {
+const TournamentsScreenNew: React.FC = () => {
+  const navigation = useNavigation<TournamentsScreenNavigationProp>();
   const { tournaments, loading, error, reload } = useTournaments();
   const { createTournament, deleteTournament } = useTournamentStore();
   

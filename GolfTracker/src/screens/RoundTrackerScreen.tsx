@@ -25,7 +25,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useRound } from '../hooks/useRound';
 import { useRoundStore } from '../stores/roundStore';
@@ -41,12 +41,9 @@ import { ScoringStackParamList } from '../types/navigation';
 type RoundTrackerScreenNavigationProp = StackNavigationProp<ScoringStackParamList, 'RoundTracker'>;
 type RoundTrackerScreenRouteProp = RouteProp<ScoringStackParamList, 'RoundTracker'>;
 
-interface Props {
-  navigation: RoundTrackerScreenNavigationProp;
-  route: RoundTrackerScreenRouteProp;
-}
-
-const RoundTrackerScreenNew: React.FC<Props> = ({ navigation, route }) => {
+const RoundTrackerScreenNew: React.FC = () => {
+  const navigation = useNavigation<RoundTrackerScreenNavigationProp>();
+  const route = useRoute<RoundTrackerScreenRouteProp>();
   const params = route.params || {};
   
   const { round, loading, error, reload } = useRound(params.roundId);

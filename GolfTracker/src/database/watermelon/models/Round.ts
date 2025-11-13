@@ -1,4 +1,4 @@
-import { Model, Q } from '@nozbe/watermelondb';
+import { Model, Q, Query } from '@nozbe/watermelondb';
 import { field, date, readonly, children, lazy } from '@nozbe/watermelondb/decorators';
 import Hole from './Hole';
 
@@ -21,7 +21,7 @@ export default class Round extends Model {
   @readonly @date('created_at') createdAt!: Date;
   @readonly @date('updated_at') updatedAt!: Date;
 
-  @children('holes') holes!: Q.Children<Hole>;
+  @children('holes') holes!: Query<Hole>;
   
   @lazy holesArray = this.holes.observe();
 }

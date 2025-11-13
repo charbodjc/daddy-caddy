@@ -14,7 +14,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image } from 'react-native';
-import { CompositeNavigationProp } from '@react-navigation/native';
+import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useRound } from '../hooks/useRound';
@@ -25,21 +25,12 @@ import { ErrorScreen } from '../components/common/ErrorScreen';
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import { RootTabParamList, ScoringStackParamList, TournamentStackParamList } from '../types/navigation';
+import { RootTabParamList } from '../types/navigation';
 
-type HomeScreenNavigationProp = CompositeNavigationProp<
-  BottomTabNavigationProp<RootTabParamList, 'Home'>,
-  CompositeNavigationProp<
-    StackNavigationProp<ScoringStackParamList>,
-    StackNavigationProp<TournamentStackParamList>
-  >
->;
+type HomeScreenNavigationProp = BottomTabNavigationProp<RootTabParamList, 'Home'>;
 
-interface Props {
-  navigation: HomeScreenNavigationProp;
-}
-
-const HomeScreenNew: React.FC<Props> = ({ navigation }) => {
+const HomeScreenNew: React.FC = () => {
+  const navigation = useNavigation<HomeScreenNavigationProp>();
   const { round: activeRound, loading: roundLoading, reload: reloadRound } = useRound();
   const { stats, loading: statsLoading, refresh: refreshStats } = useStats();
   const { loadAllRounds } = useRoundStore();

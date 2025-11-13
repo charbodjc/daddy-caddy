@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { RouteProp, CompositeNavigationProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, CompositeNavigationProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useTournamentStore } from '../stores/tournamentStore';
 import { useRoundStore } from '../stores/roundStore';
@@ -33,12 +33,9 @@ type TournamentRoundsScreenNavigationProp = CompositeNavigationProp<
 >;
 type TournamentRoundsScreenRouteProp = RouteProp<TournamentStackParamList, 'TournamentRounds'>;
 
-interface Props {
-  navigation: TournamentRoundsScreenNavigationProp;
-  route: TournamentRoundsScreenRouteProp;
-}
-
-const TournamentRoundsScreenNew: React.FC<Props> = ({ navigation, route }) => {
+const TournamentRoundsScreenNew: React.FC = () => {
+  const navigation = useNavigation<TournamentRoundsScreenNavigationProp>();
+  const route = useRoute<TournamentRoundsScreenRouteProp>();
   const { tournamentId, tournamentName } = route.params;
   
   const { getTournamentRounds, getTournament } = useTournamentStore();
