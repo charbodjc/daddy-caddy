@@ -15,8 +15,8 @@ import {
   ImagePickerResponse,
   MediaType,
 } from 'react-native-image-picker';
-import DatabaseService from '../services/database';
-import { MediaItem } from '../types';
+import { database } from '../database/watermelon/database';
+import Media from '../database/watermelon/models/Media';
 
 const CameraScreen = () => {
   const navigation = useNavigation();
@@ -67,17 +67,17 @@ const CameraScreen = () => {
 
     try {
       if (roundId) {
-        const mediaItem: MediaItem = {
-          id: Date.now().toString(),
-          uri: selectedImage,
-          type: isVideo ? 'video' : 'photo',
-          roundId,
-          holeNumber: currentHole,
-          timestamp: new Date(),
-          description: currentHole ? `Hole ${currentHole}` : undefined,
-        };
-
-        await DatabaseService.saveMedia(mediaItem);
+        // Save to WatermelonDB
+        await database.write(async () => {
+          await database.collections.get<Media>('media').create(media => {
+            media.uri = selectedImage;
+            media.type = isVideo ? 'video' : 'photo';
+            media.roundId = roundId;
+            media.holeNumber = currentHole || null;
+            media.timestamp = Date.now();
+            media.description = currentHole ? `Hole ${currentHole}` : null;
+          });
+        });
       }
 
       if (onCapture) {

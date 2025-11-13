@@ -2,7 +2,9 @@
  * Round Manager - Centralized round ID and state management
  */
 
-import DatabaseService from '../services/database';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { database } from '../database/watermelon/database';
+import Round from '../database/watermelon/models/Round';
 
 class RoundManager {
   private static instance: RoundManager;
@@ -31,7 +33,7 @@ class RoundManager {
    */
   async setActiveRound(roundId: string): Promise<void> {
     this.currentRoundId = roundId;
-    await DatabaseService.setPreference('active_round_id', roundId);
+    await AsyncStorage.setItem('active_round_id', roundId);
     console.log('Active round set:', roundId);
   }
 
@@ -43,8 +45,8 @@ class RoundManager {
       return this.currentRoundId;
     }
     
-    // Try to load from database
-    const savedId = await DatabaseService.getPreference('active_round_id');
+    // Try to load from AsyncStorage
+    const savedId = await AsyncStorage.getItem('active_round_id');
     if (savedId) {
       this.currentRoundId = savedId;
       return savedId;
@@ -58,7 +60,7 @@ class RoundManager {
    */
   async clearActiveRound(): Promise<void> {
     this.currentRoundId = null;
-    await DatabaseService.setPreference('active_round_id', '');
+    await AsyncStorage.removeItem('active_round_id');
     console.log('Active round cleared');
   }
 
@@ -69,19 +71,27 @@ class RoundManager {
     const roundId = await this.getActiveRoundId();
     if (!roundId) return false;
     
-    // Verify the round actually exists in the database
-    const round = await DatabaseService.getRound(roundId);
-    return round !== null && !round.isFinished;
+    try {
+      // Verify the round actually exists in WatermelonDB
+      const round = await database.collections.get<Round>('rounds').find(roundId);
+      return round !== null && !round.isFinished;
+    } catch {
+      return false;
+    }
   }
 
   /**
    * Get the active round data
    */
-  async getActiveRound() {
+  async getActiveRound(): Promise<Round | null> {
     const roundId = await this.getActiveRoundId();
     if (!roundId) return null;
     
-    return await DatabaseService.getRound(roundId);
+    try {
+      return await database.collections.get<Round>('rounds').find(roundId);
+    } catch {
+      return null;
+    }
   }
 
   /**
