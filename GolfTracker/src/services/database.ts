@@ -847,32 +847,48 @@ class DatabaseService {
     console.log('🗑️ Starting to clear all data...');
     
     try {
-      // Execute deletes individually for better error tracking
+      // Clear SQLite database (legacy)
       const [holesResult] = await this.db.executeSql('DELETE FROM holes');
-      console.log(`✅ Deleted ${holesResult.rowsAffected} holes`);
+      console.log(`✅ Deleted ${holesResult.rowsAffected} holes from SQLite`);
       
       const [mediaResult] = await this.db.executeSql('DELETE FROM media');
-      console.log(`✅ Deleted ${mediaResult.rowsAffected} media items`);
+      console.log(`✅ Deleted ${mediaResult.rowsAffected} media items from SQLite`);
       
       const [roundsResult] = await this.db.executeSql('DELETE FROM rounds');
-      console.log(`✅ Deleted ${roundsResult.rowsAffected} rounds`);
+      console.log(`✅ Deleted ${roundsResult.rowsAffected} rounds from SQLite`);
       
       const [contactsResult] = await this.db.executeSql('DELETE FROM contacts');
-      console.log(`✅ Deleted ${contactsResult.rowsAffected} contacts`);
+      console.log(`✅ Deleted ${contactsResult.rowsAffected} contacts from SQLite`);
       
       const [tournamentsResult] = await this.db.executeSql('DELETE FROM tournaments');
-      console.log(`✅ Deleted ${tournamentsResult.rowsAffected} tournaments`);
+      console.log(`✅ Deleted ${tournamentsResult.rowsAffected} tournaments from SQLite`);
       
       const [preferencesResult] = await this.db.executeSql('DELETE FROM preferences');
-      console.log(`✅ Deleted ${preferencesResult.rowsAffected} preferences`);
+      console.log(`✅ Deleted ${preferencesResult.rowsAffected} preferences from SQLite`);
       
-      // Also clear AsyncStorage items that might cache data
+      // CRITICAL: Also clear WatermelonDB database (new) - PII compliance requirement
+      try {
+        const { database } = require('../database/watermelon/database');
+        console.log('🗑️ Clearing WatermelonDB data...');
+        
+        await database.write(async () => {
+          await database.unsafeResetDatabase();
+        });
+        
+        console.log('✅ Cleared all WatermelonDB data including contacts');
+      } catch (watermelonError) {
+        console.error('❌ Error clearing WatermelonDB:', watermelonError);
+        // Still throw the error - we must clear all PII data
+        throw new Error(`Failed to clear WatermelonDB contacts (PII compliance): ${watermelonError}`);
+      }
+      
+      // Clear AsyncStorage items that might cache data
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       await AsyncStorage.removeItem('active_round_id');
       await AsyncStorage.removeItem('onboarding_completed');
       console.log('✅ Cleared AsyncStorage cached data');
       
-      console.log('✅ All data cleared successfully');
+      console.log('✅ All data cleared successfully (SQLite + WatermelonDB + AsyncStorage)');
     } catch (error) {
       console.error('❌ Error clearing data:', error);
       throw error;
