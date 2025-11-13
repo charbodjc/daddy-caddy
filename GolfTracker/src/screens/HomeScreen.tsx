@@ -64,7 +64,7 @@ const HomeScreenNew: React.FC = () => {
   };
   
   const handleGoToTournaments = () => {
-    navigation.navigate('Tournaments');
+    navigation.navigate('Tournaments' as 'Tournaments');
   };
   
   if (loading && !activeRound && !stats) {

@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
 import * as SMS from 'expo-sms';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GolfRound, MediaItem, GolfHole } from '../types';
 import AIService from './ai';
-import DatabaseService from './database';
 
 interface RoundStats {
   totalScore: number;
@@ -43,7 +43,7 @@ class SMSService {
 
       // Load default recipients list from settings (comma or newline separated)
       const recipients = await this.getDefaultRecipients();
-      const groupName = await DatabaseService.getPreference('default_sms_group_name') || 'your text group';
+      const groupName = await AsyncStorage.getItem('default_sms_group_name') || 'your text group';
 
       // Open in-app SMS composer
       const result = await this.openSMS(recipients, message);
@@ -116,6 +116,7 @@ class SMSService {
         fairwaysHit: 0,
         greensInRegulation: 0,
         totalPutts: 0,
+        playedHoles: 0,
       };
     }
 
@@ -248,7 +249,7 @@ class SMSService {
 
     try {
       const recipients = await this.getDefaultRecipients();
-      const groupName = await DatabaseService.getPreference('default_sms_group_name') || 'your text group';
+      const groupName = await AsyncStorage.getItem('default_sms_group_name') || 'your text group';
 
       // Open in-app SMS composer
       const result = await this.openSMS(recipients, message);
@@ -337,7 +338,7 @@ class SMSService {
   }
 
   private async getDefaultRecipients(): Promise<string> {
-    const raw = await DatabaseService.getPreference('default_sms_group');
+    const raw = await AsyncStorage.getItem('default_sms_group');
     if (!raw) return '';
     
     try {
@@ -360,7 +361,7 @@ class SMSService {
     // Normalize separators to commas (legacy format)
     return raw
       .split(/[\n,;]/)
-      .map(s => s.trim())
+      .map((s: string) => s.trim())
       .filter(Boolean)
       .join(',');
   }

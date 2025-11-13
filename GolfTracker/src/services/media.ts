@@ -4,9 +4,12 @@ import {
   ImagePickerResponse,
   MediaType,
   CameraOptions,
+  ImageLibraryOptions,
 } from 'react-native-image-picker';
 import { Platform, PermissionsAndroid } from 'react-native';
-import DatabaseService from './database';
+import { database } from '../database/watermelon/database';
+import Media from '../database/watermelon/models/Media';
+import { Q } from '@nozbe/watermelondb';
 import RNFS from 'react-native-fs';
 import { MediaItem } from '../types';
 
@@ -137,7 +140,7 @@ class MediaService {
           };
 
           // Save to database
-          await DatabaseService.saveMedia(mediaItem);
+          await this.saveCapturedMedia(mediaItem);
           
           resolve(mediaItem);
         } else {
@@ -191,7 +194,7 @@ class MediaService {
           };
 
           // Save to database
-          await DatabaseService.saveMedia(mediaItem);
+          await this.saveCapturedMedia(mediaItem);
           
           resolve(mediaItem);
         } else {
@@ -201,12 +204,54 @@ class MediaService {
     });
   }
 
+  private async saveCapturedMedia(mediaItem: MediaItem): Promise<void> {
+    await database.write(async () => {
+      await database.collections.get<Media>('media').create((media) => {
+        media.uri = mediaItem.uri;
+        media.type = mediaItem.type as 'photo' | 'video';
+        media.roundId = mediaItem.roundId;
+        media.holeNumber = mediaItem.holeNumber;
+        media.timestamp = mediaItem.timestamp;
+        media.description = mediaItem.description;
+      });
+    });
+  }
+
   async getMediaForRound(roundId: string): Promise<MediaItem[]> {
-    return DatabaseService.getMediaForRound(roundId);
+    const mediaItems = await database.collections
+      .get<Media>('media')
+      .query(Q.where('round_id', roundId))
+      .fetch();
+    
+    return mediaItems.map((m) => ({
+      id: m.id,
+      uri: m.uri,
+      type: m.type,
+      roundId: m.roundId || '',
+      holeNumber: m.holeNumber,
+      timestamp: m.timestamp,
+      description: m.description,
+    }));
   }
 
   async getMediaForHole(roundId: string, holeNumber: number): Promise<MediaItem[]> {
-    return DatabaseService.getMediaForHole(roundId, holeNumber);
+    const mediaItems = await database.collections
+      .get<Media>('media')
+      .query(
+        Q.where('round_id', roundId),
+        Q.where('hole_number', holeNumber)
+      )
+      .fetch();
+    
+    return mediaItems.map((m) => ({
+      id: m.id,
+      uri: m.uri,
+      type: m.type,
+      roundId: m.roundId || '',
+      holeNumber: m.holeNumber,
+      timestamp: m.timestamp,
+      description: m.description,
+    }));
   }
 
   async captureMedia(type: 'photo' | 'video'): Promise<MediaItem | null> {
@@ -285,13 +330,16 @@ class MediaService {
   }
 
   async saveMedia(media: MediaItem, roundId: string, holeNumber?: number): Promise<void> {
-    const updatedMedia = {
-      ...media,
-      roundId,
-      holeNumber,
-      description: holeNumber ? `Hole ${holeNumber}` : `Round ${roundId}`,
-    };
-    await DatabaseService.saveMedia(updatedMedia);
+    await database.write(async () => {
+      await database.collections.get<Media>('media').create((m) => {
+        m.uri = media.uri;
+        m.type = media.type as 'photo' | 'video';
+        m.roundId = roundId;
+        m.holeNumber = holeNumber;
+        m.timestamp = media.timestamp;
+        m.description = holeNumber ? `Hole ${holeNumber}` : `Round ${roundId}`;
+      });
+    });
   }
 
   async getMediaCount(roundId: string, holeNumber: number): Promise<{ photos: number; videos: number }> {
@@ -303,13 +351,11 @@ class MediaService {
   }
 
   async selectFromLibrary(type: 'photo' | 'video' | 'mixed'): Promise<MediaItem | null> {
-    const options: CameraOptions = {
+    const options: ImageLibraryOptions = {
       mediaType: type === 'mixed' ? 'mixed' : type,
       includeBase64: false,
       maxHeight: 2000,
       maxWidth: 2000,
-      quality: 0.9,
-      includeExtra: true,
       selectionLimit: 1,
     };
 

@@ -4,7 +4,7 @@ import { StackScreenProps } from '@react-navigation/stack';
 
 // Scoring Stack Parameter List
 export type ScoringStackParamList = {
-  RoundTracker: undefined;
+  RoundTracker: { roundId?: string; tournamentId?: string; tournamentName?: string } | undefined;
   HoleDetails: { roundId: string; holeNumber: number };
   ShotTracking: { roundId: string; holeNumber: number };
   HoleSummary: { roundId: string; holeNumber: number };
