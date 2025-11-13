@@ -1,171 +1,69 @@
 import RNFS from 'react-native-fs';
-import Share from 'react-native-share';
-import { database } from '../../database/watermelon/database';
-import Round from '../../database/watermelon/models/Round';
-import Hole from '../../database/watermelon/models/Hole';
-import Tournament from '../../database/watermelon/models/Tournament';
-import Media from '../../database/watermelon/models/Media';
-import Contact from '../../database/watermelon/models/Contact';
+import DatabaseService from '../../services/database'; // Old legacy database
+import { Share, Alert } from 'react-native';
 
-// Export data structure
 export interface ExportedData {
   version: number;
   exportDate: string;
-  rounds: Array<{
-    id: string;
-    courseName: string;
-    date: string;
-    isFinished: boolean;
-    tournamentId?: string;
-    tournamentName?: string;
-    totalScore?: number;
-    totalPutts?: number;
-    fairwaysHit?: number;
-    greensInRegulation?: number;
-    aiAnalysis?: string;
-    holes?: Array<{
-      holeNumber: number;
-      par: number;
-      strokes: number;
-      fairwayHit?: boolean;
-      greenInRegulation?: boolean;
-      putts?: number;
-      notes?: string;
-      shotData?: string | object;
-    }>;
-  }>;
-  tournaments: Array<{
-    id: string;
-    name: string;
-    courseName: string;
-    startDate: string;
-    endDate: string;
-  }>;
-  contacts: Array<{
-    id: string;
-    name: string;
-    phoneNumber: string;
-    isActive: boolean;
-  }>;
-  media: Array<{
-    id: string;
-    uri: string;
-    type: string;
-    timestamp: string;
-    roundId?: string;
-    holeNumber?: number;
-    description?: string;
-  }>;
+  rounds: any[];
+  tournaments: any[];
+  contacts: any[];
+  media: any[];
 }
 
-/**
- * Export all data from the database to a JSON file
- */
 export const exportLegacyData = async (): Promise<string> => {
   try {
     console.log('Starting data export...');
-
-    // Fetch all data from database
-    const roundsCollection = database.collections.get<Round>('rounds');
-    const holesCollection = database.collections.get<Hole>('holes');
-    const tournamentsCollection = database.collections.get<Tournament>('tournaments');
-    const mediaCollection = database.collections.get<Media>('media');
-    const contactsCollection = database.collections.get<Contact>('contacts');
-
-    const rounds = await roundsCollection.query().fetch();
-    const tournaments = await tournamentsCollection.query().fetch();
-    const contacts = await contactsCollection.query().fetch();
-    const media = await mediaCollection.query().fetch();
-
-    console.log('Fetched data:', {
-      rounds: rounds.length,
-      tournaments: tournaments.length,
-      contacts: contacts.length,
-      media: media.length,
-    });
-
-    // Build export data structure
+    
+    // Fetch all data from legacy database
+    const rounds = await DatabaseService.getRounds();
+    const tournaments = await DatabaseService.getTournaments();
+    const contacts = await DatabaseService.getContacts();
+    
+    // Get all media (need to query directly)
+    const media: any[] = [];
+    for (const round of rounds) {
+      const roundMedia = await DatabaseService.getMediaForRound(round.id);
+      media.push(...roundMedia);
+    }
+    
     const exportData: ExportedData = {
       version: 1,
       exportDate: new Date().toISOString(),
-      rounds: [],
-      tournaments: [],
-      contacts: [],
-      media: [],
-    };
-
-    // Export tournaments
-    for (const tournament of tournaments) {
-      exportData.tournaments.push({
-        id: tournament.id,
-        name: tournament.name,
-        courseName: tournament.courseName,
+      rounds: rounds.map(round => ({
+        ...round,
+        date: round.date.toISOString(),
+        createdAt: round.createdAt.toISOString(),
+        updatedAt: round.updatedAt.toISOString(),
+      })),
+      tournaments: tournaments.map(tournament => ({
+        ...tournament,
         startDate: tournament.startDate.toISOString(),
         endDate: tournament.endDate.toISOString(),
-      });
-    }
-
-    // Export rounds with their holes
-    for (const round of rounds) {
-      const roundHoles = await holesCollection
-        .query(require('@nozbe/watermelondb/QueryDescription').Q.where('round_id', round.id))
-        .fetch();
-
-      exportData.rounds.push({
-        id: round.id,
-        courseName: round.courseName,
-        date: round.date.toISOString(),
-        isFinished: round.isFinished,
-        tournamentId: round.tournamentId || undefined,
-        tournamentName: round.tournamentName || undefined,
-        totalScore: round.totalScore || undefined,
-        totalPutts: round.totalPutts || undefined,
-        fairwaysHit: round.fairwaysHit || undefined,
-        greensInRegulation: round.greensInRegulation || undefined,
-        aiAnalysis: round.aiAnalysis || undefined,
-        holes: roundHoles.map((hole) => ({
-          holeNumber: hole.holeNumber,
-          par: hole.par,
-          strokes: hole.strokes,
-          fairwayHit: hole.fairwayHit,
-          greenInRegulation: hole.greenInRegulation,
-          putts: hole.putts || undefined,
-          notes: hole.notes || undefined,
-          shotData: hole.shotData || undefined,
-        })),
-      });
-    }
-
-    // Export contacts
-    for (const contact of contacts) {
-      exportData.contacts.push({
-        id: contact.id,
-        name: contact.name,
-        phoneNumber: contact.phoneNumber,
-        isActive: contact.isActive,
-      });
-    }
-
-    // Export media
-    for (const mediaItem of media) {
-      exportData.media.push({
-        id: mediaItem.id,
-        uri: mediaItem.uri,
-        type: mediaItem.type,
-        timestamp: mediaItem.timestamp.toISOString(),
-        roundId: mediaItem.roundId || undefined,
-        holeNumber: mediaItem.holeNumber || undefined,
-        description: mediaItem.description || undefined,
-      });
-    }
-
-    // Write to file
-    const fileName = `daddy_caddy_export_${new Date().getTime()}.json`;
+        createdAt: tournament.createdAt.toISOString(),
+        updatedAt: tournament.updatedAt.toISOString(),
+      })),
+      contacts,
+      media: media.map(item => ({
+        ...item,
+        timestamp: item.timestamp.toISOString(),
+      })),
+    };
+    
+    console.log('Export data prepared:', {
+      rounds: exportData.rounds.length,
+      tournaments: exportData.tournaments.length,
+      contacts: exportData.contacts.length,
+      media: exportData.media.length,
+    });
+    
+    // Create export file
+    const fileName = `daddy-caddy-export-${Date.now()}.json`;
     const filePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
     
     await RNFS.writeFile(filePath, JSON.stringify(exportData, null, 2), 'utf8');
     
-    console.log('Export completed:', filePath);
+    console.log('Export file created:', filePath);
     
     return filePath;
   } catch (error) {
@@ -174,30 +72,30 @@ export const exportLegacyData = async (): Promise<string> => {
   }
 };
 
-/**
- * Share an export file using the native share dialog
- */
 export const shareExportFile = async (filePath: string): Promise<void> => {
   try {
-    const fileExists = await RNFS.exists(filePath);
-    
-    if (!fileExists) {
-      throw new Error('Export file not found');
-    }
-
-    await Share.open({
-      title: 'Export Daddy Caddy Data',
-      message: 'Backup of your golf data from Daddy Caddy',
+    await Share.share({
       url: `file://${filePath}`,
-      type: 'application/json',
-      filename: filePath.split('/').pop() || 'daddy_caddy_export.json',
+      title: 'Daddy Caddy Data Export',
+      message: 'Your golf data export file',
     });
   } catch (error) {
-    // User cancelled or error occurred
-    if (error instanceof Error && error.message !== 'User did not share') {
-      console.error('Share failed:', error);
-      throw error;
-    }
+    console.error('Share failed:', error);
+    Alert.alert('Error', 'Failed to share export file');
+  }
+};
+
+export const getExportFilePath = (): string => {
+  const fileName = `daddy-caddy-export-${Date.now()}.json`;
+  return `${RNFS.DocumentDirectoryPath}/${fileName}`;
+};
+
+export const checkDataExists = async (): Promise<boolean> => {
+  try {
+    const rounds = await DatabaseService.getRounds();
+    return rounds.length > 0;
+  } catch (error) {
+    return false;
   }
 };
 

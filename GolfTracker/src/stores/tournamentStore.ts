@@ -20,7 +20,6 @@ interface TournamentState {
   
   // Actions
   loadTournaments: () => Promise<void>;
-  getTournament: (id: string) => Promise<Tournament>;
   createTournament: (data: CreateTournamentData) => Promise<Tournament>;
   deleteTournament: (id: string) => Promise<void>;
   selectTournament: (id: string) => Promise<void>;
@@ -48,18 +47,6 @@ export const useTournamentStore = create<TournamentState>()(
           set({ tournaments, loading: false });
         } catch (error) {
           set({ error: error as Error, loading: false });
-        }
-      },
-      
-      // Get a single tournament by ID
-      getTournament: async (id: string) => {
-        try {
-          const tournament = await database.collections
-            .get<Tournament>('tournaments')
-            .find(id);
-          return tournament;
-        } catch (error) {
-          throw error;
         }
       },
       

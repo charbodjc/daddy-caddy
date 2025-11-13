@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppNavigator from './src/navigation/AppNavigator';
+import DatabaseService from './src/services/database';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
 
 const App = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     initializeApp();
@@ -15,8 +17,9 @@ const App = () => {
 
   const initializeApp = async () => {
     try {
-      // WatermelonDB initializes automatically via database.ts
-      console.log('App initialized - using WatermelonDB');
+      // Initialize database
+      await DatabaseService.init();
+      console.log('Database initialized successfully');
       
       // Check if user has completed onboarding
       const onboardingCompleted = await AsyncStorage.getItem('onboarding_completed');
@@ -25,14 +28,21 @@ const App = () => {
       setIsInitialized(true);
     } catch (err) {
       console.error('Failed to initialize app:', err);
-      setShowOnboarding(false);
-      setIsInitialized(true);
+      setError('Failed to initialize database');
     }
   };
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
   };
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>Error: {error}</Text>
+      </View>
+    );
+  }
 
   if (!isInitialized || showOnboarding === null) {
     return (

@@ -1,10 +1,3 @@
-/**
- * RoundSummaryScreenNew.tsx
- * 
- * Migration template for Round Summary screen.
- * Displays completed round with statistics and AI analysis.
- */
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -12,450 +5,619 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
   Alert,
-  Share,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { database } from '../database/watermelon/database';
-import Round from '../database/watermelon/models/Round';
-import Hole from '../database/watermelon/models/Hole';
-import { LoadingScreen } from '../components/common/LoadingScreen';
-import { ErrorScreen } from '../components/common/ErrorScreen';
-import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import { format } from 'date-fns';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import DatabaseService from '../services/database';
+import AIService from '../services/ai';
+import SMSService from '../services/sms';
+import { GolfRound, Contact, MediaItem } from '../types';
+import { Toast, useToast } from '../components/Toast';
 
-interface RouteParams {
-  roundId: string;
-}
-
-const RoundSummaryScreenNew: React.FC = () => {
+const RoundSummaryScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { roundId } = (route.params as RouteParams) || {};
-  
-  const [round, setRound] = useState<Round | null>(null);
-  const [holes, setHoles] = useState<Hole[]>([]);
+  const params = route.params as { roundId?: string } | undefined;
+  const roundId = params?.roundId;
+  const { toastConfig, showToast, hideToast } = useToast();
+
+  const [round, setRound] = useState<GolfRound | null>(null);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [aiAnalysis, setAiAnalysis] = useState<string>('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  
+
   useEffect(() => {
-    loadRound();
+    if (roundId) {
+      loadRoundData();
+    } else {
+      console.error('No roundId provided to RoundSummaryScreen');
+      setLoading(false);
+    }
   }, [roundId]);
-  
-  const loadRound = async () => {
-    if (!roundId) return;
-    
-    setLoading(true);
+
+  const loadRoundData = async () => {
     try {
-      const roundData = await database.collections.get<Round>('rounds').find(roundId);
-      const holesData = await roundData.holes.fetch();
-      
-      setRound(roundData);
-      setHoles(holesData);
-      setError(null);
-    } catch (err) {
-      setError(err as Error);
+      console.log('Loading round data for ID:', roundId);
+      const roundData = await DatabaseService.getRound(roundId);
+      if (roundData) {
+        console.log('Loaded round data:', {
+          id: roundData.id,
+          courseName: roundData.courseName,
+          holesCount: roundData.holes.length,
+          holesWithStrokes: roundData.holes.filter(h => h.strokes > 0).length,
+          totalScore: roundData.totalScore,
+        });
+        setRound(roundData);
+        
+        // Load contacts and media
+        const media = await DatabaseService.getMediaForRound(roundId);
+        
+        setMediaItems(media);
+
+        // Generate AI analysis if not already present
+        if (!roundData.aiAnalysis) {
+          generateAIAnalysis(roundData);
+        } else {
+          setAiAnalysis(roundData.aiAnalysis);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading round:', error);
+      Alert.alert('Error', 'Failed to load round data');
     } finally {
       setLoading(false);
     }
   };
-  
-  const handleShare = async () => {
-    if (!round) return;
-    
-    const completedHoles = holes.filter(h => h.strokes > 0);
-    const totalPar = completedHoles.reduce((sum, h) => sum + h.par, 0);
-    const totalStrokes = round.totalScore || 0;
-    const toPar = totalStrokes - totalPar;
-    const scoreDisplay = toPar > 0 ? `+${toPar}` : toPar === 0 ? 'E' : `${toPar}`;
-    
-    const message = `
-🏌️ Golf Round Summary
 
-📍 ${round.courseName}
-📅 ${format(round.date, 'EEEE, MMM d, yyyy')}
-${round.tournamentName ? `🏆 ${round.tournamentName}\n` : ''}
-⛳ Score: ${totalStrokes} (${scoreDisplay})
-${round.totalPutts ? `🎯 Putts: ${round.totalPutts}\n` : ''}${round.fairwaysHit !== undefined ? `🎯 Fairways: ${round.fairwaysHit}/14\n` : ''}${round.greensInRegulation !== undefined ? `🟢 GIR: ${round.greensInRegulation}/18\n` : ''}
-Played with Daddy Caddy ⛳
-    `.trim();
-    
+  const generateAIAnalysis = async (roundData: GolfRound) => {
+    setIsAnalyzing(true);
     try {
-      await Share.share({ message });
+      const analysis = await AIService.analyzeRound(roundData);
+      setAiAnalysis(analysis);
+      
+      // Save the analysis to the database
+      const updatedRound = { ...roundData, aiAnalysis: analysis, updatedAt: new Date() };
+      await DatabaseService.saveRound(updatedRound);
     } catch (error) {
-      console.error('Share failed:', error);
+      console.error('Error generating AI analysis:', error);
+    } finally {
+      setIsAnalyzing(false);
     }
   };
-  
-  if (loading) {
-    return <LoadingScreen message="Loading round summary..." />;
-  }
-  
-  if (error || !round) {
-    return <ErrorScreen error={error || new Error('Round not found')} onRetry={loadRound} />;
-  }
-  
-  const completedHoles = holes.filter(h => h.strokes > 0);
-  const totalPar = completedHoles.reduce((sum, h) => sum + h.par, 0);
-  const totalStrokes = round.totalScore || 0;
-  const toPar = totalStrokes - totalPar;
-  const scoreDisplay = toPar > 0 ? `+${toPar}` : toPar === 0 ? 'E' : `${toPar}`;
-  
-  // Calculate scoring breakdown
-  const breakdown = {
-    eagles: 0,
-    birdies: 0,
-    pars: 0,
-    bogeys: 0,
-    doubles: 0,
+
+  const sendSummary = async () => {
+    if (!round) {
+      showToast('No round data available', 'error');
+      return;
+    }
+
+    try {
+      console.log('Sending summary for round:', {
+        id: round.id,
+        courseName: round.courseName,
+        holesCount: round.holes?.length || 0,
+        playedHoles: round.holes?.filter(h => h.strokes > 0).length || 0,
+      });
+
+      const result = await SMSService.sendRoundSummary(round, mediaItems);
+      
+      if (result.success) {
+        if (result.sent) {
+          showToast(`Round summary sent to ${result.groupName}`, 'success');
+        } else {
+          showToast('Message cancelled', 'info');
+        }
+      } else {
+        showToast(result.errors.join(', '), 'error');
+      }
+    } catch (error) {
+      console.error('Error sending summary:', error);
+      showToast(`Failed to send summary: ${error}`, 'error');
+    }
   };
-  
-  completedHoles.forEach(hole => {
-    const score = hole.strokes - hole.par;
-    if (score <= -2) breakdown.eagles++;
-    else if (score === -1) breakdown.birdies++;
-    else if (score === 0) breakdown.pars++;
-    else if (score === 1) breakdown.bogeys++;
-    else if (score >= 2) breakdown.doubles++;
-  });
-  
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+      </View>
+    );
+  }
+
+  if (!roundId) {
+    return (
+      <View style={styles.errorContainer}>
+        <Icon name="error-outline" size={48} color="#666" />
+        <Text style={styles.errorText}>No round selected</Text>
+        <Text style={styles.errorSubtext}>Please select a round from your history</Text>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!round) {
+    return (
+      <View style={styles.errorContainer}>
+        <Icon name="error-outline" size={48} color="#666" />
+        <Text style={styles.errorText}>Round not found</Text>
+        <Text style={styles.errorSubtext}>The round data could not be loaded</Text>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const calculateStats = () => {
+    // Only calculate stats for holes that have been played (strokes > 0)
+    const playedHoles = round.holes.filter(h => h.strokes > 0);
+    const totalPar = playedHoles.reduce((sum, h) => sum + h.par, 0);
+    const totalStrokes = playedHoles.reduce((sum, h) => sum + h.strokes, 0);
+    const score = totalStrokes - totalPar;
+    
+    let eagles = 0;
+    let birdies = 0;
+    let pars = 0;
+    let bogeys = 0;
+    let doubleBogeys = 0;
+
+    playedHoles.forEach(hole => {
+      const holeScore = hole.strokes - hole.par;
+      if (holeScore <= -2) eagles++;
+      else if (holeScore === -1) birdies++;
+      else if (holeScore === 0) pars++;
+      else if (holeScore === 1) bogeys++;
+      else if (holeScore >= 2) doubleBogeys++;
+    });
+
+    return { totalPar, totalStrokes, score, eagles, birdies, pars, bogeys, doubleBogeys, playedHoles: playedHoles.length };
+  };
+
+  const stats = calculateStats();
+
   return (
     <ScrollView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>Round Summary</Text>
-          <Text style={styles.headerSubtitle}>{round.courseName}</Text>
-        </View>
-        
-        <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-          <Icon name="share" size={24} color="#fff" />
-        </TouchableOpacity>
+        <Text style={styles.courseName}>{round.courseName}</Text>
+        <Text style={styles.date}>{round.date.toLocaleDateString()}</Text>
+        {round.tournamentName && (
+          <View style={styles.tournamentBadge}>
+            <Icon name="emoji-events" size={16} color="#FFD700" />
+            <Text style={styles.tournamentName}>{round.tournamentName}</Text>
+          </View>
+        )}
       </View>
-      
-      {/* Score Card */}
+
+      {/* Score Summary */}
       <View style={styles.scoreCard}>
-        <View style={styles.scoreMain}>
-          <Text style={styles.scoreLabel}>Total Score</Text>
-          <Text style={styles.scoreValue}>{totalStrokes}</Text>
-          <Text style={styles.scoreToPar}>{scoreDisplay}</Text>
+        <View style={styles.mainScore}>
+          <Text style={styles.totalScore}>{stats.totalStrokes}</Text>
+          <Text style={styles.scoreLabel}>Total Strokes</Text>
         </View>
-        
-        <View style={styles.scoreDivider} />
-        
         <View style={styles.scoreDetails}>
-          <ScoreDetailItem label="Holes Played" value={completedHoles.length} />
-          <ScoreDetailItem label="Total Par" value={totalPar} />
-          {round.totalPutts && <ScoreDetailItem label="Putts" value={round.totalPutts} />}
+          <View style={styles.scoreDetailItem}>
+            <Text style={styles.scoreDetailValue}>
+              {stats.score > 0 ? '+' : ''}{stats.score}
+            </Text>
+            <Text style={styles.scoreDetailLabel}>vs Par</Text>
+          </View>
+          <View style={styles.scoreDetailItem}>
+            <Text style={styles.scoreDetailValue}>{round.totalPutts || '-'}</Text>
+            <Text style={styles.scoreDetailLabel}>Putts</Text>
+          </View>
         </View>
       </View>
-      
-      {/* Statistics */}
+
+      {/* Score Distribution */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Statistics</Text>
-        
-        <View style={styles.statsGrid}>
-          {round.fairwaysHit !== undefined && (
-            <StatItem
-              icon={<Icon name="flag" size={20} color="#4CAF50" />}
-              label="Fairways Hit"
-              value={`${round.fairwaysHit}/14`}
-              percentage={Math.round((round.fairwaysHit / 14) * 100)}
-            />
+        <Text style={styles.sectionTitle}>Score Distribution</Text>
+        <View style={styles.distribution}>
+          {stats.eagles > 0 && (
+            <View style={[styles.distributionItem, { backgroundColor: '#FFD700' }]}>
+              <Text style={styles.distributionCount}>{stats.eagles}</Text>
+              <Text style={styles.distributionLabel}>Eagle</Text>
+            </View>
           )}
-          
-          {round.greensInRegulation !== undefined && (
-            <StatItem
-              icon={<Icon name="adjust" size={20} color="#4CAF50" />}
-              label="Greens in Regulation"
-              value={`${round.greensInRegulation}/18`}
-              percentage={Math.round((round.greensInRegulation / 18) * 100)}
-            />
+          {stats.birdies > 0 && (
+            <View style={[styles.distributionItem, { backgroundColor: '#4CAF50' }]}>
+              <Text style={styles.distributionCount}>{stats.birdies}</Text>
+              <Text style={styles.distributionLabel}>Birdie</Text>
+            </View>
+          )}
+          <View style={[styles.distributionItem, { backgroundColor: '#2196F3' }]}>
+            <Text style={styles.distributionCount}>{stats.pars}</Text>
+            <Text style={styles.distributionLabel}>Par</Text>
+          </View>
+          {stats.bogeys > 0 && (
+            <View style={[styles.distributionItem, { backgroundColor: '#FF9800' }]}>
+              <Text style={styles.distributionCount}>{stats.bogeys}</Text>
+              <Text style={styles.distributionLabel}>Bogey</Text>
+          </View>
+          )}
+          {stats.doubleBogeys > 0 && (
+            <View style={[styles.distributionItem, { backgroundColor: '#F44336' }]}>
+              <Text style={styles.distributionCount}>{stats.doubleBogeys}</Text>
+              <Text style={styles.distributionLabel}>Double+</Text>
+            </View>
           )}
         </View>
       </View>
-      
-      {/* Scoring Breakdown */}
+
+      {/* Shot Statistics */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Scoring Breakdown</Text>
-        
-        <View style={styles.breakdownList}>
-          {breakdown.eagles > 0 && (
-            <BreakdownItem emoji="🦅" label="Eagles or Better" value={breakdown.eagles} />
-          )}
-          {breakdown.birdies > 0 && (
-            <BreakdownItem emoji="🐦" label="Birdies" value={breakdown.birdies} />
-          )}
-          <BreakdownItem emoji="✅" label="Pars" value={breakdown.pars} />
-          <BreakdownItem emoji="😐" label="Bogeys" value={breakdown.bogeys} />
-          {breakdown.doubles > 0 && (
-            <BreakdownItem emoji="😔" label="Double Bogey+" value={breakdown.doubles} />
-          )}
+        <Text style={styles.sectionTitle}>Shot Statistics</Text>
+        <View style={styles.statsList}>
+          <View style={styles.statRow}>
+            <Text style={styles.statName}>Fairways Hit</Text>
+            <Text style={styles.statValue}>
+              {round.fairwaysHit || 0} / {Math.min(14, stats.playedHoles)} ({Math.round(((round.fairwaysHit || 0) / Math.max(1, Math.min(14, stats.playedHoles))) * 100)}%)
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statName}>Greens in Regulation</Text>
+            <Text style={styles.statValue}>
+              {round.greensInRegulation || 0} / {stats.playedHoles} ({Math.round(((round.greensInRegulation || 0) / Math.max(1, stats.playedHoles)) * 100)}%)
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statName}>Average Putts per Hole</Text>
+            <Text style={styles.statValue}>
+              {((round.totalPutts || 0) / Math.max(1, stats.playedHoles)).toFixed(1)}
+            </Text>
+          </View>
         </View>
       </View>
-      
+
       {/* AI Analysis */}
-      {round.aiAnalysis && (
-        <View style={styles.section}>
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Icon name="psychology" size={20} color="#4CAF50" />
           <Text style={styles.sectionTitle}>AI Analysis</Text>
-          <View style={styles.aiCard}>
-            <Icon name="psychology" size={24} color="#4CAF50" style={styles.aiIcon} />
-            <Text style={styles.aiText}>{round.aiAnalysis}</Text>
+        </View>
+        {isAnalyzing ? (
+          <ActivityIndicator size="small" color="#4CAF50" />
+        ) : (
+          <Text style={styles.aiAnalysisText}>
+            {aiAnalysis || 'AI analysis unavailable. Please configure OpenAI API key.'}
+          </Text>
+        )}
+      </View>
+
+      {/* Hole-by-hole Scorecard */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Scorecard</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.scorecard}>
+            <View style={styles.scorecardRow}>
+              <Text style={styles.scorecardLabel}>Hole</Text>
+              {round.holes.filter(h => h.strokes > 0).map(hole => (
+                <Text key={hole.holeNumber} style={styles.scorecardCell}>
+                  {hole.holeNumber}
+                </Text>
+              ))}
+            </View>
+            <View style={styles.scorecardRow}>
+              <Text style={styles.scorecardLabel}>Par</Text>
+              {round.holes.filter(h => h.strokes > 0).map(hole => (
+                <Text key={hole.holeNumber} style={styles.scorecardCell}>
+                  {hole.par}
+                </Text>
+              ))}
+            </View>
+            <View style={styles.scorecardRow}>
+              <Text style={styles.scorecardLabel}>Score</Text>
+              {round.holes.filter(h => h.strokes > 0).map(hole => {
+                const diff = hole.strokes - hole.par;
+                let color = '#333';
+                if (diff <= -2) color = '#FFD700';
+                else if (diff === -1) color = '#4CAF50';
+                else if (diff === 0) color = '#2196F3';
+                else if (diff === 1) color = '#FF9800';
+                else if (diff >= 2) color = '#F44336';
+                
+                return (
+                  <Text key={hole.holeNumber} style={[styles.scorecardCell, { color, fontWeight: 'bold' }]}>
+                    {hole.strokes}
+                  </Text>
+                );
+              })}
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+
+      {/* Media Count */}
+      {mediaItems.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.mediaInfo}>
+            <Icon name="photo-library" size={20} color="#4CAF50" />
+            <Text style={styles.mediaText}>
+              {mediaItems.length} photo{mediaItems.length !== 1 ? 's' : ''} and videos captured
+            </Text>
           </View>
         </View>
       )}
-      
+
       {/* Actions */}
       <View style={styles.actions}>
-        <Button title="Share Round" onPress={handleShare} style={styles.actionButton} />
+        <TouchableOpacity style={styles.shareButton} onPress={sendSummary}>
+          <FontAwesome5 name="sms" size={20} color="#fff" />
+          <Text style={styles.shareButtonText}>Send SMS Summary</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.homeButton}
+          onPress={() => navigation.navigate('Home' as never)}
+        >
+          <FontAwesome5 name="home" size={20} color="#4CAF50" />
+          <Text style={styles.homeButtonText}>Back to Home</Text>
+        </TouchableOpacity>
       </View>
+
+      {/* Toast Notification */}
+      <Toast
+        visible={toastConfig.visible}
+        message={toastConfig.message}
+        type={toastConfig.type}
+        onHide={hideToast}
+      />
     </ScrollView>
   );
 };
-
-// Helper Components
-const ScoreDetailItem: React.FC<{ label: string; value: number }> = React.memo(({ label, value }) => (
-  <View style={styles.detailItem}>
-    <Text style={styles.detailLabel}>{label}</Text>
-    <Text style={styles.detailValue}>{value}</Text>
-  </View>
-));
-
-const StatItem: React.FC<{
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  percentage: number;
-}> = React.memo(({ icon, label, value, percentage }) => (
-  <View style={styles.statItem}>
-    <View style={styles.statHeader}>
-      {icon}
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-    <Text style={styles.statValue}>{value}</Text>
-    <Text style={styles.statPercentage}>{percentage}%</Text>
-  </View>
-));
-
-const BreakdownItem: React.FC<{
-  emoji: string;
-  label: string;
-  value: number;
-}> = React.memo(({ emoji, label, value }) => (
-  <View style={styles.breakdownItem}>
-    <Text style={styles.breakdownEmoji}>{emoji}</Text>
-    <Text style={styles.breakdownLabel}>{label}</Text>
-    <Text style={styles.breakdownValue}>{value}</Text>
-  </View>
-));
-
-ScoreDetailItem.displayName = 'ScoreDetailItem';
-StatItem.displayName = 'StatItem';
-BreakdownItem.displayName = 'BreakdownItem';
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#333',
+    fontWeight: '600',
+    marginTop: 16,
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  backButton: {
+    marginTop: 24,
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   header: {
     backgroundColor: '#4CAF50',
     padding: 20,
-    paddingTop: 60,
-    flexDirection: 'row',
     alignItems: 'center',
   },
-  backButton: {
-    marginRight: 15,
-    padding: 5,
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  headerTitle: {
+  courseName: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 4,
   },
-  headerSubtitle: {
+  date: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: '#fff',
+    opacity: 0.9,
+    marginTop: 5,
   },
-  shareButton: {
-    padding: 5,
+  tournamentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  tournamentName: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   scoreCard: {
     backgroundColor: '#fff',
     margin: 15,
-    borderRadius: 12,
     padding: 20,
-    flexDirection: 'row',
+    borderRadius: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  scoreMain: {
-    flex: 1,
+  mainScore: {
     alignItems: 'center',
+    marginBottom: 20,
   },
-  scoreLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
-  scoreValue: {
+  totalScore: {
     fontSize: 48,
     fontWeight: 'bold',
     color: '#333',
   },
-  scoreToPar: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#4CAF50',
-    marginTop: 4,
-  },
-  scoreDivider: {
-    width: 1,
-    backgroundColor: '#e0e0e0',
-    marginHorizontal: 20,
-  },
-  scoreDetails: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  detailItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  detailLabel: {
+  scoreLabel: {
     fontSize: 14,
     color: '#666',
+    marginTop: 5,
   },
-  detailValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
+  scoreDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  scoreDetailItem: {
+    alignItems: 'center',
+  },
+  scoreDetailValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+  },
+  scoreDetailLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 5,
   },
   section: {
-    marginTop: 15,
-    paddingHorizontal: 15,
+    backgroundColor: '#fff',
+    margin: 15,
+    marginTop: 0,
+    padding: 15,
+    borderRadius: 10,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 12,
+    marginBottom: 15,
   },
-  statsGrid: {
+  distribution: {
     flexDirection: 'row',
-    gap: 12,
+    justifyContent: 'center',
+    gap: 10,
   },
-  statItem: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statHeader: {
-    flexDirection: 'row',
+  distributionItem: {
+    padding: 10,
+    borderRadius: 8,
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
+    minWidth: 60,
   },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    flex: 1,
-  },
-  statValue: {
+  distributionCount: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
+    color: '#fff',
   },
-  statPercentage: {
+  distributionLabel: {
+    fontSize: 11,
+    color: '#fff',
+    marginTop: 3,
+  },
+  statsList: {
+    gap: 12,
+  },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statName: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#666',
+  },
+  statValue: {
+    fontSize: 14,
     fontWeight: '600',
+    color: '#333',
   },
-  breakdownList: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  aiAnalysisText: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 22,
   },
-  breakdownItem: {
+  scorecard: {
+    gap: 8,
+  },
+  scorecardRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  scorecardLabel: {
+    width: 50,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+  },
+  scorecardCell: {
+    width: 30,
+    textAlign: 'center',
+    fontSize: 12,
+    color: '#333',
+  },
+  mediaInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    gap: 10,
   },
-  breakdownEmoji: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  breakdownLabel: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-  },
-  breakdownValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-  },
-  aiCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    flexDirection: 'row',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  aiIcon: {
-    marginRight: 15,
-    marginTop: 2,
-  },
-  aiText: {
-    flex: 1,
-    fontSize: 15,
-    color: '#333',
-    lineHeight: 22,
+  mediaText: {
+    fontSize: 14,
+    color: '#666',
   },
   actions: {
     padding: 15,
-    paddingBottom: 30,
+    gap: 10,
   },
-  actionButton: {
-    marginBottom: 12,
+  shareButton: {
+    backgroundColor: '#4CAF50',
+    padding: 15,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  shareButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  homeButton: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  homeButtonText: {
+    color: '#4CAF50',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
-export default RoundSummaryScreenNew;
-
+export default RoundSummaryScreen;

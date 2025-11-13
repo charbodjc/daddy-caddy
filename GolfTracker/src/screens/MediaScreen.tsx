@@ -2,61 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, ActivityIndicator, Modal, Dimensions, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import { Q } from '@nozbe/watermelondb';
-import { database } from '../database/watermelon/database';
-import Tournament from '../database/watermelon/models/Tournament';
-import Round from '../database/watermelon/models/Round';
-import Media from '../database/watermelon/models/Media';
-import { MediaItem } from '../types';
+import DatabaseService from '../services/database';
+import { Tournament, GolfRound, MediaItem } from '../types';
 import Video from 'react-native-video';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-// Helper component to load and display rounds for a tournament
-const TournamentRoundsSection: React.FC<{ tournament: Tournament; openRound: (round: Round) => void }> = ({ tournament, openRound }) => {
-  const [rounds, setRounds] = useState<Round[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadRounds();
-  }, [tournament.id]);
-
-  const loadRounds = async () => {
-    try {
-      const roundsData = await database.collections
-        .get<Round>('rounds')
-        .query(Q.where('tournament_id', tournament.id))
-        .fetch();
-      setRounds(roundsData);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return <ActivityIndicator />;
-  }
-
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{tournament.name}</Text>
-      {rounds.map(r => (
-        <TouchableOpacity key={r.id} style={styles.roundRow} onPress={() => openRound(r)}>
-          <Icon name="image" size={18} color="#4CAF50" />
-          <Text style={styles.roundItemName}>{`Round at ${r.courseName}`} — {new Date(r.date).toLocaleDateString()}</Text>
-        </TouchableOpacity>
-      ))}
-      {rounds.length === 0 && (
-        <Text style={{ color: '#999' }}>No rounds yet</Text>
-      )}
-    </View>
-  );
-};
-
 const MediaScreen = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedRound, setSelectedRound] = useState<Round | null>(null);
+  const [selectedRound, setSelectedRound] = useState<GolfRound | null>(null);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaByHole, setMediaByHole] = useState<Record<number, MediaItem[]>>({});
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
@@ -65,7 +20,7 @@ const MediaScreen = () => {
   useEffect(() => {
     (async () => {
       try {
-        const items = await database.collections.get<Tournament>('tournaments').query().fetch();
+        const items = await DatabaseService.getTournaments();
         setTournaments(items);
       } finally {
         setLoading(false);
@@ -73,26 +28,11 @@ const MediaScreen = () => {
     })();
   }, []);
 
-  const openRound = async (round: Round) => {
+  const openRound = async (round: GolfRound) => {
     try {
       setSelectedRound(round);
-      const mediaItems = await database.collections
-        .get<Media>('media')
-        .query(Q.where('round_id', round.id))
-        .fetch();
-      
-      console.log(`📸 Loaded ${mediaItems.length} media items for round ${round.id}`);
-      
-      // Convert WatermelonDB Media to MediaItem format
-      const items: MediaItem[] = mediaItems.map(m => ({
-        id: m.id,
-        uri: m.uri,
-        type: m.type,
-        roundId: m.roundId || '',
-        holeNumber: m.holeNumber || 0,
-        timestamp: new Date(m.timestamp),
-        description: m.description || undefined
-      }));
+      const items = await DatabaseService.getMediaForRound(round.id);
+      console.log(`📸 Loaded ${items.length} media items for round ${round.id}`);
       
       const grouped: Record<number, MediaItem[]> = {};
       items.forEach(m => {
@@ -138,7 +78,7 @@ const MediaScreen = () => {
             </TouchableOpacity>
             <View style={styles.roundInfo}>
               <Text style={styles.roundName}>
-                {`Round at ${selectedRound.courseName}`}
+                {selectedRound.name || `Round at ${selectedRound.courseName}`}
               </Text>
               <Text style={styles.roundDetails}>
                 {selectedRound.courseName} • {new Date(selectedRound.date).toLocaleDateString()}
@@ -249,7 +189,18 @@ const MediaScreen = () => {
       ) : (
       <>
       {tournaments.map(t => (
-        <TournamentRoundsSection key={t.id} tournament={t} openRound={openRound} />
+        <View key={t.id} style={styles.section}>
+          <Text style={styles.sectionTitle}>{t.name}</Text>
+          {t.rounds.map(r => (
+            <TouchableOpacity key={r.id} style={styles.roundRow} onPress={() => openRound(r)}>
+              <Icon name="image" size={18} color="#4CAF50" />
+              <Text style={styles.roundItemName}>{r.name || `Round at ${r.courseName}`} — {new Date(r.date).toLocaleDateString()}</Text>
+            </TouchableOpacity>
+          ))}
+          {t.rounds.length === 0 && (
+            <Text style={{ color: '#999' }}>No rounds yet</Text>
+          )}
+        </View>
       ))}
       </>
       )}

@@ -1,219 +1,339 @@
-/**
- * HomeScreenNew.tsx
- * 
- * This is a TEMPLATE showing how to migrate screens to the new architecture.
- * When ready, replace the old HomeScreen.tsx with this approach.
- * 
- * Key patterns demonstrated:
- * 1. Use custom hooks for data
- * 2. Use stores for actions
- * 3. Use reusable components
- * 4. Loading/Error/Content pattern
- * 5. React.memo for optimization
- */
-
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image } from 'react-native';
-import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
-import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { useRound } from '../hooks/useRound';
-import { useRoundStore } from '../stores/roundStore';
-import { useStats } from '../hooks/useStats';
-import { LoadingScreen } from '../components/common/LoadingScreen';
-import { ErrorScreen } from '../components/common/ErrorScreen';
-import { Button } from '../components/common/Button';
+// Updated: Quick Tips removed, Media tab removed, Delete functionality added - 2025-09-29
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  Image,
+  Alert,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import { RootTabParamList } from '../types/navigation';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import DatabaseService from '../services/database';
+import { GolfRound, Tournament } from '../types';
+import RoundDeletionManager from '../utils/RoundDeletionManager';
 
-type HomeScreenNavigationProp = BottomTabNavigationProp<RootTabParamList, 'Home'>;
+const HomeScreen = () => {
+  const navigation = useNavigation();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeRound, setActiveRound] = useState<GolfRound | null>(null);
+  const [recentRounds, setRecentRounds] = useState<GolfRound[]>([]);
+  const [stats, setStats] = useState({
+    totalRounds: 0,
+    averageScore: 0,
+    bestScore: 0,
+    totalBirdies: 0,
+    totalEagles: 0,
+    averagePutts: 0,
+    fairwayAccuracy: 0,
+    greenAccuracy: 0,
+  });
 
-const HomeScreenNew: React.FC = () => {
-  const navigation = useNavigation<HomeScreenNavigationProp>();
-  const { round: activeRound, loading: roundLoading, reload: reloadRound } = useRound();
-  const { stats, loading: statsLoading, refresh: refreshStats } = useStats();
-  const { loadAllRounds } = useRoundStore();
-  
-  const [refreshing, setRefreshing] = React.useState(false);
-  
-  const loading = roundLoading || statsLoading;
-  
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([
-      reloadRound(),
-      refreshStats(),
-      loadAllRounds(),
-    ]);
-    setRefreshing(false);
-  };
-  
-  const handleStartQuickRound = () => {
-    navigation.navigate('Scoring', {
-      screen: 'RoundTracker',
-    });
-  };
-  
-  const handleContinueRound = () => {
-    if (activeRound) {
-      navigation.navigate('Scoring', {
-        screen: 'RoundTracker',
-      });
+  const loadData = async () => {
+    try {
+      // Check for active round
+      const activeRoundId = await DatabaseService.getPreference('active_round_id');
+      if (activeRoundId) {
+        const round = await DatabaseService.getRound(activeRoundId);
+        setActiveRound(round);
+      } else {
+        setActiveRound(null);
+      }
+
+      // Load all rounds for stats
+      const allRounds = await DatabaseService.getRounds();
+      
+      // Get recent completed rounds
+      const completed = allRounds
+        .filter(r => r.holes.filter(h => h.strokes > 0).length === 18)
+        .sort((a, b) => b.date.getTime() - a.date.getTime())
+        .slice(0, 3);
+      setRecentRounds(completed);
+
+      // Calculate statistics
+      if (allRounds.length > 0) {
+        const completedRounds = allRounds.filter(r => 
+          r.holes.filter(h => h.strokes > 0).length === 18
+        );
+
+        if (completedRounds.length > 0) {
+          const totalScores = completedRounds.map(r => r.totalScore || 0);
+          const avgScore = totalScores.reduce((a, b) => a + b, 0) / totalScores.length;
+          const bestScore = Math.min(...totalScores);
+
+          // Count birdies and eagles
+          let birdies = 0;
+          let eagles = 0;
+          let totalPutts = 0;
+          let totalFairways = 0;
+          let totalGreens = 0;
+          let roundCount = 0;
+
+          completedRounds.forEach(round => {
+            roundCount++;
+            totalPutts += round.totalPutts || 0;
+            totalFairways += round.fairwaysHit || 0;
+            totalGreens += round.greensInRegulation || 0;
+
+            round.holes.forEach(hole => {
+              const diff = hole.strokes - (hole.par || 4);
+              if (diff === -1) birdies++;
+              if (diff === -2) eagles++;
+            });
+          });
+
+          setStats({
+            totalRounds: completedRounds.length,
+            averageScore: Math.round(avgScore),
+            bestScore: bestScore,
+            totalBirdies: birdies,
+            totalEagles: eagles,
+            averagePutts: Math.round(totalPutts / roundCount),
+            fairwayAccuracy: Math.round((totalFairways / (roundCount * 14)) * 100), // Assuming 14 fairways
+            greenAccuracy: Math.round((totalGreens / (roundCount * 18)) * 100),
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
-  
-  const handleGoToTournaments = () => {
-    navigation.navigate('Tournaments' as 'Tournaments');
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadData();
+      
+      const cleanup = RoundDeletionManager.addListener((deletedRoundId) => {
+        console.log('Round deleted, refreshing HomeScreen');
+        loadData();
+      });
+
+      return cleanup;
+    }, [])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
   };
-  
-  if (loading && !activeRound && !stats) {
-    return <LoadingScreen message="Loading your golf data..." />;
+
+  const startQuickRound = () => {
+    navigation.navigate('Scoring' as never, {
+      screen: 'RoundTracker',
+      params: { quickStart: true }
+    } as never);
+  };
+
+  const continueRound = () => {
+    if (activeRound) {
+      navigation.navigate('Scoring' as never, {
+        screen: 'RoundTracker',
+        params: { roundId: activeRound.id }
+      } as never);
+    }
+  };
+
+  const goToTournaments = () => {
+    navigation.navigate('Tournaments' as never);
+  };
+
+  const handleDeleteRound = async (round: GolfRound) => {
+    Alert.alert(
+      'Delete Round?',
+      `Are you sure you want to delete the round at ${round.courseName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await DatabaseService.deleteRound(round.id);
+              console.log(`✅ Round ${round.id} deleted`);
+              // Refresh the data
+              loadRecentRounds();
+              loadStats();
+            } catch (error) {
+              console.error('❌ Failed to delete round:', error);
+              Alert.alert('Error', 'Failed to delete round');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+      </View>
+    );
   }
-  
+
   return (
-    <ScrollView
+    <ScrollView 
       style={styles.container}
-      contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Image 
-            source={require('../../assets/daddy_caddy_logo.png')} 
-            style={styles.logo}
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>Daddy Caddy</Text>
-          <Text style={styles.subtitle}>Your Golf Companion</Text>
+      {/* Banner Header */}
+      <View style={styles.bannerContainer}>
+        <Image 
+          source={require('../../assets/daddy-caddy-banner.jpg')} 
+          style={styles.bannerImage}
+          resizeMode="cover"
+        />
+        <View style={styles.bannerOverlay}>
+          <Text style={styles.bannerTitle}>Daddy Caddy</Text>
         </View>
       </View>
-      
-      {/* Active Round Card */}
-      {activeRound ? (
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Icon name="golf-course" size={24} color="#4CAF50" />
-            <Text style={styles.cardTitle}>Active Round</Text>
-          </View>
-          <Text style={styles.courseName}>{activeRound.courseName}</Text>
-          {activeRound.tournamentName && (
-            <Text style={styles.tournamentName}>🏆 {activeRound.tournamentName}</Text>
+
+      {/* Quick Actions */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <View style={styles.quickActions}>
+          {activeRound ? (
+            <TouchableOpacity style={styles.primaryButton} onPress={continueRound}>
+              <MaterialCommunityIcons name="golf" size={24} color="#fff" />
+              <Text style={styles.primaryButtonText}>Continue Round</Text>
+              <Text style={styles.primaryButtonSubtext}>
+                Hole {activeRound.holes.filter(h => h.strokes > 0).length + 1}/18
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.primaryButton} onPress={goToTournaments}>
+              <FontAwesome5 name="plus-circle" size={24} color="#fff" />
+              <Text style={styles.primaryButtonText}>Start New Round</Text>
+              <Text style={styles.primaryButtonSubtext}>Create a tournament first</Text>
+            </TouchableOpacity>
           )}
-          <Text style={styles.dateText}>
-            {activeRound.date.toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })}
-          </Text>
-          <Button
-            title="Continue Round"
-            onPress={handleContinueRound}
-            style={styles.continueButton}
-          />
-        </View>
-      ) : (
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Icon name="add-circle" size={24} color="#4CAF50" />
-            <Text style={styles.cardTitle}>Start New Round</Text>
-          </View>
-          <Text style={styles.cardText}>
-            Ready to hit the course? Start tracking a new round.
-          </Text>
-          <Button
-            title="Quick Start"
-            onPress={handleStartQuickRound}
-            style={styles.startButton}
-          />
-        </View>
-      )}
-      
-      {/* Statistics Card */}
-      {stats && stats.totalRounds > 0 && (
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Icon name="bar-chart" size={24} color="#4CAF50" />
-            <Text style={styles.cardTitle}>Your Statistics</Text>
-          </View>
           
+          <View style={styles.secondaryActions}>
+            <TouchableOpacity style={styles.secondaryButton} onPress={goToTournaments}>
+              <FontAwesome5 name="trophy" size={20} color="#4CAF50" />
+              <Text style={styles.secondaryButtonText}>Tournaments</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* Performance Dashboard */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Your Performance</Text>
+        {stats.totalRounds > 0 ? (
           <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{stats.totalRounds}</Text>
-              <Text style={styles.statLabel}>Rounds</Text>
-            </View>
-            
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{Math.round(stats.averageScore)}</Text>
+            <View style={styles.statCard}>
+              <FontAwesome5 name="chart-line" size={24} color="#4CAF50" />
+              <Text style={styles.statValue}>{stats.averageScore}</Text>
               <Text style={styles.statLabel}>Avg Score</Text>
             </View>
-            
-            <View style={styles.statItem}>
+            <View style={styles.statCard}>
+              <FontAwesome5 name="medal" size={24} color="#FFD700" />
               <Text style={styles.statValue}>{stats.bestScore}</Text>
-              <Text style={styles.statLabel}>Best Round</Text>
+              <Text style={styles.statLabel}>Best Score</Text>
             </View>
-            
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{Math.round(stats.fairwayAccuracy)}%</Text>
+            <View style={styles.statCard}>
+              <MaterialCommunityIcons name="bird" size={24} color="#2196F3" />
+              <Text style={styles.statValue}>{stats.totalBirdies}</Text>
+              <Text style={styles.statLabel}>Total Birdies</Text>
+            </View>
+            <View style={styles.statCard}>
+              <FontAwesome5 name="bullseye" size={24} color="#FF6B6B" />
+              <Text style={styles.statValue}>{stats.fairwayAccuracy}%</Text>
               <Text style={styles.statLabel}>Fairways</Text>
             </View>
           </View>
-          
-          <TouchableOpacity
-            style={styles.viewAllButton}
-            onPress={() => navigation.navigate('Stats' as never)}
-          >
-            <Text style={styles.viewAllText}>View All Stats</Text>
-            <Icon name="chevron-right" size={20} color="#4CAF50" />
-          </TouchableOpacity>
+        ) : (
+          <View style={styles.emptyStats}>
+            <FontAwesome5 name="chart-bar" size={48} color="#ccc" />
+            <Text style={styles.emptyStatsText}>No completed rounds yet</Text>
+            <Text style={styles.emptyStatsSubtext}>
+              Complete your first 18-hole round to see your stats
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Achievements */}
+      {stats.totalRounds > 0 && (stats.totalEagles > 0 || stats.totalBirdies >= 10) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Achievements</Text>
+          <View style={styles.achievementsRow}>
+            {stats.totalEagles > 0 && (
+              <View style={styles.achievement}>
+                <View style={styles.achievementIcon}>
+                  <MaterialCommunityIcons name="bird" size={28} color="#FFD700" />
+                </View>
+                <Text style={styles.achievementText}>Eagle Hunter</Text>
+                <Text style={styles.achievementCount}>{stats.totalEagles} Eagles</Text>
+              </View>
+            )}
+            {stats.totalBirdies >= 10 && (
+              <View style={styles.achievement}>
+                <View style={styles.achievementIcon}>
+                  <FontAwesome5 name="star" size={28} color="#4CAF50" />
+                </View>
+                <Text style={styles.achievementText}>Birdie Machine</Text>
+                <Text style={styles.achievementCount}>{stats.totalBirdies} Birdies</Text>
+              </View>
+            )}
+            {stats.bestScore <= 80 && (
+              <View style={styles.achievement}>
+                <View style={styles.achievementIcon}>
+                  <FontAwesome5 name="fire" size={28} color="#FF6B6B" />
+                </View>
+                <Text style={styles.achievementText}>Breaking 80</Text>
+                <Text style={styles.achievementCount}>Best: {stats.bestScore}</Text>
+              </View>
+            )}
+          </View>
         </View>
       )}
-      
-      {/* Quick Actions */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Icon name="explore" size={24} color="#4CAF50" />
-          <Text style={styles.cardTitle}>Quick Actions</Text>
-        </View>
-        
-        <TouchableOpacity style={styles.actionItem} onPress={handleGoToTournaments}>
-          <FontAwesome5 name="trophy" size={20} color="#4CAF50" />
-          <Text style={styles.actionText}>Tournaments</Text>
-          <Icon name="chevron-right" size={20} color="#ccc" />
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.actionItem}
-          onPress={() => navigation.navigate('Stats' as never)}
-        >
-          <FontAwesome5 name="chart-line" size={20} color="#4CAF50" />
-          <Text style={styles.actionText}>Statistics</Text>
-          <Icon name="chevron-right" size={20} color="#ccc" />
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.actionItem}
-          onPress={() => navigation.navigate('Settings' as never)}
-        >
-          <Icon name="settings" size={20} color="#4CAF50" />
-          <Text style={styles.actionText}>Settings</Text>
-          <Icon name="chevron-right" size={20} color="#ccc" />
-        </TouchableOpacity>
-      </View>
-      
-      {/* Empty State */}
-      {!activeRound && stats && stats.totalRounds === 0 && (
-        <View style={styles.emptyState}>
-          <FontAwesome5 name="golf-ball" size={80} color="#ddd" />
-          <Text style={styles.emptyTitle}>Welcome to Daddy Caddy!</Text>
-          <Text style={styles.emptyText}>
-            Start your first round to begin tracking your golf game.
-          </Text>
+
+      {/* Recent Activity */}
+      {recentRounds.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recent Rounds</Text>
+          {recentRounds.map((round, index) => (
+            <View key={round.id} style={styles.recentRound}>
+              <View style={styles.recentRoundLeft}>
+                <Text style={styles.recentRoundCourse}>{round.courseName}</Text>
+                <Text style={styles.recentRoundDate}>
+                  {new Date(round.date).toLocaleDateString()}
+                </Text>
+              </View>
+              <View style={styles.recentRoundMiddle}>
+                <Text style={styles.recentRoundScore}>{round.totalScore}</Text>
+                <Text style={styles.recentRoundPar}>
+                  {round.totalScore - 72 > 0 ? '+' : ''}{round.totalScore - 72}
+                </Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.deleteButton}
+                onPress={() => handleDeleteRound(round)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Icon name="delete" size={20} color="#F44336" />
+              </TouchableOpacity>
+            </View>
+          ))}
         </View>
       )}
     </ScrollView>
@@ -225,144 +345,202 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  content: {
-    paddingBottom: 30,
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 30,
-    paddingTop: 60,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#f5f5f5',
   },
-  headerContent: {
+  bannerContainer: {
+    position: 'relative',
+    width: '100%',
+    height: 220,
+    overflow: 'hidden',
+  },
+  bannerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  bannerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    justifyContent: 'center',
     alignItems: 'center',
+    paddingTop: 40,
   },
-  logo: {
-    width: 80,
-    height: 80,
-    marginBottom: 10,
-  },
-  title: {
-    fontSize: 28,
+  bannerTitle: {
+    fontSize: 42,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 5,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    opacity: 0.9,
   },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
-  card: {
+  section: {
     backgroundColor: '#fff',
-    margin: 15,
+    marginHorizontal: 15,
+    marginTop: 15,
+    borderRadius: 15,
     padding: 20,
-    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 3,
     elevation: 3,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
-    gap: 10,
-  },
-  cardTitle: {
-    fontSize: 18,
+  sectionTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-  },
-  cardText: {
-    fontSize: 14,
-    color: '#666',
     marginBottom: 15,
   },
-  courseName: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 5,
+  quickActions: {
+    gap: 15,
   },
-  tournamentName: {
-    fontSize: 16,
+  primaryButton: {
+    backgroundColor: '#4CAF50',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 5,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  primaryButtonSubtext: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+  },
+  secondaryActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  secondaryButton: {
+    flex: 1,
+    backgroundColor: '#f0f8f0',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  secondaryButtonText: {
     color: '#4CAF50',
-    marginBottom: 5,
-  },
-  dateText: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 15,
-  },
-  continueButton: {
-    marginTop: 10,
-  },
-  startButton: {
-    marginTop: 10,
+    fontWeight: '600',
   },
   statsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 15,
+    flexWrap: 'wrap',
+    gap: 10,
   },
-  statItem: {
+  statCard: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#f8f8f8',
+    padding: 15,
+    borderRadius: 10,
     alignItems: 'center',
+    gap: 5,
   },
   statValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#333',
   },
   statLabel: {
     fontSize: 12,
     color: '#666',
-    marginTop: 4,
   },
-  viewAllButton: {
-    flexDirection: 'row',
+  emptyStats: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
+    paddingVertical: 30,
   },
-  viewAllText: {
+  emptyStatsText: {
     fontSize: 16,
-    color: '#4CAF50',
     fontWeight: '600',
-    marginRight: 5,
-  },
-  actionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    gap: 15,
-  },
-  actionText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: 40,
-  },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  emptyText: {
-    fontSize: 16,
     color: '#666',
+    marginTop: 15,
+  },
+  emptyStatsSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 5,
     textAlign: 'center',
   },
+  achievementsRow: {
+    flexDirection: 'row',
+    gap: 15,
+  },
+  achievement: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 5,
+  },
+  achievementIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#f0f8f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  achievementText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+  },
+  achievementCount: {
+    fontSize: 11,
+    color: '#666',
+  },
+  recentRound: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  recentRoundLeft: {
+    flex: 1,
+  },
+  recentRoundCourse: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  recentRoundDate: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  recentRoundMiddle: {
+    alignItems: 'flex-end',
+    marginRight: 15,
+  },
+  deleteButton: {
+    padding: 5,
+    justifyContent: 'center',
+  },
+  recentRoundScore: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  recentRoundPar: {
+    fontSize: 14,
+    color: '#666',
+  },
+  // Removed tipCard and tipText styles - Quick Tips section deleted
 });
 
-export default HomeScreenNew;
-
+export default HomeScreen;

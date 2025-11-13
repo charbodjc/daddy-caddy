@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import ShotTrackingScreen from '../ShotTrackingScreen';
+import DatabaseService from '../../services/database';
 import { GolfHole } from '../../types';
 
 // Mock navigation
@@ -16,18 +17,13 @@ jest.mock('@react-navigation/native', () => ({
   }),
 }));
 
-// Mock WatermelonDB
-jest.mock('../../database/watermelon/database', () => ({
-  database: {
-    collections: {
-      get: jest.fn(() => ({
-        find: jest.fn(),
-        query: jest.fn(() => ({
-          fetch: jest.fn().mockResolvedValue([]),
-        })),
-      })),
-    },
-    write: jest.fn((callback) => callback()),
+// Mock database service
+jest.mock('../../services/database', () => ({
+  __esModule: true,
+  default: {
+    getRound: jest.fn(),
+    saveMedia: jest.fn(),
+    getMediaForHole: jest.fn().mockResolvedValue([]),
   },
 }));
 

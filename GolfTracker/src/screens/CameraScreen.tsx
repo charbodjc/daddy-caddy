@@ -14,11 +14,9 @@ import {
   launchImageLibrary,
   ImagePickerResponse,
   MediaType,
-  CameraOptions,
-  ImageLibraryOptions,
 } from 'react-native-image-picker';
-import { database } from '../database/watermelon/database';
-import Media from '../database/watermelon/models/Media';
+import DatabaseService from '../services/database';
+import { MediaItem } from '../types';
 
 const CameraScreen = () => {
   const navigation = useNavigation();
@@ -32,27 +30,21 @@ const CameraScreen = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isVideo, setIsVideo] = useState(false);
 
-  const cameraOptions: CameraOptions = {
-    mediaType: 'mixed',
+  const options = {
+    mediaType: 'mixed' as MediaType,
     includeBase64: false,
     maxHeight: 2000,
     maxWidth: 2000,
-    videoQuality: 'high',
-  };
-
-  const libraryOptions: ImageLibraryOptions = {
-    mediaType: 'mixed',
-    includeBase64: false,
-    maxHeight: 2000,
-    maxWidth: 2000,
+    quality: 0.8,
+    videoQuality: 'high' as const,
   };
 
   const handleCameraLaunch = () => {
-    launchCamera(cameraOptions, handleResponse);
+    launchCamera(options, handleResponse);
   };
 
   const handleGalleryLaunch = () => {
-    launchImageLibrary(libraryOptions, handleResponse);
+    launchImageLibrary(options, handleResponse);
   };
 
   const handleResponse = (response: ImagePickerResponse) => {
@@ -75,17 +67,17 @@ const CameraScreen = () => {
 
     try {
       if (roundId) {
-        // Save to WatermelonDB
-        await database.write(async () => {
-          await database.collections.get<Media>('media').create(media => {
-            media.uri = selectedImage;
-            media.type = isVideo ? 'video' : 'photo';
-            media.roundId = roundId;
-            media.holeNumber = currentHole;
-            media.timestamp = new Date();
-            media.description = currentHole ? `Hole ${currentHole}` : undefined;
-          });
-        });
+        const mediaItem: MediaItem = {
+          id: Date.now().toString(),
+          uri: selectedImage,
+          type: isVideo ? 'video' : 'photo',
+          roundId,
+          holeNumber: currentHole,
+          timestamp: new Date(),
+          description: currentHole ? `Hole ${currentHole}` : undefined,
+        };
+
+        await DatabaseService.saveMedia(mediaItem);
       }
 
       if (onCapture) {

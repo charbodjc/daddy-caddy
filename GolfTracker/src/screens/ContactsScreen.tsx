@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, FlatList, ActivityIndi
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome5';
 import * as Contacts from 'expo-contacts';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import DatabaseService from '../services/database';
 
 interface Contact {
   id: string;
@@ -35,14 +35,14 @@ const ContactsScreen = () => {
 
   const loadSavedGroup = async () => {
     try {
-      // Load group name from AsyncStorage
-      const savedName = await AsyncStorage.getItem('default_sms_group_name');
+      // Load group name
+      const savedName = await DatabaseService.getPreference('default_sms_group_name');
       if (savedName) {
         setGroupName(savedName);
       }
       
-      // Load which contacts are in the group from AsyncStorage
-      const raw = await AsyncStorage.getItem('default_sms_group');
+      // Load which contacts are in the group
+      const raw = await DatabaseService.getPreference('default_sms_group');
       if (raw) {
         try {
           // Parse JSON format
@@ -159,8 +159,8 @@ const ContactsScreen = () => {
       // Save contacts as JSON array with names and phone numbers
       const contactsJson = JSON.stringify(selectedContacts);
       
-      await AsyncStorage.setItem('default_sms_group', contactsJson);
-      await AsyncStorage.setItem('default_sms_group_name', groupName.trim() || 'your text group');
+      await DatabaseService.setPreference('default_sms_group', contactsJson);
+      await DatabaseService.setPreference('default_sms_group_name', groupName.trim() || 'your text group');
       
       const groupLabel = groupName.trim() || 'your text group';
       const contactNames = selectedContacts.map(c => c.name).join(', ');
