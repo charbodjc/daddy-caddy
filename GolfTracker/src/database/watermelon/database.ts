@@ -14,6 +14,7 @@ const adapter = process.env.NODE_ENV === 'test'
   ? new LokiJSAdapter({
       schema,
       useWebWorker: false,
+      useIncrementalIndexedDB: true,
     })
   : new SQLiteAdapter({
       schema,

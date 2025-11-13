@@ -2,8 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, ActivityIndicator, Modal, Dimensions, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import DatabaseService from '../services/database';
-import { Tournament, GolfRound, MediaItem } from '../types';
+import { Q } from '@nozbe/watermelondb';
+import { database } from '../database/watermelon/database';
+import Tournament from '../database/watermelon/models/Tournament';
+import Round from '../database/watermelon/models/Round';
+import Media from '../database/watermelon/models/Media';
+import { MediaItem } from '../types';
 import Video from 'react-native-video';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -11,7 +15,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const MediaScreen = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedRound, setSelectedRound] = useState<GolfRound | null>(null);
+  const [selectedRound, setSelectedRound] = useState<Round | null>(null);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaByHole, setMediaByHole] = useState<Record<number, MediaItem[]>>({});
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
@@ -20,7 +24,7 @@ const MediaScreen = () => {
   useEffect(() => {
     (async () => {
       try {
-        const items = await DatabaseService.getTournaments();
+        const items = await database.collections.get<Tournament>('tournaments').query().fetch();
         setTournaments(items);
       } finally {
         setLoading(false);
@@ -28,11 +32,26 @@ const MediaScreen = () => {
     })();
   }, []);
 
-  const openRound = async (round: GolfRound) => {
+  const openRound = async (round: Round) => {
     try {
       setSelectedRound(round);
-      const items = await DatabaseService.getMediaForRound(round.id);
-      console.log(`📸 Loaded ${items.length} media items for round ${round.id}`);
+      const mediaItems = await database.collections
+        .get<Media>('media')
+        .query(Q.where('round_id', round.id))
+        .fetch();
+      
+      console.log(`📸 Loaded ${mediaItems.length} media items for round ${round.id}`);
+      
+      // Convert WatermelonDB Media to MediaItem format
+      const items: MediaItem[] = mediaItems.map(m => ({
+        id: m.id,
+        uri: m.uri,
+        type: m.type,
+        roundId: m.roundId || '',
+        holeNumber: m.holeNumber || 0,
+        timestamp: new Date(m.timestamp),
+        description: m.description || undefined
+      }));
       
       const grouped: Record<number, MediaItem[]> = {};
       items.forEach(m => {
