@@ -156,7 +156,7 @@ export const importLegacyData = async (
         await database.collections.get<Media>('media').create((media) => {
           media._raw.id = mediaData.id;
           media.uri = mediaData.uri;
-          media.type = mediaData.type;
+          media.type = (mediaData.type === 'video' ? 'video' : 'photo') as 'photo' | 'video';
           media.timestamp = new Date(mediaData.timestamp);
           
           if (mediaData.roundId) media.roundId = mediaData.roundId;

@@ -25,6 +25,7 @@ import { useRoundStore } from '../stores/roundStore';
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import Hole from '../database/watermelon/models/Hole';
 import {
   TEE_SHOT_OPTIONS_PAR3,
   TEE_SHOT_OPTIONS_PAR45,
@@ -33,10 +34,21 @@ import {
   PUTT_OPTIONS,
 } from '../types';
 
+interface HoleData {
+  holeNumber: number;
+  par: number;
+  strokes?: number;
+  fairwayHit?: boolean;
+  greenInRegulation?: boolean;
+  putts?: number;
+  notes?: string;
+  shotData?: string;
+}
+
 interface RouteParams {
-  hole: any;
+  hole: Hole | HoleData;
   roundId: string;
-  onSave?: (hole: any) => void;
+  onSave?: (hole: HoleData) => void;
 }
 
 type ShotType = 'teeShot' | 'approach' | 'chip' | 'greenside' | 'putt';

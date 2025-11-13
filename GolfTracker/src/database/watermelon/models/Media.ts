@@ -5,7 +5,7 @@ import Round from './Round';
 export default class Media extends Model {
   static table = 'media';
   static associations = {
-    rounds: { type: 'belongs_to', key: 'round_id' },
+    rounds: { type: 'belongs_to' as const, key: 'round_id' },
   };
 
   @field('uri') uri!: string;

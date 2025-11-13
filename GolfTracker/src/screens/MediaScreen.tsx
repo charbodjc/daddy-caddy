@@ -12,6 +12,47 @@ import Video from 'react-native-video';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
+// Helper component to load and display rounds for a tournament
+const TournamentRoundsSection: React.FC<{ tournament: Tournament; openRound: (round: Round) => void }> = ({ tournament, openRound }) => {
+  const [rounds, setRounds] = useState<Round[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadRounds();
+  }, [tournament.id]);
+
+  const loadRounds = async () => {
+    try {
+      const roundsData = await database.collections
+        .get<Round>('rounds')
+        .query(Q.where('tournament_id', tournament.id))
+        .fetch();
+      setRounds(roundsData);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <ActivityIndicator />;
+  }
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{tournament.name}</Text>
+      {rounds.map(r => (
+        <TouchableOpacity key={r.id} style={styles.roundRow} onPress={() => openRound(r)}>
+          <Icon name="image" size={18} color="#4CAF50" />
+          <Text style={styles.roundItemName}>{`Round at ${r.courseName}`} — {new Date(r.date).toLocaleDateString()}</Text>
+        </TouchableOpacity>
+      ))}
+      {rounds.length === 0 && (
+        <Text style={{ color: '#999' }}>No rounds yet</Text>
+      )}
+    </View>
+  );
+};
+
 const MediaScreen = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,7 +138,7 @@ const MediaScreen = () => {
             </TouchableOpacity>
             <View style={styles.roundInfo}>
               <Text style={styles.roundName}>
-                {selectedRound.name || `Round at ${selectedRound.courseName}`}
+                {`Round at ${selectedRound.courseName}`}
               </Text>
               <Text style={styles.roundDetails}>
                 {selectedRound.courseName} • {new Date(selectedRound.date).toLocaleDateString()}
@@ -208,18 +249,7 @@ const MediaScreen = () => {
       ) : (
       <>
       {tournaments.map(t => (
-        <View key={t.id} style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.name}</Text>
-          {t.rounds.map(r => (
-            <TouchableOpacity key={r.id} style={styles.roundRow} onPress={() => openRound(r)}>
-              <Icon name="image" size={18} color="#4CAF50" />
-              <Text style={styles.roundItemName}>{r.name || `Round at ${r.courseName}`} — {new Date(r.date).toLocaleDateString()}</Text>
-            </TouchableOpacity>
-          ))}
-          {t.rounds.length === 0 && (
-            <Text style={{ color: '#999' }}>No rounds yet</Text>
-          )}
-        </View>
+        <TournamentRoundsSection key={t.id} tournament={t} openRound={openRound} />
       ))}
       </>
       )}
