@@ -25,7 +25,8 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { RouteProp } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { useRound } from '../hooks/useRound';
 import { useRoundStore } from '../stores/roundStore';
 import { LoadingScreen } from '../components/common/LoadingScreen';
@@ -35,18 +36,18 @@ import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import Hole from '../database/watermelon/models/Hole';
+import { ScoringStackParamList } from '../types/navigation';
 
-interface RouteParams {
-  roundId?: string;
-  tournamentId?: string;
-  tournamentName?: string;
-  quickStart?: boolean;
+type RoundTrackerScreenNavigationProp = StackNavigationProp<ScoringStackParamList, 'RoundTracker'>;
+type RoundTrackerScreenRouteProp = RouteProp<ScoringStackParamList, 'RoundTracker'>;
+
+interface Props {
+  navigation: RoundTrackerScreenNavigationProp;
+  route: RoundTrackerScreenRouteProp;
 }
 
-const RoundTrackerScreenNew: React.FC = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const params = (route.params as RouteParams) || {};
+const RoundTrackerScreenNew: React.FC<Props> = ({ navigation, route }) => {
+  const params = route.params || {};
   
   const { round, loading, error, reload } = useRound(params.roundId);
   const { createRound, updateHole, finishRound, deleteRound } = useRoundStore();
@@ -113,16 +114,13 @@ const RoundTrackerScreenNew: React.FC = () => {
     }
   };
   
-  const navigateToShotTracking = (hole: Hole | any) => {
-    navigation.navigate('ShotTracking' as never, {
-      hole,
-      roundId: round?.id,
-      onSave: async (updatedHole: any) => {
-        if (round) {
-          await updateHole(round.id, updatedHole);
-        }
-      },
-    } as never);
+  const navigateToShotTracking = (hole: Hole) => {
+    if (round) {
+      navigation.navigate('ShotTracking', {
+        roundId: round.id,
+        holeNumber: hole.holeNumber,
+      });
+    }
   };
   
   const handleFinishRound = () => {
@@ -138,9 +136,9 @@ const RoundTrackerScreenNew: React.FC = () => {
           onPress: async () => {
             try {
               await finishRound(round.id);
-              navigation.navigate('RoundSummary' as never, {
+              navigation.navigate('RoundSummary', {
                 roundId: round.id,
-              } as never);
+              });
             } catch (error) {
               Alert.alert('Error', 'Failed to finish round');
             }
@@ -177,9 +175,9 @@ const RoundTrackerScreenNew: React.FC = () => {
   const handleViewSummary = () => {
     if (!round) return;
     
-    navigation.navigate('RoundSummary' as never, {
+    navigation.navigate('RoundSummary', {
       roundId: round.id,
-    } as never);
+    });
   };
   
   if (loading) {

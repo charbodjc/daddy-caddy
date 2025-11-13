@@ -14,6 +14,8 @@ import {
   launchImageLibrary,
   ImagePickerResponse,
   MediaType,
+  CameraOptions,
+  ImageLibraryOptions,
 } from 'react-native-image-picker';
 import { database } from '../database/watermelon/database';
 import Media from '../database/watermelon/models/Media';
@@ -30,21 +32,27 @@ const CameraScreen = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isVideo, setIsVideo] = useState(false);
 
-  const options = {
-    mediaType: 'mixed' as MediaType,
+  const cameraOptions: CameraOptions = {
+    mediaType: 'mixed',
     includeBase64: false,
     maxHeight: 2000,
     maxWidth: 2000,
-    quality: 0.8,
-    videoQuality: 'high' as const,
+    videoQuality: 'high',
+  };
+
+  const libraryOptions: ImageLibraryOptions = {
+    mediaType: 'mixed',
+    includeBase64: false,
+    maxHeight: 2000,
+    maxWidth: 2000,
   };
 
   const handleCameraLaunch = () => {
-    launchCamera(options, handleResponse);
+    launchCamera(cameraOptions, handleResponse);
   };
 
   const handleGalleryLaunch = () => {
-    launchImageLibrary(options, handleResponse);
+    launchImageLibrary(libraryOptions, handleResponse);
   };
 
   const handleResponse = (response: ImagePickerResponse) => {
@@ -73,9 +81,9 @@ const CameraScreen = () => {
             media.uri = selectedImage;
             media.type = isVideo ? 'video' : 'photo';
             media.roundId = roundId;
-            media.holeNumber = currentHole || null;
-            media.timestamp = Date.now();
-            media.description = currentHole ? `Hole ${currentHole}` : null;
+            media.holeNumber = currentHole;
+            media.timestamp = new Date();
+            media.description = currentHole ? `Hole ${currentHole}` : undefined;
           });
         });
       }

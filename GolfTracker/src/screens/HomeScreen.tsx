@@ -14,7 +14,9 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { CompositeNavigationProp } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { useRound } from '../hooks/useRound';
 import { useRoundStore } from '../stores/roundStore';
 import { useStats } from '../hooks/useStats';
@@ -23,9 +25,21 @@ import { ErrorScreen } from '../components/common/ErrorScreen';
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import { RootTabParamList, ScoringStackParamList, TournamentStackParamList } from '../types/navigation';
 
-const HomeScreenNew: React.FC = () => {
-  const navigation = useNavigation();
+type HomeScreenNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<RootTabParamList, 'Home'>,
+  CompositeNavigationProp<
+    StackNavigationProp<ScoringStackParamList>,
+    StackNavigationProp<TournamentStackParamList>
+  >
+>;
+
+interface Props {
+  navigation: HomeScreenNavigationProp;
+}
+
+const HomeScreenNew: React.FC<Props> = ({ navigation }) => {
   const { round: activeRound, loading: roundLoading, reload: reloadRound } = useRound();
   const { stats, loading: statsLoading, refresh: refreshStats } = useStats();
   const { loadAllRounds } = useRoundStore();
@@ -45,23 +59,21 @@ const HomeScreenNew: React.FC = () => {
   };
   
   const handleStartQuickRound = () => {
-    navigation.navigate('Scoring' as never, {
+    navigation.navigate('Scoring', {
       screen: 'RoundTracker',
-      params: { quickStart: true }
-    } as never);
+    });
   };
   
   const handleContinueRound = () => {
     if (activeRound) {
-      navigation.navigate('Scoring' as never, {
+      navigation.navigate('Scoring', {
         screen: 'RoundTracker',
-        params: { roundId: activeRound.id }
-      } as never);
+      });
     }
   };
   
   const handleGoToTournaments = () => {
-    navigation.navigate('Tournaments' as never);
+    navigation.navigate('Tournaments');
   };
   
   if (loading && !activeRound && !stats) {

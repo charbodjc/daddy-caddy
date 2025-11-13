@@ -149,11 +149,11 @@ export const useRoundStore = create<RoundState>()(
             const round = await database.collections.get<Round>('rounds').find(roundId);
             const holes = await round.holes.fetch();
             
-            const completedHoles = holes.filter(h => h.strokes > 0);
-            const totalScore = completedHoles.reduce((sum, h) => sum + h.strokes, 0);
-            const totalPutts = completedHoles.reduce((sum, h) => sum + (h.putts || 0), 0);
-            const fairwaysHit = holes.filter(h => h.fairwayHit === true).length;
-            const greensInRegulation = holes.filter(h => h.greenInRegulation === true).length;
+            const completedHoles = holes.filter((h: Hole) => h.strokes > 0);
+            const totalScore = completedHoles.reduce((sum: number, h: Hole) => sum + h.strokes, 0);
+            const totalPutts = completedHoles.reduce((sum: number, h: Hole) => sum + (h.putts || 0), 0);
+            const fairwaysHit = holes.filter((h: Hole) => h.fairwayHit === true).length;
+            const greensInRegulation = holes.filter((h: Hole) => h.greenInRegulation === true).length;
             
             await round.update((r) => {
               r.totalScore = totalScore;
