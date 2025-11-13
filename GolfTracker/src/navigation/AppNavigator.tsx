@@ -29,7 +29,6 @@ const ScoringStack = () => {
     <Stack.Navigator
       screenOptions={{
         headerShown: true,
-        headerBackTitleVisible: false,
       }}
     >
       <Stack.Screen 
