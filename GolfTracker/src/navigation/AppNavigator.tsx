@@ -5,20 +5,20 @@ import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
-// Import screens (WatermelonDB only - SQLite removed)
+// Import screens
 import HomeScreen from '../screens/HomeScreen';
 import RoundTrackerScreen from '../screens/RoundTrackerScreen';
 import HoleDetailsScreen from '../screens/HoleDetailsScreen';
 import ShotTrackingScreen from '../screens/ShotTrackingScreen';
-import HoleSummaryScreen from '../screens/HoleSummaryScreen'; // TODO: migrate
+import HoleSummaryScreen from '../screens/HoleSummaryScreen';
 import StatsScreen from '../screens/StatsScreen';
 import TournamentsScreen from '../screens/TournamentsScreen';
 import TournamentRoundsScreen from '../screens/TournamentRoundsScreen';
 import RoundSummaryScreen from '../screens/RoundSummaryScreen';
-import CameraScreen from '../screens/CameraScreen'; // No DB dependency
+import CameraScreen from '../screens/CameraScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-import DatabaseDiagnosticScreen from '../screens/DatabaseDiagnosticScreen'; // TODO: migrate
-import ContactsScreen from '../screens/ContactsScreen'; // TODO: migrate
+import DatabaseDiagnosticScreen from '../screens/DatabaseDiagnosticScreen';
+import ContactsScreen from '../screens/ContactsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -29,6 +29,7 @@ const ScoringStack = () => {
     <Stack.Navigator
       screenOptions={{
         headerShown: true,
+        headerBackTitleVisible: false,
       }}
     >
       <Stack.Screen 

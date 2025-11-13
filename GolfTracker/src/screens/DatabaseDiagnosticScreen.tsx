@@ -10,31 +10,39 @@ import {
   RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { database } from '../database/watermelon/database';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import DatabaseService from '../services/database';
 
-interface TableStats {
+interface TableInfo {
   name: string;
-  count: number;
+  rowCount: number;
+  columns: Array<{
+    name: string;
+    type: string;
+    notNull: boolean;
+    defaultValue: any;
+    primaryKey: boolean;
+  }>;
+  sampleData: any[];
+}
+
+interface DiagnosticData {
+  database: string;
+  location: string;
+  tables: Record<string, TableInfo>;
+  timestamp: string;
+  error?: string;
 }
 
 const DatabaseDiagnosticScreen = ({ navigation }: any) => {
-  const [stats, setStats] = useState<TableStats[]>([]);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
 
   const loadDiagnostics = async () => {
     try {
-      const collections = database.collections.map;
-      const tableStats: TableStats[] = [];
-
-      // Get counts for each collection
-      for (const [tableName, collection] of Object.entries(collections)) {
-        const count = await collection.query().fetchCount();
-        tableStats.push({ name: tableName, count });
-      }
-
-      setStats(tableStats.sort((a, b) => a.name.localeCompare(b.name)));
+      const data = await DatabaseService.getDatabaseDiagnostics();
+      setDiagnostics(data);
     } catch (error) {
       console.error('Error loading diagnostics:', error);
       Alert.alert('Error', 'Failed to load database diagnostics');
@@ -53,10 +61,20 @@ const DatabaseDiagnosticScreen = ({ navigation }: any) => {
     loadDiagnostics();
   };
 
+  const toggleTableExpansion = (tableName: string) => {
+    const newExpanded = new Set(expandedTables);
+    if (newExpanded.has(tableName)) {
+      newExpanded.delete(tableName);
+    } else {
+      newExpanded.add(tableName);
+    }
+    setExpandedTables(newExpanded);
+  };
+
   const clearDatabase = async () => {
     Alert.alert(
       'Clear Database',
-      'This will permanently delete ALL your golf data. This cannot be undone. Are you sure?',
+      'Are you sure you want to clear all data? This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -64,21 +82,10 @@ const DatabaseDiagnosticScreen = ({ navigation }: any) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Clear WatermelonDB
-              await database.write(async () => {
-                await database.unsafeResetDatabase();
-              });
-              
-              // Clear AsyncStorage
-              await AsyncStorage.removeItem('active_round_id');
-              await AsyncStorage.removeItem('onboarding_completed');
-              await AsyncStorage.removeItem('default_sms_group');
-              await AsyncStorage.removeItem('default_sms_group_name');
-              
-              Alert.alert('Success', 'All data cleared successfully');
+              await DatabaseService.clearAllData();
+              Alert.alert('Success', 'Database cleared successfully');
               loadDiagnostics();
             } catch (error) {
-              console.error('Error clearing database:', error);
               Alert.alert('Error', 'Failed to clear database');
             }
           },
@@ -87,81 +94,205 @@ const DatabaseDiagnosticScreen = ({ navigation }: any) => {
     );
   };
 
+  const formatValue = (value: any): string => {
+    if (value === null) return 'NULL';
+    if (value === undefined) return 'undefined';
+    if (typeof value === 'object') {
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value);
+  };
+
+  const formatDate = (timestamp: number): string => {
+    if (!timestamp) return 'N/A';
+    try {
+      return new Date(timestamp).toLocaleString();
+    } catch {
+      return String(timestamp);
+    }
+  };
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={styles.loadingText}>Loading diagnostics...</Text>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Icon name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Database Diagnostics</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+        </View>
       </View>
     );
   }
 
-  const totalRecords = stats.reduce((sum, table) => sum + table.count, 0);
+  if (!diagnostics) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Icon name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Database Diagnostics</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Icon name="error-outline" size={48} color="#f44336" />
+          <Text style={styles.errorText}>Failed to load diagnostics</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadDiagnostics}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  if (diagnostics.error) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Icon name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Database Diagnostics</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Icon name="error-outline" size={48} color="#f44336" />
+          <Text style={styles.errorText}>Database Error</Text>
+          <Text style={styles.errorDetail}>{diagnostics.error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadDiagnostics}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  const tableNames = Object.keys(diagnostics.tables || {});
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Icon name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Database Diagnostics</Text>
+      </View>
+
       <ScrollView
-        style={styles.scrollView}
+        style={styles.content}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Icon name="storage" size={40} color="#4CAF50" />
-          <Text style={styles.headerTitle}>Database Diagnostics</Text>
-          <Text style={styles.headerSubtitle}>WatermelonDB</Text>
-        </View>
-
-        {/* Summary Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Database Summary</Text>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Tables:</Text>
-            <Text style={styles.summaryValue}>{stats.length}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Records:</Text>
-            <Text style={styles.summaryValue}>{totalRecords}</Text>
-          </View>
-        </View>
-
-        {/* Tables List */}
+        {/* Database Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tables</Text>
-          {stats.map((table) => (
-            <View key={table.name} style={styles.tableCard}>
-              <View style={styles.tableHeader}>
-                <Icon 
-                  name="table-chart" 
-                  size={24} 
-                  color={table.count > 0 ? '#4CAF50' : '#999'} 
-                />
-                <Text style={styles.tableName}>{table.name}</Text>
-              </View>
-              <View style={styles.tableStats}>
-                <Text style={styles.rowCount}>
-                  {table.count} {table.count === 1 ? 'record' : 'records'}
-                </Text>
-              </View>
-            </View>
-          ))}
+          <Text style={styles.sectionTitle}>Database Information</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Database:</Text>
+            <Text style={styles.infoValue}>{diagnostics.database}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Location:</Text>
+            <Text style={styles.infoValue}>{diagnostics.location}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Last Updated:</Text>
+            <Text style={styles.infoValue}>
+              {new Date(diagnostics.timestamp).toLocaleString()}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Total Tables:</Text>
+            <Text style={styles.infoValue}>{tableNames.length}</Text>
+          </View>
         </View>
+
+        {/* Tables */}
+        {tableNames.map((tableName) => {
+          const table = diagnostics.tables[tableName];
+          const isExpanded = expandedTables.has(tableName);
+
+          return (
+            <View key={tableName} style={styles.tableSection}>
+              <TouchableOpacity
+                style={styles.tableHeader}
+                onPress={() => toggleTableExpansion(tableName)}
+              >
+                <View style={styles.tableHeaderLeft}>
+                  <Icon
+                    name={isExpanded ? 'expand-less' : 'expand-more'}
+                    size={24}
+                    color="#333"
+                  />
+                  <Text style={styles.tableName}>{tableName}</Text>
+                </View>
+                <View style={styles.tableHeaderRight}>
+                  <Text style={styles.rowCount}>{table.rowCount} rows</Text>
+                </View>
+              </TouchableOpacity>
+
+              {isExpanded && (
+                <View style={styles.tableContent}>
+                  {/* Columns */}
+                  <Text style={styles.subSectionTitle}>Schema:</Text>
+                  <View style={styles.columnsContainer}>
+                    {table.columns.map((column) => (
+                      <View key={column.name} style={styles.columnRow}>
+                        <Text style={styles.columnName}>
+                          {column.name}
+                          {column.primaryKey && ' (PK)'}
+                        </Text>
+                        <Text style={styles.columnType}>
+                          {column.type}
+                          {column.notNull && ' NOT NULL'}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Sample Data */}
+                  {table.sampleData.length > 0 && (
+                    <>
+                      <Text style={styles.subSectionTitle}>
+                        Sample Data (first {table.sampleData.length} rows):
+                      </Text>
+                      {table.sampleData.map((row, index) => (
+                        <View key={index} style={styles.sampleDataContainer}>
+                          <Text style={styles.sampleDataIndex}>Row {index + 1}:</Text>
+                          {Object.entries(row).map(([key, value]) => (
+                            <View key={key} style={styles.dataRow}>
+                              <Text style={styles.dataKey}>{key}:</Text>
+                              <Text style={styles.dataValue} numberOfLines={3}>
+                                {key.includes('date') || key.includes('Date') || 
+                                 key.includes('At') || key === 'timestamp'
+                                  ? formatDate(value as number)
+                                  : formatValue(value)}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      ))}
+                    </>
+                  )}
+
+                  {table.rowCount === 0 && (
+                    <Text style={styles.emptyTableText}>No data in this table</Text>
+                  )}
+                </View>
+              )}
+            </View>
+          );
+        })}
 
         {/* Actions */}
         <View style={styles.actionsSection}>
-          <TouchableOpacity 
-            style={styles.refreshButton} 
-            onPress={loadDiagnostics}
-          >
-            <Icon name="refresh" size={20} color="#fff" />
-            <Text style={styles.refreshButtonText}>Refresh Data</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.dangerButton} 
-            onPress={clearDatabase}
-          >
+          <TouchableOpacity style={styles.dangerButton} onPress={clearDatabase}>
             <Icon name="delete-forever" size={20} color="#fff" />
             <Text style={styles.dangerButtonText}>Clear All Data</Text>
           </TouchableOpacity>
@@ -178,140 +309,206 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-  loadingText: {
-    marginTop: 10,
-    color: '#666',
-    fontSize: 14,
-  },
-  scrollView: {
-    flex: 1,
-  },
   header: {
     backgroundColor: '#4CAF50',
-    padding: 30,
     paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
     alignItems: 'center',
+  },
+  backButton: {
+    marginRight: 15,
+    padding: 5,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#f44336',
     marginTop: 10,
+    marginBottom: 5,
   },
-  headerSubtitle: {
+  errorDetail: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
   },
-  card: {
+  retryButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 5,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  section: {
     backgroundColor: '#fff',
-    margin: 16,
+    margin: 12,
     padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderRadius: 10,
   },
-  cardTitle: {
+  sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 12,
   },
-  summaryRow: {
+  infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingVertical: 6,
   },
-  summaryLabel: {
+  infoLabel: {
     fontSize: 14,
     color: '#666',
   },
-  summaryValue: {
+  infoValue: {
     fontSize: 14,
-    fontWeight: '600',
     color: '#333',
+    fontWeight: '500',
   },
-  section: {
-    marginHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginVertical: 12,
-  },
-  tableCard: {
+  tableSection: {
     backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    margin: 12,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
   tableHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  tableHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  tableHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   tableName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: '#333',
-    marginLeft: 10,
-    textTransform: 'capitalize',
-  },
-  tableStats: {
-    marginLeft: 34,
+    marginLeft: 8,
   },
   rowCount: {
     fontSize: 14,
     color: '#666',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  tableContent: {
+    padding: 16,
+  },
+  subSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  columnsContainer: {
+    marginBottom: 16,
+  },
+  columnRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  columnName: {
+    fontSize: 13,
+    color: '#333',
+    fontWeight: '500',
+    flex: 1,
+  },
+  columnType: {
+    fontSize: 12,
+    color: '#999',
+    fontStyle: 'italic',
+  },
+  sampleDataContainer: {
+    backgroundColor: '#f8f8f8',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  sampleDataIndex: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#666',
+    marginBottom: 6,
+  },
+  dataRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  dataKey: {
+    fontSize: 12,
+    color: '#666',
+    marginRight: 8,
+    minWidth: 80,
+  },
+  dataValue: {
+    fontSize: 12,
+    color: '#333',
+    flex: 1,
+  },
+  emptyTableText: {
+    fontSize: 14,
+    color: '#999',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginVertical: 10,
   },
   actionsSection: {
-    margin: 16,
-  },
-  refreshButton: {
-    backgroundColor: '#4CAF50',
-    padding: 16,
-    borderRadius: 12,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  refreshButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
+    margin: 12,
+    marginTop: 20,
   },
   dangerButton: {
     backgroundColor: '#f44336',
-    padding: 16,
-    borderRadius: 12,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 15,
+    borderRadius: 10,
+    gap: 8,
   },
   dangerButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
+    fontWeight: 'bold',
   },
 });
 

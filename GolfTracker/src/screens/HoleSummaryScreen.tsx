@@ -16,10 +16,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Q } from '@nozbe/watermelondb';
-import { database } from '../database/watermelon/database';
-import Media from '../database/watermelon/models/Media';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import DatabaseService from '../services/database';
 import AIHoleAnalysisService from '../services/aiHoleAnalysis';
 import SMSService from '../services/sms';
 import { GolfHole, MediaItem, Contact } from '../types';
@@ -50,33 +47,17 @@ const HoleSummaryScreen = () => {
 
   const loadData = async () => {
     try {
-      // Load media for this hole from WatermelonDB
-      const holeMedia = await database.collections
-        .get<Media>('media')
-        .query(
-          Q.where('round_id', roundId),
-          Q.where('hole_number', hole.holeNumber)
-        )
-        .fetch();
-      
-      // Convert WatermelonDB Media to MediaItem format
-      const mediaItems: MediaItem[] = holeMedia.map(m => ({
-        id: m.id,
-        uri: m.uri,
-        type: m.type,
-        roundId: m.roundId || '',
-        holeNumber: m.holeNumber || 0,
-        timestamp: new Date(m.timestamp),
-        description: m.description || undefined
-      }));
-      setMediaItems(mediaItems);
+      // Load media for this hole
+      const allMedia = await DatabaseService.getMediaForRound(roundId);
+      const holeMedia = allMedia.filter(m => m.holeNumber === hole.holeNumber);
+      setMediaItems(holeMedia);
 
-      // Load group name and contacts from AsyncStorage
-      const savedGroupName = await AsyncStorage.getItem('default_sms_group_name');
+      // Load group name and contacts
+      const savedGroupName = await DatabaseService.getPreference('default_sms_group_name');
       setGroupName(savedGroupName || 'your text group');
       
       // Load contacts to get count
-      const raw = await AsyncStorage.getItem('default_sms_group');
+      const raw = await DatabaseService.getPreference('default_sms_group');
       if (raw) {
         try {
           // Try to parse as JSON first (new format)
@@ -98,7 +79,7 @@ const HoleSummaryScreen = () => {
       }
 
       // Generate AI summary
-      await generateAISummary(mediaItems);
+      await generateAISummary(holeMedia);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
