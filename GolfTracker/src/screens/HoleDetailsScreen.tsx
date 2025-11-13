@@ -15,8 +15,7 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { database } from '../database/watermelon/database';
 import Hole from '../database/watermelon/models/Hole';
 import Media from '../database/watermelon/models/Media';
@@ -27,16 +26,16 @@ import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { Q } from '@nozbe/watermelondb';
-import { ScoringStackParamList } from '../types/navigation';
 
-type HoleDetailsScreenNavigationProp = StackNavigationProp<ScoringStackParamList, 'HoleDetails'>;
-type HoleDetailsScreenRouteProp = RouteProp<ScoringStackParamList, 'HoleDetails'>;
+interface RouteParams {
+  holeId: string;
+  roundId: string;
+}
 
 const HoleDetailsScreenNew: React.FC = () => {
-  const navigation = useNavigation<HoleDetailsScreenNavigationProp>();
-  const route = useRoute<HoleDetailsScreenRouteProp>();
-  const { roundId, holeNumber } = route.params;
-  const holeId = `${roundId}-${holeNumber}`; // Derive from params
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { holeId, roundId } = (route.params as RouteParams) || {};
   
   const { updateHole } = useRoundStore();
   
@@ -103,12 +102,10 @@ const HoleDetailsScreenNew: React.FC = () => {
   };
   
   const handleNavigateToCamera = () => {
-    if (hole) {
-      navigation.navigate('Camera', {
-        roundId,
-        holeNumber: hole.holeNumber,
-      });
-    }
+    navigation.navigate('Camera' as never, {
+      roundId,
+      holeNumber: hole?.holeNumber,
+    } as never);
   };
   
   if (loading) {

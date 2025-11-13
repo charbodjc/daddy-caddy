@@ -22,8 +22,8 @@ export class AppError extends Error {
     this.name = 'AppError';
     
     // Maintains proper stack trace for where error was thrown (only available on V8)
-    if (typeof (Error as typeof Error & { captureStackTrace?: (obj: object, fn: Function) => void }).captureStackTrace === 'function') {
-      (Error as typeof Error & { captureStackTrace: (obj: object, fn: Function) => void }).captureStackTrace(this, AppError);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, AppError);
     }
   }
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, DependencyList } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface AsyncState<T> {
   data: T | null;
@@ -8,7 +8,7 @@ interface AsyncState<T> {
 
 export const useAsync = <T,>(
   asyncFunction: () => Promise<T>,
-  dependencies: DependencyList = [],
+  dependencies: any[] = [],
   immediate: boolean = true
 ) => {
   const [state, setState] = useState<AsyncState<T>>({

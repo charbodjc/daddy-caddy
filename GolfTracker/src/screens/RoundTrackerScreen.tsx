@@ -25,8 +25,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useRound } from '../hooks/useRound';
 import { useRoundStore } from '../stores/roundStore';
 import { LoadingScreen } from '../components/common/LoadingScreen';
@@ -36,20 +35,23 @@ import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import Hole from '../database/watermelon/models/Hole';
-import { ScoringStackParamList } from '../types/navigation';
 
-type RoundTrackerScreenNavigationProp = StackNavigationProp<ScoringStackParamList, 'RoundTracker'>;
-type RoundTrackerScreenRouteProp = RouteProp<ScoringStackParamList, 'RoundTracker'>;
+interface RouteParams {
+  roundId?: string;
+  tournamentId?: string;
+  tournamentName?: string;
+  quickStart?: boolean;
+}
 
 const RoundTrackerScreenNew: React.FC = () => {
-  const navigation = useNavigation<RoundTrackerScreenNavigationProp>();
-  const route = useRoute<RoundTrackerScreenRouteProp>();
-  const params = route.params;
+  const navigation = useNavigation();
+  const route = useRoute();
+  const params = (route.params as RouteParams) || {};
   
-  const { round, loading, error, reload } = useRound(params?.roundId);
+  const { round, loading, error, reload } = useRound(params.roundId);
   const { createRound, updateHole, finishRound, deleteRound } = useRoundStore();
   
-  const [setupVisible, setSetupVisible] = useState(!params?.roundId && !round);
+  const [setupVisible, setSetupVisible] = useState(!params.roundId && !round);
   const [courseName, setCourseName] = useState('');
   const [parModalVisible, setParModalVisible] = useState(false);
   const [selectedHole, setSelectedHole] = useState<Hole | null>(null);
@@ -57,8 +59,8 @@ const RoundTrackerScreenNew: React.FC = () => {
   
   // Show setup modal if no active round
   useEffect(() => {
-    setSetupVisible(!params?.roundId && !round);
-  }, [params?.roundId, round]);
+    setSetupVisible(!params.roundId && !round);
+  }, [params.roundId, round]);
   
   const handleStartRound = async () => {
     if (!courseName.trim()) {
@@ -71,8 +73,8 @@ const RoundTrackerScreenNew: React.FC = () => {
     try {
       await createRound({
         courseName: courseName.trim(),
-        tournamentId: params?.tournamentId,
-        tournamentName: params?.tournamentName,
+        tournamentId: params.tournamentId,
+        tournamentName: params.tournamentName,
       });
       
       setSetupVisible(false);
@@ -106,18 +108,21 @@ const RoundTrackerScreenNew: React.FC = () => {
         par,
         strokes: 0,
       }).then(() => {
-        navigateToShotTracking(selectedHole);
+        navigateToShotTracking({ ...selectedHole, par });
       });
     }
   };
   
-  const navigateToShotTracking = (hole: Hole | { holeNumber: number }) => {
-    if (round) {
-      navigation.navigate('ShotTracking', {
-        roundId: round.id,
-        holeNumber: hole.holeNumber,
-      });
-    }
+  const navigateToShotTracking = (hole: Hole | any) => {
+    navigation.navigate('ShotTracking' as never, {
+      hole,
+      roundId: round?.id,
+      onSave: async (updatedHole: any) => {
+        if (round) {
+          await updateHole(round.id, updatedHole);
+        }
+      },
+    } as never);
   };
   
   const handleFinishRound = () => {
@@ -133,9 +138,9 @@ const RoundTrackerScreenNew: React.FC = () => {
           onPress: async () => {
             try {
               await finishRound(round.id);
-              navigation.navigate('RoundSummary', {
+              navigation.navigate('RoundSummary' as never, {
                 roundId: round.id,
-              });
+              } as never);
             } catch (error) {
               Alert.alert('Error', 'Failed to finish round');
             }
@@ -172,9 +177,9 @@ const RoundTrackerScreenNew: React.FC = () => {
   const handleViewSummary = () => {
     if (!round) return;
     
-    navigation.navigate('RoundSummary', {
+    navigation.navigate('RoundSummary' as never, {
       roundId: round.id,
-    });
+    } as never);
   };
   
   if (loading) {
@@ -191,7 +196,7 @@ const RoundTrackerScreenNew: React.FC = () => {
         <View style={styles.setupContainer}>
           <Text style={styles.setupTitle}>New Round Setup</Text>
           
-          {params?.tournamentName && (
+          {params.tournamentName && (
             <View style={styles.tournamentBadge}>
               <Icon name="emoji-events" size={20} color="#4CAF50" />
               <Text style={styles.tournamentText}>{params.tournamentName}</Text>

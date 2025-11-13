@@ -5,7 +5,7 @@ import Round from './Round';
 export default class Hole extends Model {
   static table = 'holes';
   static associations = {
-    rounds: { type: 'belongs_to' as const, key: 'round_id' },
+    rounds: { type: 'belongs_to', key: 'round_id' },
   };
 
   @field('round_id') roundId!: string;

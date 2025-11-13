@@ -18,7 +18,6 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { database } from '../database/watermelon/database';
 import Round from '../database/watermelon/models/Round';
-import Hole from '../database/watermelon/models/Hole';
 import { LoadingScreen } from '../components/common/LoadingScreen';
 import { ErrorScreen } from '../components/common/ErrorScreen';
 import { Button } from '../components/common/Button';
@@ -36,7 +35,7 @@ const RoundSummaryScreenNew: React.FC = () => {
   const { roundId } = (route.params as RouteParams) || {};
   
   const [round, setRound] = useState<Round | null>(null);
-  const [holes, setHoles] = useState<Hole[]>([]);
+  const [holes, setHoles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   

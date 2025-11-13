@@ -1,28 +1,8 @@
 import { Platform } from 'react-native';
 import * as SMS from 'expo-sms';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GolfRound, MediaItem, GolfHole } from '../types';
+import { GolfRound, MediaItem } from '../types';
 import AIService from './ai';
-
-interface RoundStats {
-  totalScore: number;
-  scoreVsPar: string;
-  eagles: number;
-  birdies: number;
-  pars: number;
-  bogeys: number;
-  doubleBogeys: number;
-  fairwaysHit: number;
-  greensInRegulation: number;
-  totalPutts: number;
-  playedHoles: number;
-}
-
-interface Contact {
-  name: string;
-  phoneNumber: string;
-  isActive: boolean;
-}
+import DatabaseService from './database';
 
 class SMSService {
   async sendRoundSummary(
@@ -43,7 +23,7 @@ class SMSService {
 
       // Load default recipients list from settings (comma or newline separated)
       const recipients = await this.getDefaultRecipients();
-      const groupName = await AsyncStorage.getItem('default_sms_group_name') || 'your text group';
+      const groupName = await DatabaseService.getPreference('default_sms_group_name') || 'your text group';
 
       // Open in-app SMS composer
       const result = await this.openSMS(recipients, message);
@@ -116,7 +96,6 @@ class SMSService {
         fairwaysHit: 0,
         greensInRegulation: 0,
         totalPutts: 0,
-        playedHoles: 0,
       };
     }
 
@@ -156,7 +135,7 @@ class SMSService {
 
   private formatMessage(
     round: GolfRound,
-    stats: RoundStats,
+    stats: any,
     aiAnalysis: string,
     mediaItems: MediaItem[]
   ): string {
@@ -249,7 +228,7 @@ class SMSService {
 
     try {
       const recipients = await this.getDefaultRecipients();
-      const groupName = await AsyncStorage.getItem('default_sms_group_name') || 'your text group';
+      const groupName = await DatabaseService.getPreference('default_sms_group_name') || 'your text group';
 
       // Open in-app SMS composer
       const result = await this.openSMS(recipients, message);
@@ -283,10 +262,10 @@ class SMSService {
   }
 
   async sendHoleSummary(
-    hole: GolfHole,
+    hole: any,
     aiSummary: string,
     mediaCount: { photos: number; videos: number },
-    contacts?: Contact[]
+    contacts?: any[]
   ): Promise<{ success: boolean; sent: boolean; errors: string[]; groupName?: string }> {
     // Create message with AI summary
     let message = `Hole ${hole.holeNumber} Update\n`;
@@ -338,19 +317,19 @@ class SMSService {
   }
 
   private async getDefaultRecipients(): Promise<string> {
-    const raw = await AsyncStorage.getItem('default_sms_group');
+    const raw = await DatabaseService.getPreference('default_sms_group');
     if (!raw) return '';
     
     try {
       // Try to parse as JSON first (new format with names and numbers)
-      const contacts: Contact[] = JSON.parse(raw);
+      const contacts = JSON.parse(raw);
       if (Array.isArray(contacts)) {
         // Extract phone numbers from contact objects
         const phoneNumbers = contacts
-          .map((c: Contact) => c.phoneNumber)
+          .map((c: any) => c.phoneNumber)
           .filter(Boolean)
           .join(',');
-        console.log(`📱 Loaded ${contacts.length} contacts from JSON: ${contacts.map((c: Contact) => c.name).join(', ')}`);
+        console.log(`📱 Loaded ${contacts.length} contacts from JSON: ${contacts.map((c: any) => c.name).join(', ')}`);
         return phoneNumbers;
       }
     } catch {
@@ -361,7 +340,7 @@ class SMSService {
     // Normalize separators to commas (legacy format)
     return raw
       .split(/[\n,;]/)
-      .map((s: string) => s.trim())
+      .map(s => s.trim())
       .filter(Boolean)
       .join(',');
   }

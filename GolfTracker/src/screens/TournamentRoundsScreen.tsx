@@ -14,8 +14,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { useNavigation, useRoute, RouteProp, CompositeNavigationProp } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTournamentStore } from '../stores/tournamentStore';
 import { useRoundStore } from '../stores/roundStore';
 import { LoadingScreen } from '../components/common/LoadingScreen';
@@ -25,51 +24,42 @@ import Tournament from '../database/watermelon/models/Tournament';
 import Round from '../database/watermelon/models/Round';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { format } from 'date-fns';
-import { TournamentStackParamList, ScoringStackParamList } from '../types/navigation';
 
-type TournamentRoundsScreenNavigationProp = CompositeNavigationProp<
-  StackNavigationProp<TournamentStackParamList, 'TournamentRounds'>,
-  StackNavigationProp<ScoringStackParamList>
->;
-type TournamentRoundsScreenRouteProp = RouteProp<TournamentStackParamList, 'TournamentRounds'>;
+interface RouteParams {
+  tournament: Tournament;
+}
 
 const TournamentRoundsScreenNew: React.FC = () => {
-  const navigation = useNavigation<TournamentRoundsScreenNavigationProp>();
-  const route = useRoute<TournamentRoundsScreenRouteProp>();
-  const { tournamentId, tournamentName } = route.params;
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { tournament } = (route.params as RouteParams) || {};
   
-  const { getTournamentRounds, getTournament } = useTournamentStore();
+  const { getTournamentRounds } = useTournamentStore();
   const { createRound } = useRoundStore();
   
-  const [tournament, setTournament] = React.useState<Tournament | null>(null);
   const [rounds, setRounds] = React.useState<Round[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [creating, setCreating] = React.useState(false);
   
   React.useEffect(() => {
-    loadData();
-  }, [tournamentId]);
+    loadRounds();
+  }, [tournament]);
   
-  const loadData = async () => {
-    if (!tournamentId) return;
+  const loadRounds = async () => {
+    if (!tournament) return;
     
     setLoading(true);
     try {
-      const [tournamentData, tournamentRounds] = await Promise.all([
-        getTournament(tournamentId),
-        getTournamentRounds(tournamentId),
-      ]);
-      setTournament(tournamentData);
+      const tournamentRounds = await getTournamentRounds(tournament.id);
       setRounds(tournamentRounds);
     } catch (error) {
-      console.error('Failed to load data:', error);
+      console.error('Failed to load rounds:', error);
     } finally {
       setLoading(false);
     }
   };
   
   const handleStartNewRound = async () => {
-    if (!tournament) return;
     setCreating(true);
     
     try {
@@ -80,9 +70,10 @@ const TournamentRoundsScreenNew: React.FC = () => {
       });
       
       // Navigate to round tracker
-      // Note: Cannot navigate to Scoring stack from Tournament stack
-      // User will need to go to Scoring tab manually
-      Alert.alert('Round Created', 'Go to the Scoring tab to start tracking your round.');
+      navigation.navigate('Scoring' as never, {
+        screen: 'RoundTracker',
+        params: { roundId: round.id }
+      } as never);
     } catch (error) {
       Alert.alert('Error', 'Failed to start round');
     } finally {
@@ -91,9 +82,9 @@ const TournamentRoundsScreenNew: React.FC = () => {
   };
   
   const handleRoundPress = (round: Round) => {
-    navigation.navigate('RoundSummary', {
+    navigation.navigate('RoundSummary' as never, {
       roundId: round.id,
-    });
+    } as never);
   };
   
   if (!tournament) {

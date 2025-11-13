@@ -9,22 +9,16 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { database } from '../database/watermelon/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SettingsStackParamList } from '../types/navigation';
 
 interface TableStats {
   name: string;
   count: number;
 }
 
-type DatabaseDiagnosticScreenNavigationProp = StackNavigationProp<SettingsStackParamList, 'DatabaseDiagnostic'>;
-
-const DatabaseDiagnosticScreen: React.FC = () => {
-  const navigation = useNavigation<DatabaseDiagnosticScreenNavigationProp>();
+const DatabaseDiagnosticScreen = ({ navigation }: any) => {
   const [stats, setStats] = useState<TableStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
