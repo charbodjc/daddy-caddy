@@ -1,8 +1,3 @@
-export interface ShotResult {
-  type: string;
-  result: string;
-}
-
 export interface HoleShotData {
   par: number;
   teeShot?: string;

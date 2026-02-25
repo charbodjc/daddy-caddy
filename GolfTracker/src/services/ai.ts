@@ -34,7 +34,6 @@ class AIService {
 
     try {
       const roundSummary = this.generateRoundSummary(round);
-      const statistics = this.calculateStatistics([round]);
 
       const prompt = `
         Analyze this golf round and provide insights and recommendations:
