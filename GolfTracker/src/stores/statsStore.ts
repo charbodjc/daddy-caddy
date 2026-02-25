@@ -3,21 +3,7 @@ import { devtools } from 'zustand/middleware';
 import { database } from '../database/watermelon/database';
 import Round from '../database/watermelon/models/Round';
 import { Q } from '@nozbe/watermelondb';
-
-interface Statistics {
-  totalRounds: number;
-  averageScore: number;
-  bestScore: number;
-  worstScore: number;
-  averagePutts: number;
-  fairwayAccuracy: number;
-  girPercentage: number;
-  eaglesOrBetter: number;
-  birdies: number;
-  pars: number;
-  bogeys: number;
-  doubleBogeyOrWorse: number;
-}
+import type { Statistics } from '../types';
 
 interface StatsState {
   stats: Statistics | null;
@@ -65,8 +51,9 @@ export const useStatsStore = create<StatsState>()(
           const stats = await get().calculateStatsForRounds(rounds);
           
           set({ stats, loading: false });
-        } catch (error) {
-          set({ error: error as Error, loading: false });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error, loading: false });
         }
       },
       

@@ -1,10 +1,5 @@
-export interface ShotResult {
-  type: string;
-  result: string;
-}
-
 export interface HoleShotData {
-  par: 3 | 4 | 5;
+  par: number;
   teeShot?: string;
   approach?: string;
   chip?: string;
@@ -79,8 +74,8 @@ export interface Statistics {
   averagePutts: number;
   fairwayAccuracy: number;
   girPercentage: number;
-  bestRound: number;
-  worstRound: number;
+  bestScore: number;
+  worstScore: number;
   totalRounds: number;
   eaglesOrBetter: number;
   birdies: number;

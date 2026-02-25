@@ -34,7 +34,6 @@ class AIService {
 
     try {
       const roundSummary = this.generateRoundSummary(round);
-      const statistics = this.calculateStatistics([round]);
 
       const prompt = `
         Analyze this golf round and provide insights and recommendations:
@@ -110,8 +109,8 @@ class AIService {
         averagePutts: 0,
         fairwayAccuracy: 0,
         girPercentage: 0,
-        bestRound: 0,
-        worstRound: 0,
+        bestScore: 0,
+        worstScore: 0,
         totalRounds: 0,
         eaglesOrBetter: 0,
         birdies: 0,
@@ -125,8 +124,8 @@ class AIService {
     let totalPutts = 0;
     let totalFairways = 0;
     let totalGIR = 0;
-    let bestRound = Infinity;
-    let worstRound = -Infinity;
+    let bestScore = Infinity;
+    let worstScore = -Infinity;
     let eaglesOrBetter = 0;
     let birdies = 0;
     let pars = 0;
@@ -136,8 +135,8 @@ class AIService {
     rounds.forEach((round) => {
       if (round.totalScore) {
         totalScore += round.totalScore;
-        bestRound = Math.min(bestRound, round.totalScore);
-        worstRound = Math.max(worstRound, round.totalScore);
+        bestScore = Math.min(bestScore, round.totalScore);
+        worstScore = Math.max(worstScore, round.totalScore);
       }
       if (round.totalPutts) totalPutts += round.totalPutts;
       if (round.fairwaysHit) totalFairways += round.fairwaysHit;
@@ -158,8 +157,8 @@ class AIService {
       averagePutts: totalPutts / rounds.length,
       fairwayAccuracy: (totalFairways / (rounds.length * 14)) * 100,
       girPercentage: (totalGIR / (rounds.length * 18)) * 100,
-      bestRound: bestRound === Infinity ? 0 : bestRound,
-      worstRound: worstRound === -Infinity ? 0 : worstRound,
+      bestScore: bestScore === Infinity ? 0 : bestScore,
+      worstScore: worstScore === -Infinity ? 0 : worstScore,
       totalRounds: rounds.length,
       eaglesOrBetter,
       birdies,

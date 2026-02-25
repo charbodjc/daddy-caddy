@@ -45,8 +45,9 @@ export const useTournamentStore = create<TournamentState>()(
             .fetch();
           
           set({ tournaments, loading: false });
-        } catch (error) {
-          set({ error: error as Error, loading: false });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error, loading: false });
         }
       },
       
@@ -69,8 +70,9 @@ export const useTournamentStore = create<TournamentState>()(
           set({ loading: false });
           
           return tournament;
-        } catch (error) {
-          set({ error: error as Error, loading: false });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error, loading: false });
           throw error;
         }
       },
@@ -113,8 +115,9 @@ export const useTournamentStore = create<TournamentState>()(
           }
           
           set({ loading: false });
-        } catch (error) {
-          set({ error: error as Error, loading: false });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error, loading: false });
           throw error;
         }
       },
@@ -126,8 +129,9 @@ export const useTournamentStore = create<TournamentState>()(
             .get<Tournament>('tournaments')
             .find(id);
           set({ selectedTournament: tournament });
-        } catch (error) {
-          set({ error: error as Error });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error });
           throw error;
         }
       },
@@ -144,8 +148,9 @@ export const useTournamentStore = create<TournamentState>()(
             .fetch();
           
           return rounds;
-        } catch (error) {
-          set({ error: error as Error });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error });
           throw error;
         }
       },
