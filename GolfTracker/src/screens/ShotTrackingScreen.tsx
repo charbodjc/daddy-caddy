@@ -380,21 +380,18 @@ const ShotTrackingScreen = () => {
       const result = await SMSService.sendQuickUpdate(message);
       if (!result.success) {
         console.error('SMS error:', result.errors);
-        showToast('Failed to open message composer', 'error');
+        showToast('Failed to open Messages', 'error');
       } else if (!defaultGroup || defaultGroup.trim() === '') {
         // Alert user if no contacts configured
         showToast('Add recipients in settings for automatic text group', 'info');
       } else if (result.sent) {
-        showToast(`Message sent to ${result.groupName}`, 'success');
-      } else {
-        // User cancelled
-        showToast('Message cancelled', 'info');
+        showToast(`Message opened for ${result.groupName}`, 'success');
       }
     } catch (error: any) {
       console.error('Error sending SMS:', error);
       showToast('Error sending message', 'error');
     }
-    
+
     // Save the putt distance for the current shot
     const puttDistanceValue = distanceToHole || '0';
     setCurrentPuttDistance(`${puttDistanceValue} ft`);
@@ -507,17 +504,14 @@ const ShotTrackingScreen = () => {
       const result = await SMSService.sendQuickUpdate(message);
       if (!result.success) {
         console.error('SMS error:', result.errors);
-        showToast('Failed to open message composer', 'error');
+        showToast('Failed to open Messages', 'error');
       } else if (!defaultGroup || defaultGroup.trim() === '') {
         // Alert user if no contacts configured
         showToast('Add recipients in settings for automatic text group', 'info');
       } else if (result.sent) {
-        showToast(`Message sent to ${result.groupName}`, 'success');
-      } else {
-        // User cancelled
-        showToast('Message cancelled', 'info');
+        showToast(`Message opened for ${result.groupName}`, 'success');
       }
-      
+
       navigation.goBack();
     } catch (error: any) {
       console.error('Error sending SMS:', error);

@@ -211,9 +211,7 @@ const HoleSummaryScreen = () => {
     if (result.success) {
       if (result.sent) {
         const mediaNote = mediaItems.length > 0 ? ' (Note: photos/videos sent separately)' : '';
-        showToast(`Message sent to ${groupName}${mediaNote}`, 'success');
-      } else {
-        showToast('Message cancelled', 'info');
+        showToast(`Message opened for ${groupName}${mediaNote}`, 'success');
       }
     } else {
       showToast(result.errors.join(', '), 'error');

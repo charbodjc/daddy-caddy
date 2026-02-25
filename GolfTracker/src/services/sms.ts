@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, Linking } from 'react-native';
 import * as SMS from 'expo-sms';
 import { GolfRound, MediaItem } from '../types';
 import AIService from './ai';
@@ -25,11 +25,11 @@ class SMSService {
       const recipients = await this.getDefaultRecipients();
       const groupName = await DatabaseService.getPreference('default_sms_group_name') || 'your text group';
 
-      // Open in-app SMS composer
+      // Open Messages app with pre-filled message
       const result = await this.openSMS(recipients, message);
 
       if (!result.success) {
-        errors.push('Failed to open SMS app');
+        errors.push('Failed to open Messages');
       }
 
       return {
@@ -52,24 +52,38 @@ class SMSService {
     body: string
   ): Promise<{ success: boolean; sent: boolean }> {
     try {
-      // Check if SMS is available on this device
-      const isAvailable = await SMS.isAvailableAsync();
-      
-      if (!isAvailable) {
-        console.warn('SMS is not available on this device');
-        return { success: false, sent: false };
-      }
-
       // Parse recipients into array
       const recipientArray = recipients
         .split(/[\n,;]/)
         .map(r => r.trim())
         .filter(Boolean);
 
-      // Open in-app SMS composer
-      const result = await SMS.sendSMSAsync(recipientArray, body);
+      if (recipientArray.length === 0) {
+        return { success: false, sent: false };
+      }
 
-      // result.result can be 'sent', 'cancelled', or 'unknown'
+      // Use Linking to open Messages app directly instead of the in-app SMS composer.
+      // This avoids showing all individual recipients in the composer "To:" field,
+      // and if an existing group conversation exists, Messages will show the group name.
+      const addresses = recipientArray.join(',');
+      const encodedBody = encodeURIComponent(body);
+      const separator = Platform.OS === 'ios' ? '&' : '?';
+      const smsUrl = `sms:${addresses}${separator}body=${encodedBody}`;
+
+      const canOpen = await Linking.canOpenURL(smsUrl);
+      if (canOpen) {
+        await Linking.openURL(smsUrl);
+        return { success: true, sent: true };
+      }
+
+      // Fallback to in-app SMS composer if Linking is not available
+      const isAvailable = await SMS.isAvailableAsync();
+      if (!isAvailable) {
+        console.warn('SMS is not available on this device');
+        return { success: false, sent: false };
+      }
+
+      const result = await SMS.sendSMSAsync(recipientArray, body);
       return {
         success: true,
         sent: result.result === 'sent',
@@ -230,11 +244,11 @@ class SMSService {
       const recipients = await this.getDefaultRecipients();
       const groupName = await DatabaseService.getPreference('default_sms_group_name') || 'your text group';
 
-      // Open in-app SMS composer
+      // Open Messages app with pre-filled message
       const result = await this.openSMS(recipients, message);
 
       if (!result.success) {
-        errors.push('Failed to open SMS app');
+        errors.push('Failed to open Messages');
       }
 
       return {

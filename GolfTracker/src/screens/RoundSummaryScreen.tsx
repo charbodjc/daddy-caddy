@@ -108,9 +108,7 @@ const RoundSummaryScreen = () => {
       
       if (result.success) {
         if (result.sent) {
-          showToast(`Round summary sent to ${result.groupName}`, 'success');
-        } else {
-          showToast('Message cancelled', 'info');
+          showToast(`Round summary opened for ${result.groupName}`, 'success');
         }
       } else {
         showToast(result.errors.join(', '), 'error');
