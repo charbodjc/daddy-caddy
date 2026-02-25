@@ -5,24 +5,7 @@ import Round from '../database/watermelon/models/Round';
 import Hole from '../database/watermelon/models/Hole';
 import { Q } from '@nozbe/watermelondb';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-interface HoleData {
-  holeNumber: number;
-  par: number;
-  strokes: number;
-  fairwayHit?: boolean;
-  greenInRegulation?: boolean;
-  putts?: number;
-  notes?: string;
-  shotData?: string;
-}
-
-interface CreateRoundData {
-  courseName: string;
-  date?: Date;
-  tournamentId?: string;
-  tournamentName?: string;
-}
+import { HoleData, CreateRoundData } from '../validators/roundValidator';
 
 interface RoundState {
   activeRound: Round | null;
