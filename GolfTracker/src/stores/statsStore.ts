@@ -51,8 +51,9 @@ export const useStatsStore = create<StatsState>()(
           const stats = await get().calculateStatsForRounds(rounds);
           
           set({ stats, loading: false });
-        } catch (error) {
-          set({ error: error as Error, loading: false });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error, loading: false });
         }
       },
       

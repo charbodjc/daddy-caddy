@@ -49,13 +49,10 @@ export const useRoundStore = create<RoundState>()(
             .find(activeRoundId);
           
           set({ activeRound: round, loading: false });
-        } catch (error) {
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
           console.error('Failed to load active round:', error);
-          set({ 
-            error: error as Error, 
-            loading: false,
-            activeRound: null 
-          });
+          set({ error, loading: false, activeRound: null });
         }
       },
       
@@ -92,12 +89,13 @@ export const useRoundStore = create<RoundState>()(
           set({ activeRound: round, loading: false });
           
           return round;
-        } catch (error) {
-          set({ error: error as Error, loading: false });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error, loading: false });
           throw error;
         }
       },
-      
+
       // Update a hole (optimistic update + database save)
       updateHole: async (roundId: string, holeData: HoleData) => {
         const { activeRound } = get();
@@ -130,13 +128,13 @@ export const useRoundStore = create<RoundState>()(
           // Update round statistics
           await database.write(async () => {
             const round = await database.collections.get<Round>('rounds').find(roundId);
-            const holes = await round.holes.fetch();
-            
-            const completedHoles = holes.filter(h => h.strokes > 0);
-            const totalScore = completedHoles.reduce((sum, h) => sum + h.strokes, 0);
-            const totalPutts = completedHoles.reduce((sum, h) => sum + (h.putts || 0), 0);
-            const fairwaysHit = holes.filter(h => h.fairwayHit === true).length;
-            const greensInRegulation = holes.filter(h => h.greenInRegulation === true).length;
+            const holes: Hole[] = await round.holes.fetch();
+
+            const completedHoles = holes.filter((h: Hole) => h.strokes > 0);
+            const totalScore = completedHoles.reduce((sum: number, h: Hole) => sum + h.strokes, 0);
+            const totalPutts = completedHoles.reduce((sum: number, h: Hole) => sum + (h.putts || 0), 0);
+            const fairwaysHit = holes.filter((h: Hole) => h.fairwayHit === true).length;
+            const greensInRegulation = holes.filter((h: Hole) => h.greenInRegulation === true).length;
             
             await round.update((r) => {
               r.totalScore = totalScore;
@@ -150,12 +148,13 @@ export const useRoundStore = create<RoundState>()(
           if (activeRound?.id === roundId) {
             await get().loadActiveRound();
           }
-        } catch (error) {
-          set({ error: error as Error });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error });
           throw error;
         }
       },
-      
+
       // Finish a round
       finishRound: async (roundId: string) => {
         set({ loading: true });
@@ -171,12 +170,13 @@ export const useRoundStore = create<RoundState>()(
           // Clear active round
           await AsyncStorage.removeItem('active_round_id');
           set({ activeRound: null, loading: false });
-        } catch (error) {
-          set({ error: error as Error, loading: false });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error, loading: false });
           throw error;
         }
       },
-      
+
       // Delete a round
       deleteRound: async (roundId: string) => {
         set({ loading: true });
@@ -209,12 +209,13 @@ export const useRoundStore = create<RoundState>()(
           // Reload all rounds
           await get().loadAllRounds();
           set({ loading: false });
-        } catch (error) {
-          set({ error: error as Error, loading: false });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error, loading: false });
           throw error;
         }
       },
-      
+
       // Clear active round
       clearActiveRound: async () => {
         await AsyncStorage.removeItem('active_round_id');
@@ -232,8 +233,9 @@ export const useRoundStore = create<RoundState>()(
             .fetch();
           
           set({ rounds, loading: false });
-        } catch (error) {
-          set({ error: error as Error, loading: false });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error, loading: false });
         }
       },
       
@@ -243,8 +245,9 @@ export const useRoundStore = create<RoundState>()(
           const round = await database.collections.get<Round>('rounds').find(roundId);
           await AsyncStorage.setItem('active_round_id', roundId);
           set({ activeRound: round });
-        } catch (error) {
-          set({ error: error as Error });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error });
           throw error;
         }
       },
