@@ -3,21 +3,7 @@ import { devtools } from 'zustand/middleware';
 import { database } from '../database/watermelon/database';
 import Round from '../database/watermelon/models/Round';
 import { Q } from '@nozbe/watermelondb';
-
-interface Statistics {
-  totalRounds: number;
-  averageScore: number;
-  bestScore: number;
-  worstScore: number;
-  averagePutts: number;
-  fairwayAccuracy: number;
-  girPercentage: number;
-  eaglesOrBetter: number;
-  birdies: number;
-  pars: number;
-  bogeys: number;
-  doubleBogeyOrWorse: number;
-}
+import type { Statistics } from '../types';
 
 interface StatsState {
   stats: Statistics | null;

@@ -5,7 +5,7 @@ import Round from '../database/watermelon/models/Round';
 import Hole from '../database/watermelon/models/Hole';
 import { Q } from '@nozbe/watermelondb';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { HoleData, CreateRoundData } from '../validators/roundValidator';
+import type { HoleData, CreateRoundData } from '../validators/roundValidator';
 
 interface RoundState {
   activeRound: Round | null;
