@@ -137,10 +137,16 @@ const ShotTrackingScreen = () => {
       currentStroke: nextStroke,
     };
 
+    // Infer fairway hit and GIR from current shots
+    const fairwayHit = inferFairwayHit({ shots: currentShots }, currentPar);
+    const greenInReg = inferGIR({ shots: currentShots }, currentPar);
+
     const updatedHole: GolfHole = {
       ...hole,
       par: currentPar,
       strokes: totalStrokes,
+      fairwayHit: fairwayHit ?? hole.fairwayHit,
+      greenInRegulation: greenInReg ?? hole.greenInRegulation,
       shotData: JSON.stringify(shotData),
     };
 
@@ -313,6 +319,157 @@ const ShotTrackingScreen = () => {
     return undefined;
   };
 
+  // Extract first putt distance in feet from shot data
+  const getFirstPuttDistance = (shotData: any): number => {
+    if (!shotData?.shots) return 0;
+    const firstPutt = shotData.shots.find((s: any) => s.type === 'putt');
+    if (!firstPutt?.puttDistance) return 0;
+    const match = firstPutt.puttDistance.match(/(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+  };
+
+  // Determine if fairway was hit from shot data
+  const inferFairwayHit = (shotData: any, holePar: number): boolean | undefined => {
+    if (!shotData?.shots || shotData.shots.length === 0) return undefined;
+    if (holePar === 3) return undefined; // Fairway not tracked for par 3
+    const firstShot = shotData.shots.find((s: any) => s.type === 'tee');
+    if (!firstShot) return undefined;
+    return firstShot.results[0] === 'center';
+  };
+
+  // Determine GIR from shot data
+  const inferGIR = (shotData: any, holePar: number): boolean | undefined => {
+    if (!shotData?.shots) return undefined;
+    const nonPuttShots = shotData.shots.filter((s: any) => s.type !== 'putt');
+    if (nonPuttShots.length === 0) return undefined;
+    // GIR = reached green in par - 2 strokes
+    // Non-putt shot count represents shots to reach the green
+    // Add penalty strokes to get actual stroke count
+    const strokesUsed = nonPuttShots.reduce(
+      (sum: number, s: any) => sum + 1 + (s.penalty ? 1 : 0), 0
+    );
+    return strokesUsed <= holePar - 2;
+  };
+
+  // Calculate running round stats across all completed holes
+  interface RoundStats {
+    holesPlayed: number;
+    totalPutts: number;
+    fairwaysHit: number;
+    fairwayAttempts: number;
+    greensInRegulation: number;
+    totalFirstPuttFeet: number;
+    firstPuttCount: number;
+    onePutts: number;
+    threePutts: number;
+  }
+
+  const calculateRunningRoundStats = async (
+    currentHoleShots: Shot[],
+    currentHolePar: number,
+    currentHolePutts: number,
+  ): Promise<RoundStats | null> => {
+    if (!roundId) return null;
+
+    try {
+      const round = await DatabaseService.getRound(roundId);
+      if (!round) return null;
+
+      const stats: RoundStats = {
+        holesPlayed: 0,
+        totalPutts: 0,
+        fairwaysHit: 0,
+        fairwayAttempts: 0,
+        greensInRegulation: 0,
+        totalFirstPuttFeet: 0,
+        firstPuttCount: 0,
+        onePutts: 0,
+        threePutts: 0,
+      };
+
+      // Aggregate stats from previously completed holes
+      round.holes.forEach(h => {
+        if (h.strokes > 0 && h.holeNumber !== hole.holeNumber) {
+          stats.holesPlayed++;
+
+          // Putts
+          const holePutts = h.putts || 0;
+          stats.totalPutts += holePutts;
+          if (holePutts === 1) stats.onePutts++;
+          if (holePutts >= 3) stats.threePutts++;
+
+          // Fairway (par 4/5 only)
+          if ((h.par || 4) >= 4) {
+            stats.fairwayAttempts++;
+            // Check saved fairwayHit, or infer from shot data
+            const savedShotData = typeof h.shotData === 'string' ? (() => { try { return JSON.parse(h.shotData as string); } catch { return h.shotData; } })() : h.shotData;
+            const fwHit = h.fairwayHit !== undefined ? h.fairwayHit : inferFairwayHit(savedShotData, h.par || 4);
+            if (fwHit) stats.fairwaysHit++;
+          }
+
+          // GIR
+          const savedShotData = typeof h.shotData === 'string' ? (() => { try { return JSON.parse(h.shotData as string); } catch { return h.shotData; } })() : h.shotData;
+          const gir = h.greenInRegulation !== undefined ? h.greenInRegulation : inferGIR(savedShotData, h.par || 4);
+          if (gir) stats.greensInRegulation++;
+
+          // First putt distance
+          if (savedShotData) {
+            const dist = getFirstPuttDistance(savedShotData);
+            if (dist > 0) {
+              stats.totalFirstPuttFeet += dist;
+              stats.firstPuttCount++;
+            }
+          }
+        }
+      });
+
+      // Add current hole stats
+      stats.holesPlayed++;
+      stats.totalPutts += currentHolePutts;
+      if (currentHolePutts === 1) stats.onePutts++;
+      if (currentHolePutts >= 3) stats.threePutts++;
+
+      // Current hole fairway
+      if (currentHolePar >= 4) {
+        stats.fairwayAttempts++;
+        const currentFairway = inferFairwayHit({ shots: currentHoleShots }, currentHolePar);
+        if (currentFairway) stats.fairwaysHit++;
+      }
+
+      // Current hole GIR
+      const currentGIR = inferGIR({ shots: currentHoleShots }, currentHolePar);
+      if (currentGIR) stats.greensInRegulation++;
+
+      // Current hole first putt distance
+      const currentFirstPuttDist = getFirstPuttDistance({ shots: currentHoleShots });
+      if (currentFirstPuttDist > 0) {
+        stats.totalFirstPuttFeet += currentFirstPuttDist;
+        stats.firstPuttCount++;
+      }
+
+      return stats;
+    } catch (error) {
+      console.error('Error calculating round stats:', error);
+      return null;
+    }
+  };
+
+  // Format running stats for SMS
+  const formatRunningStats = (stats: RoundStats): string => {
+    let msg = '\nRound Stats:\n';
+    msg += `Putts: ${stats.totalPutts}`;
+    msg += ` (${stats.onePutts} 1-putts`;
+    if (stats.threePutts > 0) msg += `, ${stats.threePutts} 3-putts`;
+    msg += ')\n';
+    msg += `FW: ${stats.fairwaysHit}/${stats.fairwayAttempts}`;
+    msg += ` | GIR: ${stats.greensInRegulation}/${stats.holesPlayed}\n`;
+    if (stats.firstPuttCount > 0) {
+      const avgDist = Math.round(stats.totalFirstPuttFeet / stats.firstPuttCount);
+      msg += `1st Putt: ${stats.totalFirstPuttFeet} ft total, ${avgDist} ft avg\n`;
+    }
+    return msg;
+  };
+
   // === DIRECTION HANDLERS ===
 
   const handleDirectionSelect = (direction: 'left' | 'center' | 'right') => {
@@ -468,16 +625,45 @@ const ShotTrackingScreen = () => {
     setCurrentPuttDistance('');
     setCurrentStroke(currentStroke + 1);
 
-    // Save the hole data
-    await autoSave(newShots, par);
+    // Calculate total strokes and stats for current hole
+    const totalStrokes = calculateTotalStrokes(newShots);
+    const fairwayHit = inferFairwayHit({ shots: newShots }, par);
+    const greenInReg = inferGIR({ shots: newShots }, par);
+
+    // Save the hole data with fairwayHit, GIR, and putts
+    const nextStroke = calculateTotalStrokes(newShots) + 1;
+    const shotData = {
+      par,
+      shots: newShots.map(s => ({
+        stroke: s.stroke,
+        type: s.type,
+        results: s.results,
+        ...(s.penalty ? { penalty: true } : {}),
+        ...(s.puttDistance ? { puttDistance: s.puttDistance } : {}),
+      })),
+      currentStroke: nextStroke,
+    };
+
+    const updatedHole: GolfHole = {
+      ...hole,
+      par,
+      strokes: totalStrokes,
+      putts: totalPutts,
+      fairwayHit: fairwayHit ?? undefined,
+      greenInRegulation: greenInReg ?? undefined,
+      shotData: JSON.stringify(shotData),
+    };
+    await onSave(updatedHole);
 
     // Calculate running score including current hole
     const runningScore = await calculateRunningScore();
-    const totalStrokes = calculateTotalStrokes(newShots);
     const currentHoleScore = totalStrokes - par;
     const totalRunningScore = (runningScore || 0) + currentHoleScore;
 
     const scoreName = getScoreName(totalStrokes, par);
+
+    // Calculate running round stats
+    const roundStats = await calculateRunningRoundStats(newShots, par, totalPutts);
 
     // Check for default contact group
     const defaultGroup = await DatabaseService.getPreference('default_sms_group');
@@ -509,10 +695,15 @@ const ShotTrackingScreen = () => {
         message += '\n\n⛳ Solid par!';
       }
 
+      // Add running round stats
+      if (roundStats) {
+        message += formatRunningStats(roundStats);
+      }
+
       // Check for media
       const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
       if (media.length > 0) {
-        message += `\n\n📸 ${media.length} photo${media.length !== 1 ? 's' : ''} captured`;
+        message += `\n📸 ${media.length} photo${media.length !== 1 ? 's' : ''} captured`;
       }
 
       const result = await SMSService.sendQuickUpdate(message);
