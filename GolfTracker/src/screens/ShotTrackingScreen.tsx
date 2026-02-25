@@ -26,43 +26,15 @@ import DatabaseService from '../services/database';
 import { GolfHole, MediaItem } from '../types';
 import { Toast, useToast } from '../components/Toast';
 
-// Shot types with icons - organized into 2 rows of 4
-const SHOT_TYPES = {
-  ROW1: [
-    { id: 'tee', label: 'Tee Shot', icon: 'golf-tee', iconType: 'material-community' },
-    { id: 'approach', label: 'Approach', icon: 'flag' },
-    { id: 'chip', label: 'Chip/Pitch', icon: 'terrain' },
-    { id: 'putt', label: 'Putt', icon: 'radio-button-unchecked' },
-  ],
-  ROW2: [
-    { id: 'bunker', label: 'Bunker', icon: 'beach-access' },
-    { id: 'hazard', label: 'Hazard', icon: 'warning' },
-    { id: 'recovery', label: 'Recovery', icon: 'undo' },
-    { id: 'penalty', label: 'Penalty', icon: 'close-circle-outline' },
-  ],
-};
-
-// Shot results - will be shown as icons
-const SHOT_RESULTS = {
-  ROW1: [
-    { id: 'up', icon: 'arrow-upward', label: 'Long' },
-    { id: 'down', icon: 'arrow-downward', label: 'Short' },
-    { id: 'target', icon: 'adjust', label: 'On Target' },
-    { id: 'left', icon: 'arrow-back', label: 'Left' },
-    { id: 'right', icon: 'arrow-forward', label: 'Right' },
-  ],
-  ROW2: [
-    { id: 'hazard', icon: 'water', label: 'Hazard' },
-    { id: 'lost', icon: 'help-outline', label: 'Lost' },
-    { id: 'ob', icon: 'block', label: 'OB' },
-  ],
-};
+// Flow states for the new streamlined tracking
+type FlowState = 'direction' | 'trouble';
 
 interface Shot {
   stroke: number;
-  type: string;
-  results: string[];
-  puttDistance?: string; // Add putt distance
+  type: string;       // 'tee', 'approach', 'putt'
+  results: string[];  // ['center'] or ['left', 'rough'] or ['right', 'ob']
+  puttDistance?: string;
+  penalty?: boolean;
 }
 
 const ShotTrackingScreen = () => {
@@ -80,7 +52,7 @@ const ShotTrackingScreen = () => {
         return {
           par: savedData.par || hole.par || 4,
           shots: savedData.shots || [],
-          currentStroke: savedData.shots ? savedData.shots.length + 1 : 1,
+          currentStroke: savedData.currentStroke || (savedData.shots ? savedData.shots.length + 1 : 1),
         };
       } catch (error) {
         console.error('Error parsing saved shot data:', error);
@@ -94,31 +66,37 @@ const ShotTrackingScreen = () => {
   };
 
   const initialData = loadSavedShotData();
-  
+
+  // Core state
   const [par, setPar] = useState<3 | 4 | 5>(initialData.par as 3 | 4 | 5);
   const [shots, setShots] = useState<Shot[]>(initialData.shots);
-  const [currentShotType, setCurrentShotType] = useState<string>(preselectedShotType || '');
-  const [currentShotResults, setCurrentShotResults] = useState<string[]>([]);
   const [currentStroke, setCurrentStroke] = useState(initialData.currentStroke);
-  const [currentPuttDistance, setCurrentPuttDistance] = useState<string>('');
   const [showParSelector, setShowParSelector] = useState(false);
+
+  // Flow state
+  const [flowState, setFlowState] = useState<FlowState>('direction');
+  const [selectedDirection, setSelectedDirection] = useState<string>('');
+
+  // Putting state
+  const [isPuttingMode, setIsPuttingMode] = useState(false);
+  const [puttingStrokes, setPuttingStrokes] = useState(0);
+  const [currentPuttDistance, setCurrentPuttDistance] = useState<string>('');
+  const [distanceToHole, setDistanceToHole] = useState<string>('');
+  const [showDistanceModal, setShowDistanceModal] = useState(false);
+
+  // Media state
   const [mediaCount, setMediaCount] = useState({ photos: 0, videos: 0 });
   const [capturedMedia, setCapturedMedia] = useState<MediaItem[]>([]);
-  const [distanceToHole, setDistanceToHole] = useState<string>('');  // New state for distance to hole
-  const [showDistanceModal, setShowDistanceModal] = useState(false);
-  const [isPuttingMode, setIsPuttingMode] = useState(false);  // Track putting mode
-  const [puttingStrokes, setPuttingStrokes] = useState(0);  // Track putts in current sequence
-  
-  // Auto-append 'ft' to distance input
+  const [isCapturing, setIsCapturing] = useState(false);
+
+  // Distance input helpers
   const handleDistanceChange = (text: string) => {
-    // Remove any existing 'ft' or 'feet' to avoid duplication
     const cleanedText = text.replace(/\s*(ft|feet)\s*$/i, '');
     setDistanceToHole(cleanedText);
   };
-  
+
   const getFormattedDistance = () => {
     if (!distanceToHole) return '';
-    // If it's just a number, add 'ft'
     const trimmed = distanceToHole.trim();
     if (/^\d+$/.test(trimmed)) {
       return `${trimmed} ft`;
@@ -126,20 +104,37 @@ const ShotTrackingScreen = () => {
     return distanceToHole;
   };
 
+  // Count non-putt shots (actual golf swings to get to green)
+  const getNonPuttShots = (shotList: Shot[] = shots) => {
+    return shotList.filter(s => s.type !== 'putt');
+  };
+
+  // Calculate total strokes including penalties
+  const calculateTotalStrokes = (shotList: Shot[]) => {
+    if (shotList.length === 0) return 0;
+    return shotList.reduce((sum, s) => sum + 1 + (s.penalty ? 1 : 0), 0);
+  };
+
+  // Auto-save hole data
   const autoSave = async (currentShots: Shot[], currentPar: number = par) => {
-    // If we have recorded shots in this session, use that count
-    // Otherwise, preserve the existing strokes value from the hole data
-    // This prevents overwriting scores when just changing par or viewing the hole
-    const totalStrokes = currentShots.length > 0 ? currentShots.length : (hole.strokes || 0);
-    
+    const totalStrokes = currentShots.length > 0
+      ? calculateTotalStrokes(currentShots)
+      : (hole.strokes || 0);
+
+    const nextStroke = currentShots.length > 0
+      ? calculateTotalStrokes(currentShots) + 1
+      : 1;
+
     const shotData = {
       par: currentPar,
       shots: currentShots.map(s => ({
         stroke: s.stroke,
         type: s.type,
         results: s.results,
+        ...(s.penalty ? { penalty: true } : {}),
+        ...(s.puttDistance ? { puttDistance: s.puttDistance } : {}),
       })),
-      currentStroke: currentShots.length + 1,
+      currentStroke: nextStroke,
     };
 
     const updatedHole: GolfHole = {
@@ -152,169 +147,164 @@ const ShotTrackingScreen = () => {
     await onSave(updatedHole);
   };
 
-  const generateDetailedShotDescription = (shots: Shot[], par: number): string => {
-    if (shots.length === 0) return 'No shots recorded yet';
-    
-    const scoreName = (() => {
-      const diff = shots.length - par;
-      if (diff <= -3) return 'Albatross! 🦅🦅';
-      if (diff === -2) return 'Eagle! 🦅';
-      if (diff === -1) return 'Birdie 🐦';
-      if (diff === 0) return 'Par ✅';
-      if (diff === 1) return 'Bogey';
-      if (diff === 2) return 'Double Bogey';
-      if (diff === 3) return 'Triple Bogey';
-      return `+${diff}`;
-    })();
+  // Score name helper
+  const getScoreName = (totalStrokes: number, holePar: number): string => {
+    const diff = totalStrokes - holePar;
+    if (diff <= -3) return 'Albatross! 🦅🦅';
+    if (diff === -2) return 'Eagle! 🦅';
+    if (diff === -1) return 'Birdie 🐦';
+    if (diff === 0) return 'Par ✅';
+    if (diff === 1) return 'Bogey';
+    if (diff === 2) return 'Double Bogey';
+    if (diff === 3) return 'Triple Bogey';
+    return `+${diff}`;
+  };
 
-    let message = `Hole ${hole.holeNumber} - Par ${par}\n`;
-    message += `Score: ${shots.length} strokes (${scoreName})\n\n`;
+  const getScoreNameSMS = (totalStrokes: number, holePar: number): string => {
+    const diff = totalStrokes - holePar;
+    if (diff <= -3) return 'Albatross!';
+    if (diff === -2) return 'Eagle!';
+    if (diff === -1) return 'Birdie';
+    if (diff === 0) return 'Par';
+    if (diff === 1) return 'Bogey';
+    if (diff === 2) return 'Double Bogey';
+    if (diff === 3) return 'Triple Bogey';
+    return `+${diff}`;
+  };
+
+  // Direction emoji for display
+  const getDirectionEmoji = (dir: string): string => {
+    switch (dir) {
+      case 'left': return '⬅️';
+      case 'center': return '⬆️';
+      case 'right': return '➡️';
+      default: return '';
+    }
+  };
+
+  // Lie label for display
+  const getLieLabel = (lie: string): string => {
+    switch (lie) {
+      case 'rough': return 'Rough';
+      case 'sand': return 'Sand';
+      case 'hazard': return 'Hazard';
+      case 'ob': return 'OB';
+      default: return lie;
+    }
+  };
+
+  // Generate shot summary for SMS
+  const generateShotSummary = (shotList: Shot[]): string => {
+    return shotList
+      .filter(s => s.type !== 'putt')
+      .map((shot, index) => {
+        const num = index + 1;
+        const dirLabel = shot.results[0] === 'center' ? 'Center' :
+                         shot.results[0] === 'left' ? 'Left' : 'Right';
+        let desc = `${num}. ${dirLabel}`;
+        if (shot.results.length > 1) {
+          desc += ` - ${getLieLabel(shot.results[1])}`;
+        }
+        if (shot.penalty) desc += ' (+1)';
+        return desc;
+      })
+      .join('\n');
+  };
+
+  // Generate detailed shot description for sharing
+  const generateDetailedShotDescription = (shotList: Shot[], holePar: number): string => {
+    if (shotList.length === 0) return 'No shots recorded yet';
+
+    const totalStrokes = calculateTotalStrokes(shotList);
+    const scoreName = getScoreName(totalStrokes, holePar);
+
+    let message = `Hole ${hole.holeNumber} - Par ${holePar}\n`;
+    message += `Score: ${totalStrokes} strokes (${scoreName})\n\n`;
     message += `Shot by shot:\n`;
-    
-    shots.forEach((shot, index) => {
-      const shotNum = index + 1;
-      const shotTypeLabel = SHOT_TYPES.ROW1.concat(SHOT_TYPES.ROW2).find(t => t.id === shot.type)?.label || shot.type;
-      
-      message += `${shotNum}. ${shotTypeLabel}`;
-      
-      // Add putt distance if it's a putt
-      if (shot.type === 'Putt' && shot.puttDistance) {
-        // If puttDistance already includes 'ft', use it as is, otherwise format it
-        const distanceLabel = shot.puttDistance.includes('ft') 
-          ? shot.puttDistance 
-          : (shot.puttDistance === 'short' ? '< 5ft' : 
-             shot.puttDistance === 'medium' ? '5-15ft' : 
-             shot.puttDistance === 'long' ? '> 15ft' : 
-             `${shot.puttDistance} ft`);
-        message += ` (${distanceLabel})`;
+
+    shotList.forEach((shot) => {
+      if (shot.type === 'putt') {
+        message += `${shot.stroke}. Putt`;
+        if (shot.puttDistance) message += ` (${shot.puttDistance})`;
+        if (shot.results.includes('target')) message += ' - Made';
+        if (shot.results.includes('missed')) message += ' - Missed';
+      } else {
+        message += `${shot.stroke}. ${getDirectionEmoji(shot.results[0])}`;
+        if (shot.results.length > 1) {
+          message += ` ${getLieLabel(shot.results[1])}`;
+        } else {
+          message += ' Center';
+        }
+        if (shot.penalty) message += ' (+1)';
       }
-      
-      if (shot.results && shot.results.length > 0) {
-        const resultDescriptions = shot.results.map(r => {
-          const result = SHOT_RESULTS.ROW1.concat(SHOT_RESULTS.ROW2).find(res => res.id === r);
-          return result?.label || r;
-        });
-        message += ` - ${resultDescriptions.join(', ')}`;
-      }
-      
       message += '\n';
     });
-    
-    // Add final result
-    if (shots.length <= par - 1) {
+
+    if (totalStrokes <= holePar - 1) {
       message += '\n🎉 Outstanding play!';
-    } else if (shots.length === par) {
+    } else if (totalStrokes === holePar) {
       message += '\n⛳ Solid par!';
     }
-    
+
     return message;
   };
 
-  const generateSMSShotDescription = (shots: Shot[], par: number, runningScore?: number, isUpdate?: boolean): string => {
-    if (shots.length === 0) return 'No shots recorded yet';
-    
-    const scoreName = (() => {
-      const diff = shots.length - par;
-      if (diff <= -3) return 'Albatross!';
-      if (diff === -2) return 'Eagle!';
-      if (diff === -1) return 'Birdie';
-      if (diff === 0) return 'Par';
-      if (diff === 1) return 'Bogey';
-      if (diff === 2) return 'Double Bogey';
-      if (diff === 3) return 'Triple Bogey';
-      return `+${diff}`;
-    })();
+  // Generate SMS-specific shot description
+  const generateSMSShotDescription = (shotList: Shot[], holePar: number, runningScore?: number): string => {
+    if (shotList.length === 0) return 'No shots recorded yet';
 
-    // Map shot results to icons
-    const resultToIcon = (resultId: string): string => {
-      switch (resultId) {
-        case 'up': return '⬆️';
-        case 'down': return '⬇️';
-        case 'target': return '🎯';
-        case 'left': return '⬅️';
-        case 'right': return '➡️';
-        case 'hazard': return '💧';
-        case 'lost': return '❓';
-        case 'ob': return '❌';
-        default: return '';
-      }
-    };
+    const totalStrokes = calculateTotalStrokes(shotList);
+    const scoreName = getScoreNameSMS(totalStrokes, holePar);
 
     let message = `Hole ${hole.holeNumber}\n`;
-    if (isUpdate) {
-      message += `Ball on green!\n`;
-      if (distanceToHole) {
-        message += `Distance: ${getFormattedDistance()}\n`;
-      }
-    } else {
-      message += `Score: ${shots.length} (${scoreName})\n`;
-    }
+    message += `Score: ${totalStrokes} (${scoreName})\n`;
     if (runningScore !== undefined) {
       const scoreText = runningScore === 0 ? 'E' : runningScore > 0 ? `+${runningScore}` : `${runningScore}`;
       message += `Running Total: ${scoreText}\n`;
     }
     message += `\nShot by shot:\n`;
-    
-    shots.forEach((shot, index) => {
-      const shotNum = index + 1;
-      const shotTypeLabel = SHOT_TYPES.ROW1.concat(SHOT_TYPES.ROW2).find(t => t.id === shot.type)?.label || shot.type;
-      
-      // For updates, only show non-putt shots
-      if (isUpdate && shot.type === 'putt') {
-        return;
-      }
-      
-      message += `${shotNum}. ${shotTypeLabel}`;
-      
-      // Add putt distance if it's a putt
-      if (shot.type === 'putt' && shot.puttDistance) {
-        // If puttDistance already includes 'ft', use it as is, otherwise format it
-        const distanceLabel = shot.puttDistance.includes('ft') 
-          ? shot.puttDistance 
-          : (shot.puttDistance === 'short' ? '< 5ft' : 
-             shot.puttDistance === 'medium' ? '5-15ft' : 
-             shot.puttDistance === 'long' ? '> 15ft' : 
-             `${shot.puttDistance} ft`);
-        message += ` (${distanceLabel})`;
-      }
-      
-      if (shot.results && shot.results.length > 0) {
-        const resultIcons = shot.results.map(r => resultToIcon(r)).filter(icon => icon !== '');
-        if (resultIcons.length > 0) {
-          message += ` ${resultIcons.join(' ')}`;
+
+    shotList.forEach((shot) => {
+      if (shot.type === 'putt') {
+        message += `${shot.stroke}. Putt`;
+        if (shot.puttDistance) message += ` (${shot.puttDistance})`;
+        if (shot.results.includes('target')) message += ' ⛳';
+        if (shot.results.includes('missed')) message += ' ✗';
+      } else {
+        const dirEmoji = shot.results[0] === 'center' ? '⬆️' :
+                         shot.results[0] === 'left' ? '⬅️' : '➡️';
+        message += `${shot.stroke}. ${dirEmoji}`;
+        if (shot.results.length > 1) {
+          message += ` ${getLieLabel(shot.results[1])}`;
         }
+        if (shot.penalty) message += ' (+1)';
       }
-      
       message += '\n';
     });
-    
-    // Add final result
-    if (shots.length <= par - 1) {
+
+    if (totalStrokes <= holePar - 1) {
       message += '\n🎉 Outstanding play!';
-    } else if (shots.length === par) {
+    } else if (totalStrokes === holePar) {
       message += '\n⛳ Solid par!';
     }
-    
+
     return message;
   };
 
   const calculateRunningScore = async (): Promise<number | undefined> => {
     if (!roundId) return undefined;
-    
+
     try {
       const round = await DatabaseService.getRound(roundId);
       if (round) {
-        // Calculate total strokes and par for all holes played (not including current)
         let totalStrokes = 0;
         let totalPar = 0;
         round.holes.forEach(h => {
-          // Only count holes that have been scored and are not the current hole
           if (h.strokes > 0 && h.holeNumber !== hole.holeNumber) {
             totalStrokes += h.strokes;
             totalPar += h.par || 4;
           }
         });
-        // Return cumulative score to par
         return totalStrokes - totalPar;
       }
     } catch (error) {
@@ -323,19 +313,81 @@ const ShotTrackingScreen = () => {
     return undefined;
   };
 
-  // Update function removed - updates are now sent with each putt
-  // const handleUpdate = async () => { ... }
+  // === DIRECTION HANDLERS ===
+
+  const handleDirectionSelect = (direction: 'left' | 'center' | 'right') => {
+    if (direction === 'center') {
+      // Center = shot complete, record and move on
+      const type = getNonPuttShots().length === 0 ? 'tee' : 'approach';
+      const newShot: Shot = {
+        stroke: currentStroke,
+        type,
+        results: ['center'],
+      };
+      const newShots = [...shots, newShot];
+      setShots(newShots);
+      setCurrentStroke(currentStroke + 1);
+      autoSave(newShots, par);
+
+      // Auto-scroll
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      }, 100);
+    } else {
+      // Left or Right = needs further classification
+      setSelectedDirection(direction);
+      setFlowState('trouble');
+    }
+  };
+
+  // === TROUBLE HANDLERS ===
+
+  const handleTroubleSelect = (trouble: 'rough' | 'sand' | 'hazard' | 'ob') => {
+    const type = getNonPuttShots().length === 0 ? 'tee' : 'approach';
+    const isPenalty = trouble === 'hazard' || trouble === 'ob';
+    const newShot: Shot = {
+      stroke: currentStroke,
+      type,
+      results: [selectedDirection, trouble],
+      penalty: isPenalty,
+    };
+    const newShots = [...shots, newShot];
+    setShots(newShots);
+    setCurrentStroke(currentStroke + (isPenalty ? 2 : 1));
+    setFlowState('direction');
+    setSelectedDirection('');
+    autoSave(newShots, par);
+
+    // Auto-scroll
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    }, 100);
+  };
+
+  const handleTroubleBack = () => {
+    setFlowState('direction');
+    setSelectedDirection('');
+  };
+
+  // === ON GREEN HANDLER ===
+
+  const handleOnGreen = () => {
+    // Open distance modal - On Green is a transition, not a shot
+    setShowDistanceModal(true);
+  };
+
+  // === PUTTING HANDLERS ===
 
   const sendPuttUpdate = async () => {
     setShowDistanceModal(false);
-    
-    // Calculate running score up to this point
+
+    // Calculate running score
     const runningScore = await calculateRunningScore();
-    const currentHoleScore = shots.length - par; // Score with shots so far
+    const currentHoleStrokes = calculateTotalStrokes(shots);
+    const currentHoleScore = currentHoleStrokes - par;
     const totalRunningScore = (runningScore || 0) + currentHoleScore;
-    
+
     // Calculate what the putt is for
-    // currentStroke is the stroke number for this putt
     const strokesAfterPutt = currentStroke;
     let puttFor = '';
     if (strokesAfterPutt === par - 2) puttFor = ' for eagle';
@@ -343,46 +395,31 @@ const ShotTrackingScreen = () => {
     else if (strokesAfterPutt === par) puttFor = ' for par';
     else if (strokesAfterPutt === par + 1) puttFor = ' for bogey';
     else if (strokesAfterPutt === par + 2) puttFor = ' for double bogey';
-    else if (strokesAfterPutt > par + 2) puttFor = ` for +${strokesAfterPutt - par}`;
-    
-    // Format distance with "ft" and putt description
+    else if (strokesAfterPutt === par + 3) puttFor = ' for triple bogey';
+    else if (strokesAfterPutt > par + 3) puttFor = ` for +${strokesAfterPutt - par}`;
+
+    // Format distance message
     const formattedDistance = getFormattedDistance();
     const distanceMessage = formattedDistance ? `${formattedDistance}${puttFor}` : `Putting${puttFor}`;
-    
-    // Check if default contact group is configured
+
+    // Check for default contact group
     const defaultGroup = await DatabaseService.getPreference('default_sms_group');
-    
+
     try {
-      // Send full hole summary with all shots up to this point
       let message = `Hole ${hole.holeNumber} - Par ${par}\n`;
       message += `${distanceMessage}\n`;
-      
-      // Add shot-by-shot summary if there are shots before the putt
+
       if (shots.length > 0) {
         message += `\nShots to green:\n`;
-        shots.forEach((shot, index) => {
-          const shotNum = index + 1;
-          const shotTypeLabel = SHOT_TYPES.ROW1.concat(SHOT_TYPES.ROW2).find(t => t.id === shot.type)?.label || shot.type;
-          message += `${shotNum}. ${shotTypeLabel}`;
-          
-          if (shot.results && shot.results.length > 0) {
-            const resultDescriptions = shot.results.map(r => {
-              const result = SHOT_RESULTS.ROW1.concat(SHOT_RESULTS.ROW2).find(res => res.id === r);
-              return result?.label || r;
-            });
-            message += ` - ${resultDescriptions.join(', ')}`;
-          }
-          message += '\n';
-        });
+        message += generateShotSummary(shots);
+        message += '\n';
       }
-      
-      // Send SMS to default contact group
+
       const result = await SMSService.sendQuickUpdate(message);
       if (!result.success) {
         console.error('SMS error:', result.errors);
         showToast('Failed to open Messages', 'error');
       } else if (!defaultGroup || defaultGroup.trim() === '') {
-        // Alert user if no contacts configured
         showToast('Add recipients in settings for automatic text group', 'info');
       } else if (result.sent) {
         showToast(`Message opened for ${result.groupName}`, 'success');
@@ -392,90 +429,69 @@ const ShotTrackingScreen = () => {
       showToast('Error sending message', 'error');
     }
 
-    // Save the putt distance for the current shot
+    // Save putt distance and enter putting mode
     const puttDistanceValue = distanceToHole || '0';
     setCurrentPuttDistance(`${puttDistanceValue} ft`);
     setDistanceToHole('');
-    
-    // Enter putting mode instead of shot result selection
     setIsPuttingMode(true);
     setPuttingStrokes(0);
-    setCurrentShotType('');  // Clear shot type
-    setCurrentShotResults([]);  // Clear shot results
   };
 
-  // Handler for "Missed It" button in putting mode
   const handlePuttMissed = () => {
-    // Add a missed putt to shots
     const missedPutt: Shot = {
       stroke: currentStroke,
       type: 'putt',
       results: ['missed'],
       puttDistance: currentPuttDistance,
     };
-    
+
     setShots([...shots, missedPutt]);
     setCurrentStroke(currentStroke + 1);
     setPuttingStrokes(puttingStrokes + 1);
-    // Stay in putting mode for next putt
   };
-  
-  // Handler for "Made It" button in putting mode
+
   const handlePuttMade = async () => {
-    // Add the made putt to shots
     const madePutt: Shot = {
       stroke: currentStroke,
       type: 'putt',
-      results: ['target'],  // Use 'target' to indicate made putt
+      results: ['target'],
       puttDistance: currentPuttDistance,
     };
-    
+
     const newShots = [...shots, madePutt];
     setShots(newShots);
-    
+
     // Exit putting mode
     setIsPuttingMode(false);
-    const totalPutts = puttingStrokes + 1; // Include the made putt
+    const totalPutts = puttingStrokes + 1;
     setPuttingStrokes(0);
     setCurrentPuttDistance('');
     setCurrentStroke(currentStroke + 1);
-    
+
     // Save the hole data
     await autoSave(newShots, par);
-    
+
     // Calculate running score including current hole
     const runningScore = await calculateRunningScore();
-    const currentHoleScore = newShots.length - par;
+    const totalStrokes = calculateTotalStrokes(newShots);
+    const currentHoleScore = totalStrokes - par;
     const totalRunningScore = (runningScore || 0) + currentHoleScore;
-    
-    // Generate putting-only summary
-    const scoreName = (() => {
-      const diff = newShots.length - par;
-      if (diff <= -3) return 'Albatross! 🦅🦅';
-      if (diff === -2) return 'Eagle! 🦅';
-      if (diff === -1) return 'Birdie 🐦';
-      if (diff === 0) return 'Par ✅';
-      if (diff === 1) return 'Bogey';
-      if (diff === 2) return 'Double Bogey';
-      if (diff === 3) return 'Triple Bogey';
-      return `+${diff}`;
-    })();
-    
-    // Check if default contact group is configured
+
+    const scoreName = getScoreName(totalStrokes, par);
+
+    // Check for default contact group
     const defaultGroup = await DatabaseService.getPreference('default_sms_group');
-    
-    // Automatically send SMS to default contact group
+
+    // Send final hole summary SMS
     try {
       let message = `Hole ${hole.holeNumber} - Par ${par}\n`;
-      message += `Score: ${newShots.length} (${scoreName})\n`;
-      
-      // Add running score
+      message += `Score: ${totalStrokes} (${scoreName})\n`;
+
       if (totalRunningScore !== undefined) {
         const scoreText = totalRunningScore === 0 ? 'E' : totalRunningScore > 0 ? `+${totalRunningScore}` : `${totalRunningScore}`;
         message += `Running Total: ${scoreText}\n`;
       }
-      
-      // Add putting summary
+
       message += `\nPutting: `;
       if (totalPutts === 1) {
         message += `Made it! ⛳`;
@@ -486,27 +502,24 @@ const ShotTrackingScreen = () => {
       } else {
         message += `${totalPutts}-putt 😱`;
       }
-      
-      // Add final result
-      if (newShots.length <= par - 1) {
+
+      if (totalStrokes <= par - 1) {
         message += '\n\n🎉 Outstanding play!';
-      } else if (newShots.length === par) {
+      } else if (totalStrokes === par) {
         message += '\n\n⛳ Solid par!';
       }
-      
+
       // Check for media
       const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
       if (media.length > 0) {
         message += `\n\n📸 ${media.length} photo${media.length !== 1 ? 's' : ''} captured`;
       }
-      
-      // Send SMS to default contact group
+
       const result = await SMSService.sendQuickUpdate(message);
       if (!result.success) {
         console.error('SMS error:', result.errors);
         showToast('Failed to open Messages', 'error');
       } else if (!defaultGroup || defaultGroup.trim() === '') {
-        // Alert user if no contacts configured
         showToast('Add recipients in settings for automatic text group', 'info');
       } else if (result.sent) {
         showToast(`Message opened for ${result.groupName}`, 'success');
@@ -519,27 +532,24 @@ const ShotTrackingScreen = () => {
       navigation.goBack();
     }
   };
-  
-  // Handler for "Cancel" button in putting mode
+
   const handlePuttCancel = () => {
-    // Exit putting mode and clear putting-related state
     setIsPuttingMode(false);
     setPuttingStrokes(0);
     setCurrentPuttDistance('');
-    setCurrentShotType('');
-    setCurrentShotResults([]);
+    setFlowState('direction');
   };
 
+  // === SAVE HANDLER ===
+
   const handleSave = async () => {
-    // Save the hole data
     await autoSave(shots, par);
-    
-    // Calculate running score including current hole
+
     const runningScore = await calculateRunningScore();
-    const currentHoleScore = shots.length - par;
+    const totalStrokes = calculateTotalStrokes(shots);
+    const currentHoleScore = totalStrokes - par;
     const totalRunningScore = (runningScore || 0) + currentHoleScore;
-    
-    // Prompt to share
+
     Alert.alert(
       'Share Hole Summary?',
       'Would you like to share this hole summary?',
@@ -553,26 +563,22 @@ const ShotTrackingScreen = () => {
           text: 'Yes',
           onPress: async () => {
             try {
-              // Generate SMS-specific format for iOS SMS, regular format for other sharing
               const isSMS = Platform.OS === 'ios';
-              const description = isSMS 
+              const description = isSMS
                 ? generateSMSShotDescription(shots, par, totalRunningScore)
                 : generateDetailedShotDescription(shots, par);
-              
-              // Get media for the hole
+
               const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
               const mediaUrls = media.map(m => m.uri).filter(uri => uri);
-              
-              // Share using react-native-share
+
               await Share.open({
                 title: `Hole ${hole.holeNumber} - Shot Details`,
                 message: description,
                 urls: mediaUrls,
               });
-              
+
               navigation.goBack();
             } catch (error: any) {
-              // Silently handle user cancellation
               if (error?.message !== 'User did not share') {
                 console.error('Share error:', error);
               }
@@ -584,15 +590,12 @@ const ShotTrackingScreen = () => {
     );
   };
 
-  const [isCapturing, setIsCapturing] = useState(false);
+  // === MEDIA HANDLERS ===
 
   useEffect(() => {
     loadMediaCount();
     loadExistingMedia();
-    // If we have saved shots, update the strokes count
     if (hole.strokes && hole.strokes > 0 && shots.length === 0 && hole.shotData) {
-      // This handles the case where strokes were saved but detailed shot data wasn't
-      // We'll keep the stroke count but allow re-entering shot details
       setCurrentStroke(hole.strokes + 1);
     }
   }, []);
@@ -615,116 +618,12 @@ const ShotTrackingScreen = () => {
     }
   };
 
-  const handleShotTypeSelection = (type: string) => {
-    // If putt is selected, open distance modal immediately
-    if (type === 'Putt') {
-      setCurrentShotType(type);
-      setCurrentShotResults([]);
-      setShowDistanceModal(true);
-    } else {
-      setCurrentShotType(type);
-      setCurrentShotResults([]);
-    }
-  };
-
-  const handleShotResultSelection = (resultId: string) => {
-    // Define mutually exclusive pairs
-    const exclusivePairs: { [key: string]: string } = {
-      'up': 'down',      // Long excludes Short
-      'down': 'up',      // Short excludes Long
-      'left': 'right',   // Left excludes Right
-      'right': 'left',   // Right excludes Left
-    };
-
-    if (currentShotResults.includes(resultId)) {
-      // If already selected, deselect it
-      setCurrentShotResults(currentShotResults.filter(r => r !== resultId));
-    } else {
-      // Check if we need to remove the mutually exclusive option
-      let newResults = [...currentShotResults];
-      
-      // Remove the opposite if it exists
-      if (exclusivePairs[resultId] && newResults.includes(exclusivePairs[resultId])) {
-        newResults = newResults.filter(r => r !== exclusivePairs[resultId]);
-      }
-      
-      // Add the new selection if we haven't reached the limit
-      if (newResults.length < 2) {
-        newResults.push(resultId);
-        setCurrentShotResults(newResults);
-      }
-    }
-  };
-
-  const confirmShotWithResults = () => {
-    // For putts, distance should already be set from modal
-    if (currentShotType === 'Putt' && !currentPuttDistance) {
-      // Re-open distance modal if somehow distance wasn't set
-      setShowDistanceModal(true);
-      return;
-    }
-    
-    if (currentShotResults.length > 0) {
-      const newShot: Shot = {
-        stroke: currentStroke,
-        type: currentShotType,
-        results: currentShotResults,
-        ...(currentShotType === 'putt' && currentPuttDistance ? { puttDistance: currentPuttDistance } : {})
-      };
-      setShots([...shots, newShot]);
-      setCurrentStroke(currentStroke + 1);
-      setCurrentShotType('');
-      setCurrentShotResults([]);
-      setCurrentPuttDistance('');
-      
-      // Auto-scroll to show all buttons
-      setTimeout(() => {
-        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-      }, 100);
-    }
-  };
-
-  const confirmShot = () => {
-    // For putts, distance should already be set from modal
-    if (currentShotType === 'Putt' && !currentPuttDistance) {
-      // Re-open distance modal if somehow distance wasn't set
-      setShowDistanceModal(true);
-      return;
-    }
-    
-    if (currentShotResults.length > 0 && currentShotResults.length <= 2) {
-      const newShot: Shot = {
-        stroke: currentStroke,
-        type: currentShotType,
-        results: currentShotResults,
-        ...(currentShotType === 'putt' && currentPuttDistance ? { puttDistance: currentPuttDistance } : {})
-      };
-      setShots([...shots, newShot]);
-      setCurrentStroke(currentStroke + 1);
-      setCurrentShotType('');
-      setCurrentShotResults([]);
-      setCurrentPuttDistance('');
-      
-      // Auto-scroll to show all buttons
-      setTimeout(() => {
-        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-      }, 100);
-    }
-  };
-
-  // Removed auto-confirm to allow manual confirmation with checkmark
-
-  
-
   const handleMediaFromLibrary = async () => {
     if (!roundId) {
       Alert.alert('Error', 'Please save the round first before adding media');
       return;
     }
-
-    if (isCapturing) {
-      return;
-    }
+    if (isCapturing) return;
 
     setIsCapturing(true);
     try {
@@ -748,10 +647,7 @@ const ShotTrackingScreen = () => {
       Alert.alert('Error', 'Please save the round first before adding media');
       return;
     }
-
-    if (isCapturing) {
-      return; // Prevent multiple simultaneous captures
-    }
+    if (isCapturing) return;
 
     setIsCapturing(true);
     try {
@@ -759,13 +655,12 @@ const ShotTrackingScreen = () => {
       if (captured) {
         await MediaService.saveMedia(captured, roundId, hole.holeNumber);
         await loadMediaCount();
-        await loadExistingMedia(); // Reload media to show thumbnails
-        // Don't show alert, just update the UI
+        await loadExistingMedia();
       }
     } catch (error) {
       console.error('Error capturing media:', error);
       Alert.alert(
-        'Media Capture Error', 
+        'Media Capture Error',
         `Failed to capture ${type}. Please check app permissions in Settings.`
       );
     } finally {
@@ -784,7 +679,6 @@ const ShotTrackingScreen = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Remove from local state
               setCapturedMedia(capturedMedia.filter(m => m.id !== mediaId));
               await loadMediaCount();
             } catch (error) {
@@ -796,32 +690,58 @@ const ShotTrackingScreen = () => {
     );
   };
 
+  // === SHOT HISTORY ===
+
   const removeShot = (index: number) => {
     const newShots = shots.filter((_, i) => i !== index);
-    // Renumber strokes
-    const renumberedShots = newShots.map((shot, i) => ({
-      ...shot,
-      stroke: i + 1,
-    }));
+    // Recalculate stroke numbers accounting for penalties
+    let stroke = 1;
+    const renumberedShots = newShots.map((shot) => {
+      const newShot = { ...shot, stroke };
+      stroke += shot.penalty ? 2 : 1;
+      return newShot;
+    });
     setShots(renumberedShots);
-    setCurrentStroke(renumberedShots.length + 1);
+    setCurrentStroke(stroke);
+    autoSave(renumberedShots, par);
   };
 
-  const getResultIcon = (resultId: string) => {
-    const allResults = [...SHOT_RESULTS.ROW1, ...SHOT_RESULTS.ROW2];
-    return allResults.find(r => r.id === resultId);
+  // Format a shot for history display
+  const formatShotHistory = (shot: Shot): string => {
+    if (shot.type === 'putt') {
+      let text = `${shot.stroke}. Putt`;
+      if (shot.puttDistance) text += ` (${shot.puttDistance})`;
+      if (shot.results.includes('target')) text += ' ✓';
+      if (shot.results.includes('missed')) text += ' ✗';
+      return text;
+    }
+
+    const dirEmoji = getDirectionEmoji(shot.results[0]);
+    let text = `${shot.stroke}. ${dirEmoji}`;
+    if (shot.results.length > 1) {
+      text += ` ${getLieLabel(shot.results[1])}`;
+    } else {
+      text += ' Center';
+    }
+    if (shot.penalty) text += ' (+1)';
+    return text;
   };
+
+  // === RENDER ===
+
+  const totalStrokes = calculateTotalStrokes(shots);
+  const hasNonPuttShots = getNonPuttShots().length > 0;
 
   return (
     <View style={styles.container}>
-      {/* Compact Header with Score */}
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          {/* Empty space to balance header */}
+          {/* Balance header */}
         </View>
-        
+
         <View style={styles.headerCenter}>
-          <TouchableOpacity onPress={() => setShowParSelector(true)} style={styles.parButton}>
+          <TouchableOpacity onPress={() => setShowParSelector(true)} style={styles.parHeaderButton}>
             <Text style={styles.holeLabel}>Hole {hole.holeNumber} • Par {par}</Text>
             <Icon name="edit" size={14} color="rgba(255,255,255,0.8)" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
@@ -832,16 +752,16 @@ const ShotTrackingScreen = () => {
               {tournamentName && <Text style={styles.tournamentName}>{tournamentName}</Text>}
             </Text>
           )}
-          {shots.length > 0 && (
+          {totalStrokes > 0 && (
             <Text style={styles.scoreLabel}>
-              Score: {shots.length} {shots.length === par ? '(E)' : shots.length < par ? `(${shots.length - par})` : `(+${shots.length - par})`}
+              Score: {totalStrokes} {totalStrokes === par ? '(E)' : totalStrokes < par ? `(${totalStrokes - par})` : `(+${totalStrokes - par})`}
             </Text>
           )}
         </View>
-        
+
         <View style={styles.mediaButtons}>
-          <TouchableOpacity 
-            onPress={() => handleMediaCapture('photo')} 
+          <TouchableOpacity
+            onPress={() => handleMediaCapture('photo')}
             style={styles.mediaButtonCompact}
             disabled={isCapturing}
           >
@@ -858,9 +778,9 @@ const ShotTrackingScreen = () => {
               </>
             )}
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            onPress={() => handleMediaCapture('video')} 
+
+          <TouchableOpacity
+            onPress={() => handleMediaCapture('video')}
             style={styles.mediaButtonCompact}
             disabled={isCapturing}
           >
@@ -877,9 +797,9 @@ const ShotTrackingScreen = () => {
               </>
             )}
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            onPress={handleMediaFromLibrary} 
+
+          <TouchableOpacity
+            onPress={handleMediaFromLibrary}
             style={styles.mediaButtonCompact}
             disabled={isCapturing}
           >
@@ -900,7 +820,7 @@ const ShotTrackingScreen = () => {
             <Text style={styles.savedDataText}>Viewing saved shot data</Text>
           </View>
         )}
-        
+
         {/* Shot History */}
         {shots.length > 0 && (
           <View style={styles.shotHistory}>
@@ -912,10 +832,7 @@ const ShotTrackingScreen = () => {
                 onLongPress={() => removeShot(index)}
               >
                 <Text style={styles.shotHistoryText}>
-                  {shot.stroke}. {shot.type}: {shot.results.map(r => {
-                    const result = getResultIcon(r);
-                    return result?.label || r;
-                  }).join(' + ')}
+                  {formatShotHistory(shot)}
                 </Text>
                 <Ionicons name="close-circle" size={18} color="#ff6b6b" />
               </TouchableOpacity>
@@ -935,8 +852,8 @@ const ShotTrackingScreen = () => {
                         onPress: () => {
                           setShots([]);
                           setCurrentStroke(1);
-                          setCurrentShotType('');
-                          setCurrentShotResults([]);
+                          setFlowState('direction');
+                          setSelectedDirection('');
                         },
                       },
                     ]
@@ -950,24 +867,18 @@ const ShotTrackingScreen = () => {
           </View>
         )}
 
-        {/* Current Shot Header */}
-        {(currentShotType || shots.length > 0) && (
-          <View style={styles.currentShotHeader}>
-            <Text style={styles.currentShotText}>
-              Stroke {currentStroke}
-              {currentShotType && `: ${currentShotType}`}
-              {currentShotResults.length > 0 && ` - ${currentShotResults.map(r => {
-                const result = getResultIcon(r);
-                return result?.label || r;
-              }).join(' + ')}`}
-            </Text>
-          </View>
-        )}
+        {/* Current Stroke Header */}
+        <View style={styles.currentShotHeader}>
+          <Text style={styles.currentShotText}>
+            Stroke {currentStroke}
+            {flowState === 'trouble' && selectedDirection && ` • ${selectedDirection === 'left' ? 'Left' : 'Right'} - where?`}
+          </Text>
+        </View>
 
-        {/* Putting Mode UI */}
+        {/* === MAIN FLOW === */}
         {isPuttingMode ? (
+          /* Putting Mode */
           <View style={styles.buttonSection}>
-            {/* Display putt distance */}
             {currentPuttDistance && (
               <View style={styles.puttingDistanceDisplay}>
                 <Text style={styles.puttingDistanceLabel}>Putt Distance</Text>
@@ -979,8 +890,7 @@ const ShotTrackingScreen = () => {
                 )}
               </View>
             )}
-            
-            {/* Made It / Missed It / Cancel buttons */}
+
             <View style={styles.puttingButtonContainer}>
               <TouchableOpacity
                 style={[styles.puttingButton, styles.puttingButtonMade]}
@@ -989,7 +899,7 @@ const ShotTrackingScreen = () => {
                 <Icon name="check-circle" size={32} color="#fff" />
                 <Text style={styles.puttingButtonText}>Made It!</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.puttingButton, styles.puttingButtonMissed]}
                 onPress={handlePuttMissed}
@@ -997,7 +907,7 @@ const ShotTrackingScreen = () => {
                 <Icon name="close" size={32} color="#fff" />
                 <Text style={styles.puttingButtonText}>Missed It</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.puttingButton, styles.puttingButtonCancel]}
                 onPress={handlePuttCancel}
@@ -1007,147 +917,92 @@ const ShotTrackingScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
-        ) : !currentShotType ? (
-          // Show Shot Type buttons
+        ) : flowState === 'trouble' ? (
+          /* Trouble Classification */
           <View style={styles.buttonSection}>
-            <View style={styles.buttonRowFour}>
-              {SHOT_TYPES.ROW1.map((type) => (
-                <TouchableOpacity
-                  key={type.id}
-                  style={styles.typeButtonSquare}
-                  onPress={() => handleShotTypeSelection(type.label)}
-                >
-                  {type.iconType === 'material-community' ? (
-                    <MaterialCommunityIcons name={type.icon} size={24} color="#333" />
-                  ) : (
-                    <Icon name={type.icon} size={24} color="#333" />
-                  )}
-                  <Text style={styles.typeButtonLabel}>
-                    {type.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.troubleRow}>
+              <TouchableOpacity
+                style={[styles.troubleButton, styles.troubleRough]}
+                onPress={() => handleTroubleSelect('rough')}
+              >
+                <MaterialCommunityIcons name="grass" size={40} color="#fff" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.troubleButton, styles.troubleSand]}
+                onPress={() => handleTroubleSelect('sand')}
+              >
+                <Icon name="beach-access" size={40} color="#fff" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.troubleButton, styles.troubleHazard]}
+                onPress={() => handleTroubleSelect('hazard')}
+              >
+                <FontAwesome5 name="water" size={34} color="#fff" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.troubleButton, styles.troubleOB]}
+                onPress={() => handleTroubleSelect('ob')}
+              >
+                <Icon name="block" size={40} color="#fff" />
+              </TouchableOpacity>
             </View>
-            <View style={styles.buttonRowFour}>
-              {SHOT_TYPES.ROW2.map((type) => (
-                <TouchableOpacity
-                  key={type.id}
-                  style={styles.typeButtonSquare}
-                  onPress={() => handleShotTypeSelection(type.label)}
-                >
-                  {type.icon === 'close-circle-outline' ? (
-                    <Ionicons name={type.icon} size={24} color="#333" />
-                  ) : (
-                    <Icon name={type.icon} size={24} color="#333" />
-                  )}
-                  <Text style={styles.typeButtonLabel}>
-                    {type.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+
+            {/* Back button */}
+            <TouchableOpacity
+              style={styles.flowBackButton}
+              onPress={handleTroubleBack}
+            >
+              <Icon name="undo" size={22} color="#666" />
+              <Text style={styles.flowBackButtonText}>Back</Text>
+            </TouchableOpacity>
           </View>
         ) : (
-          // Show Shot Result buttons
+          /* Direction Selection */
           <View style={styles.buttonSection}>
-            <View style={styles.buttonRow}>
-              {SHOT_RESULTS.ROW1.map((result) => (
-                <TouchableOpacity
-                  key={result.id}
-                  style={[
-                    styles.resultButton,
-                    currentShotResults.includes(result.id) && styles.resultButtonActive
-                  ]}
-                  onPress={() => handleShotResultSelection(result.id)}
-                >
-                  <Icon 
-                    name={result.icon} 
-                    size={24} 
-                    color={currentShotResults.includes(result.id) ? '#fff' : '#333'} 
-                  />
-                </TouchableOpacity>
-              ))}
+            <View style={styles.directionRow}>
+              <TouchableOpacity
+                style={[styles.directionButton, styles.directionLeft]}
+                onPress={() => handleDirectionSelect('left')}
+              >
+                <Icon name="arrow-back" size={52} color="#fff" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.directionButton, styles.directionCenter]}
+                onPress={() => handleDirectionSelect('center')}
+              >
+                <Icon name="arrow-upward" size={52} color="#fff" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.directionButton, styles.directionRight]}
+                onPress={() => handleDirectionSelect('right')}
+              >
+                <Icon name="arrow-forward" size={52} color="#fff" />
+              </TouchableOpacity>
             </View>
-            
-            {/* Only show hazard/lost/OB for shots that are not putts or chips */}
-            {currentShotType !== 'Putt' && currentShotType !== 'Chip/Pitch' && (
-              <View style={styles.buttonRow}>
-                {SHOT_RESULTS.ROW2.map((result) => (
-                  <TouchableOpacity
-                    key={result.id}
-                    style={[
-                      styles.resultButton,
-                      currentShotResults.includes(result.id) && styles.resultButtonActive
-                    ]}
-                    onPress={() => handleShotResultSelection(result.id)}
-                  >
-                    {result.id === 'hazard' ? (
-                      <FontAwesome5 
-                        name="water" 
-                        size={20} 
-                        color={currentShotResults.includes(result.id) ? '#fff' : '#333'} 
-                      />
-                    ) : (
-                      <Icon 
-                        name={result.icon} 
-                        size={24} 
-                        color={currentShotResults.includes(result.id) ? '#fff' : '#333'} 
-                      />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
+
+            {/* On Green button - appears after first shot */}
+            {hasNonPuttShots && (
+              <TouchableOpacity
+                style={styles.onGreenButton}
+                onPress={handleOnGreen}
+              >
+                <Icon name="flag" size={28} color="#fff" />
+                <Text style={styles.onGreenText}>On Green</Text>
+              </TouchableOpacity>
             )}
-            
-            {/* Putt Distance Display for Putts */}
-            {currentShotType === 'Putt' && currentPuttDistance && (
-              <View style={styles.puttDistanceSection}>
-                <Text style={styles.puttDistanceLabel}>Putt Distance:</Text>
-                <View style={styles.puttDistanceDisplay}>
-                  <Text style={styles.puttDistanceValue}>{currentPuttDistance}</Text>
-                </View>
-              </View>
-            )}
-            
-            {/* Instruction text */}
-            <Text style={styles.instructionText}>
-              Select up to 2 results
-              {currentShotResults.length > 0 && ` (${currentShotResults.length} selected)`}
-            </Text>
-            
-            {/* Confirm button - full width and green */}
+
+            {/* Back button */}
             <TouchableOpacity
-              style={[
-                styles.confirmButtonFull,
-                currentShotResults.length === 0 && styles.confirmButtonDisabled
-              ]}
-              onPress={confirmShotWithResults}
-              disabled={currentShotResults.length === 0}
+              style={styles.flowBackButton}
+              onPress={() => navigation.goBack()}
             >
-              <View style={styles.confirmButtonContent}>
-                <Icon 
-                  name="check-circle" 
-                  size={24} 
-                  color={currentShotResults.length > 0 ? '#fff' : '#999'} 
-                />
-                <Text style={[
-                  styles.confirmButtonText,
-                  currentShotResults.length === 0 && { color: '#999' }
-                ]}>
-                  Confirm Shot
-                </Text>
-              </View>
-            </TouchableOpacity>
-            
-            {/* Cancel button */}
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => {
-                setCurrentShotType('');
-                setCurrentShotResults([]);
-              }}
-            >
-              <Text style={styles.cancelButtonText}>Cancel Shot</Text>
+              <Icon name="undo" size={22} color="#666" />
+              <Text style={styles.flowBackButtonText}>Back</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1173,10 +1028,10 @@ const ShotTrackingScreen = () => {
                     </View>
                   )}
                   <View style={styles.thumbnailBadge}>
-                    <Ionicons 
-                      name={media.type === 'photo' ? 'image' : 'videocam'} 
-                      size={10} 
-                      color="#fff" 
+                    <Ionicons
+                      name={media.type === 'photo' ? 'image' : 'videocam'}
+                      size={10}
+                      color="#fff"
                     />
                   </View>
                 </TouchableOpacity>
@@ -1202,54 +1057,51 @@ const ShotTrackingScreen = () => {
             <Text style={styles.parSelectorTitle}>Select Par for Hole {hole.holeNumber}</Text>
             <View style={styles.parSelectorButtons}>
               <TouchableOpacity
-                style={[styles.parButton, par === 3 && styles.parButtonActive]}
+                style={[styles.parSelectButton, par === 3 && styles.parSelectButtonActive]}
                 onPress={() => {
                   setPar(3);
                   autoSave(shots, 3);
                   setShowParSelector(false);
                 }}
               >
-                <Text style={[styles.parButtonText, par === 3 && styles.parButtonTextActive]}>Par 3</Text>
+                <Text style={[styles.parSelectButtonText, par === 3 && styles.parSelectButtonTextActive]}>Par 3</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.parButton, par === 4 && styles.parButtonActive]}
+                style={[styles.parSelectButton, par === 4 && styles.parSelectButtonActive]}
                 onPress={() => {
                   setPar(4);
                   autoSave(shots, 4);
                   setShowParSelector(false);
                 }}
               >
-                <Text style={[styles.parButtonText, par === 4 && styles.parButtonTextActive]}>Par 4</Text>
+                <Text style={[styles.parSelectButtonText, par === 4 && styles.parSelectButtonTextActive]}>Par 4</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.parButton, par === 5 && styles.parButtonActive]}
+                style={[styles.parSelectButton, par === 5 && styles.parSelectButtonActive]}
                 onPress={() => {
                   setPar(5);
                   autoSave(shots, 5);
                   setShowParSelector(false);
                 }}
               >
-                <Text style={[styles.parButtonText, par === 5 && styles.parButtonTextActive]}>Par 5</Text>
+                <Text style={[styles.parSelectButtonText, par === 5 && styles.parSelectButtonTextActive]}>Par 5</Text>
               </TouchableOpacity>
             </View>
           </View>
         </TouchableOpacity>
       </Modal>
 
-      {/* Distance to Hole Modal (for Putts) */}
+      {/* Distance to Hole Modal (for On Green) */}
       <Modal
         visible={showDistanceModal}
         transparent={true}
         animationType="slide"
         onRequestClose={() => {
           setShowDistanceModal(false);
-          if (currentShotType === 'Putt') {
-            setCurrentShotType('');
-            setDistanceToHole('');
-          }
+          setDistanceToHole('');
         }}
       >
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
         >
@@ -1258,16 +1110,11 @@ const ShotTrackingScreen = () => {
             activeOpacity={1}
             onPress={() => {
               setShowDistanceModal(false);
-              if (currentShotType === 'Putt') {
-                setCurrentShotType('');
-                setDistanceToHole('');
-              }
+              setDistanceToHole('');
             }}
           >
             <View style={[styles.parSelectorModal, { marginBottom: 100 }]}>
-              <Text style={styles.parSelectorTitle}>
-                {currentShotType === 'Putt' ? 'Putt Distance' : 'Distance to Hole'}
-              </Text>
+              <Text style={styles.parSelectorTitle}>Distance to Hole</Text>
               <View style={styles.distanceInputContainer}>
                 <TextInput
                   style={styles.distanceInput}
@@ -1284,10 +1131,7 @@ const ShotTrackingScreen = () => {
                   style={[styles.modalIconButton, styles.modalButtonCancel]}
                   onPress={() => {
                     setShowDistanceModal(false);
-                    if (currentShotType === 'Putt') {
-                      setCurrentShotType('');
-                      setDistanceToHole('');
-                    }
+                    setDistanceToHole('');
                   }}
                 >
                   <Icon name="close" size={32} color="#666" />
@@ -1304,9 +1148,7 @@ const ShotTrackingScreen = () => {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Update link removed - updates are now sent with each putt */}
-      
-      {/* Hide FAB save button during putting mode */}
+      {/* FAB save button - hidden during putting mode */}
       {!isPuttingMode && (
         <TouchableOpacity
           style={styles.fab}
@@ -1347,11 +1189,8 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 5,
   },
-  backButton: {
-    padding: 5,
-  },
-  saveIconButton: {
-    padding: 5,
+  headerLeft: {
+    width: 40,
   },
   headerCenter: {
     flex: 1,
@@ -1386,53 +1225,17 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.9)',
     fontSize: 12,
   },
-  parButtons: {
-    flexDirection: 'row',
-    gap: 5,
-  },
-  parButton: {
+  parHeaderButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-  },
-  parButtonActive: {
-    backgroundColor: '#fff',
-  },
-  parButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  parButtonTextActive: {
-    color: '#4CAF50',
-  },
-  strokeCount: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    minWidth: 25,
-    textAlign: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   mediaButtons: {
     flexDirection: 'row',
     gap: 12,
-  },
-  mediaButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 6,
-    borderRadius: 15,
-    position: 'relative',
-  },
-  mediaButtonLarge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 12,
-    borderRadius: 20,
-    position: 'relative',
-    minWidth: 50,
-    minHeight: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   mediaButtonCompact: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -1443,22 +1246,6 @@ const styles = StyleSheet.create({
     minHeight: 36,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  mediaBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#ff6b6b',
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mediaBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
   },
   mediaBadgeCompact: {
     position: 'absolute',
@@ -1480,6 +1267,22 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 10,
   },
+  savedDataIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 10,
+    gap: 6,
+  },
+  savedDataText: {
+    color: '#4CAF50',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Shot History
   shotHistory: {
     backgroundColor: '#fff',
     borderRadius: 10,
@@ -1499,20 +1302,6 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
   },
-  savedDataIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E9',
-    padding: 8,
-    borderRadius: 8,
-    marginBottom: 10,
-    gap: 6,
-  },
-  savedDataText: {
-    color: '#4CAF50',
-    fontSize: 12,
-    fontWeight: '600',
-  },
   clearAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1529,6 +1318,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+
+  // Current Shot Header
   currentShotHeader: {
     backgroundColor: '#fff',
     padding: 10,
@@ -1541,402 +1332,115 @@ const styles = StyleSheet.create({
     color: '#333',
     textAlign: 'center',
   },
+
+  // Button Section
   buttonSection: {
     backgroundColor: '#fff',
     borderRadius: 10,
-    padding: 10,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginVertical: 5,
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  buttonRowFour: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 5,
-    gap: 8,
-  },
-  typeButton: {
-    backgroundColor: '#f0f0f0',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    minWidth: 100,
-    maxWidth: 110,
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 45,
-  },
-  typeButtonSquare: {
-    backgroundColor: '#f0f0f0',
-    padding: 10,
-    borderRadius: 8,
-    flex: 1,
-    aspectRatio: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 75,
-  },
-  typeButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-  },
-  typeButtonLabel: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-    marginTop: 3,
-  },
-  resultButton: {
-    backgroundColor: '#f0f0f0',
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  resultButtonActive: {
-    backgroundColor: '#4CAF50',
-  },
-  confirmButton: {
-    backgroundColor: '#2196F3',
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  confirmButtonFull: {
-    backgroundColor: '#4CAF50',
     padding: 15,
-    borderRadius: 8,
-    marginTop: 10,
-    marginHorizontal: 0,
   },
-  confirmButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  confirmButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  confirmButtonDisabled: {
-    backgroundColor: '#e0e0e0',
-  },
-  cancelButton: {
-    backgroundColor: '#ff6b6b',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  instructionText: {
-    textAlign: 'center',
-    color: '#666',
-    fontSize: 12,
-    marginTop: 10,
-    fontStyle: 'italic',
-  },
-  resetButton: {
-    backgroundColor: '#ff6b6b',
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 10,
-    alignItems: 'center',
-  },
-  resetButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  footer: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-  saveButton: {
-    backgroundColor: '#4CAF50',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 10,
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  mediaThumbnailContainer: {
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-  },
-  mediaThumbnailList: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  mediaThumbnail: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    overflow: 'hidden',
-    position: 'relative',
-    backgroundColor: '#f0f0f0',
-  },
-  thumbnailImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  videoThumbnail: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#333',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  thumbnailBadge: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 10,
-    padding: 2,
-  },
-  puttDistanceSection: {
-    marginTop: 15,
-    paddingTop: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-  puttDistanceLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  puttDistanceDisplay: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 10,
-    alignSelf: 'center',
-  },
-  puttDistanceValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  puttDistanceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    gap: 10,
-  },
-  puttDistanceButton: {
-    flex: 1,
-    backgroundColor: '#f0f0f0',
-    padding: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  puttDistanceButtonActive: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
-  },
-  puttDistanceText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  puttDistanceSubtext: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  puttDistanceTextActive: {
-    color: '#fff',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  parSelectorModal: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 20,
-    width: '90%',
-    maxWidth: 400,
-  },
-  parSelectorTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  parSelectorButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    gap: 10,
-  },
-  headerLeft: {
-    width: 40,  // Same width as media buttons to keep center balanced
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 30,
-    right: 20,
-    backgroundColor: '#4CAF50',
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-  },
-  fabUpdate: {
-    bottom: 110,
-    backgroundColor: '#2196F3',
-    width: 100,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  fabText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-  distanceInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 10,
-    marginVertical: 15,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  distanceInput: {
-    flex: 1,
-    padding: 12,
-    fontSize: 18,
-    color: '#333',
-  },
-  distanceUnit: {
-    fontSize: 16,
-    color: '#666',
-    paddingRight: 15,
-    fontWeight: '600',
-  },
-  modalButtonContainer: {
+
+  // Direction Buttons (big!)
+  directionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 12,
-    marginTop: 10,
   },
-  modalButton: {
+  directionButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
+    aspectRatio: 1,
+    borderRadius: 16,
     justifyContent: 'center',
-    elevation: 2,
+    alignItems: 'center',
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    minHeight: 100,
   },
-  modalButtonCancel: {
-    backgroundColor: '#f0f0f0',
-    borderWidth: 1,
-    borderColor: '#ddd',
+  directionLeft: {
+    backgroundColor: '#2196F3',
   },
-  modalButtonSend: {
+  directionCenter: {
     backgroundColor: '#4CAF50',
   },
-  modalButtonCancelText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: '600',
+  directionRight: {
+    backgroundColor: '#2196F3',
   },
-  modalButtonSendText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  modalButtonRow: {
+
+  // On Green Button
+  onGreenButton: {
+    backgroundColor: '#4CAF50',
     flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    width: '100%',
-    gap: 15,
-    marginTop: 10,
-  },
-  modalIconButton: {
-    flex: 1,
-    paddingVertical: 16,
-    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 2,
+    padding: 18,
+    borderRadius: 12,
+    marginTop: 12,
+    gap: 10,
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
   },
-  updateLink: {
-    position: 'absolute',
-    bottom: 110,
-    right: 20,
+  onGreenText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+
+  // Flow Back Button
+  flowBackButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'transparent',
-    paddingVertical: 10,
-    paddingHorizontal: 15,
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    backgroundColor: '#f0f0f0',
     gap: 6,
   },
-  updateLinkText: {
-    color: '#2196F3',
-    fontSize: 16,
+  flowBackButtonText: {
+    color: '#666',
+    fontSize: 15,
     fontWeight: '600',
-    textDecorationLine: 'underline',
   },
+
+  // Trouble Buttons
+  troubleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  troubleButton: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    minHeight: 80,
+  },
+  troubleRough: {
+    backgroundColor: '#558B2F',
+  },
+  troubleSand: {
+    backgroundColor: '#F9A825',
+  },
+  troubleHazard: {
+    backgroundColor: '#1565C0',
+  },
+  troubleOB: {
+    backgroundColor: '#C62828',
+  },
+
+  // Putting Mode
   puttingDistanceDisplay: {
     alignItems: 'center',
     marginBottom: 20,
@@ -1990,6 +1494,163 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
+  },
+
+  // Media Thumbnails
+  mediaThumbnailContainer: {
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  mediaThumbnailList: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  mediaThumbnail: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#f0f0f0',
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  videoThumbnail: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  thumbnailBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 10,
+    padding: 2,
+  },
+
+  // Modals
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  parSelectorModal: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+  },
+  parSelectorTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  parSelectorButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    gap: 10,
+  },
+  parSelectButton: {
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  parSelectButtonActive: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  parSelectButtonText: {
+    color: '#333',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  parSelectButtonTextActive: {
+    color: '#fff',
+  },
+  distanceInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    marginVertical: 15,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  distanceInput: {
+    flex: 1,
+    padding: 12,
+    fontSize: 18,
+    color: '#333',
+  },
+  distanceUnit: {
+    fontSize: 16,
+    color: '#666',
+    paddingRight: 15,
+    fontWeight: '600',
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+    width: '100%',
+    gap: 15,
+    marginTop: 10,
+  },
+  modalIconButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  modalButtonCancel: {
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  modalButtonSend: {
+    backgroundColor: '#4CAF50',
+  },
+
+  // FAB
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    backgroundColor: '#4CAF50',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
   },
 });
 
