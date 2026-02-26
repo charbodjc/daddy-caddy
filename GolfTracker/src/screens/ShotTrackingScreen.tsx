@@ -25,6 +25,7 @@ import AIHoleAnalysisService from '../services/aiHoleAnalysis';
 import DatabaseService from '../services/database';
 import { GolfHole, MediaItem } from '../types';
 import { Toast, useToast } from '../components/Toast';
+import { calculateRunningRoundStats, formatRunningStatsForSMS } from '../utils/roundStats';
 
 interface Shot {
   stroke: number;
@@ -135,10 +136,30 @@ const ShotTrackingScreen = () => {
       currentStroke: currentShots.length + 1,
     };
 
+    // Derive stats from shot data
+    const puttShots = currentShots.filter(s => s.type === 'putt');
+    const puttsCount = puttShots.length;
+
+    let fairwayHit: boolean | undefined = undefined;
+    if (currentPar > 3) {
+      const teeShot = currentShots.find(s => s.type === 'tee');
+      if (teeShot) {
+        fairwayHit = teeShot.results.includes('target');
+      }
+    }
+
+    let greenInRegulation = false;
+    if (puttShots.length > 0) {
+      greenInRegulation = puttShots[0].stroke <= currentPar - 1;
+    }
+
     const updatedHole: GolfHole = {
       ...hole,
       par: currentPar,
       strokes: totalStrokes,
+      putts: puttsCount > 0 ? puttsCount : undefined,
+      fairwayHit,
+      greenInRegulation: puttShots.length > 0 ? greenInRegulation : undefined,
       shotData: JSON.stringify(shotData),
     };
 
@@ -417,6 +438,12 @@ const ShotTrackingScreen = () => {
       const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
       if (media.length > 0) {
         message += `\n\n\uD83D\uDCF8 ${media.length} photo${media.length !== 1 ? 's' : ''} captured`;
+      }
+
+      // Append running round stats
+      if (roundId) {
+        const runningStats = await calculateRunningRoundStats(roundId);
+        message += formatRunningStatsForSMS(runningStats);
       }
 
       const result = await SMSService.sendQuickUpdate(message);

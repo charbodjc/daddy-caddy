@@ -21,6 +21,7 @@ import AIHoleAnalysisService from '../services/aiHoleAnalysis';
 import SMSService from '../services/sms';
 import { GolfHole, MediaItem, Contact } from '../types';
 import { Toast, useToast } from '../components/Toast';
+import { calculateRunningRoundStats, formatRunningStatsForSMS } from '../utils/roundStats';
 
 const aiService = new AIHoleAnalysisService();
 
@@ -195,17 +196,25 @@ const HoleSummaryScreen = () => {
       showToast('Please add contacts in Settings first', 'error');
       return;
     }
-    
+
     // Calculate media counts
     const photos = mediaItems.filter(m => m.type === 'photo').length;
     const videos = mediaItems.filter(m => m.type === 'video').length;
-    
+
+    // Calculate running round stats
+    let runningStatsText = '';
+    if (roundId) {
+      const runningStats = await calculateRunningRoundStats(roundId);
+      runningStatsText = formatRunningStatsForSMS(runningStats);
+    }
+
     // Use SMS service to send the hole summary as a group text to all contacts
     const result = await SMSService.sendHoleSummary(
       hole,
       aiSummary,
       { photos, videos },
-      contacts
+      contacts,
+      runningStatsText
     );
     
     if (result.success) {

@@ -279,12 +279,13 @@ class SMSService {
     hole: any,
     aiSummary: string,
     mediaCount: { photos: number; videos: number },
-    contacts?: any[]
+    contacts?: any[],
+    runningStatsText?: string
   ): Promise<{ success: boolean; sent: boolean; errors: string[]; groupName?: string }> {
     // Create message with AI summary
     let message = `Hole ${hole.holeNumber} Update\n`;
     message += `${aiSummary}\n\n`;
-    
+
     // Add stats
     const diff = hole.strokes - hole.par;
     let scoreText = '';
@@ -296,13 +297,13 @@ class SMSService {
     else if (diff === 2) scoreText = 'Double Bogey';
     else if (diff === 3) scoreText = 'Triple Bogey';
     else scoreText = diff > 0 ? `+${diff}` : diff.toString();
-    
+
     message += `Score: ${hole.strokes} (${scoreText})\n`;
-    
+
     if (hole.shotData?.putts) {
       message += `Putts: ${hole.shotData.putts.length}\n`;
     }
-    
+
     // Add media info
     const totalMedia = mediaCount.photos + mediaCount.videos;
     if (totalMedia > 0) {
@@ -312,7 +313,12 @@ class SMSService {
       if (mediaCount.videos > 0) message += `${mediaCount.videos} video${mediaCount.videos !== 1 ? 's' : ''}`;
       message += ' attached';
     }
-    
+
+    // Add running round stats
+    if (runningStatsText) {
+      message += runningStatsText;
+    }
+
     if (contacts && contacts.length > 0) {
       // Use specified contacts
       const phoneNumbers = contacts.map(c => c.phoneNumber).join(',');
