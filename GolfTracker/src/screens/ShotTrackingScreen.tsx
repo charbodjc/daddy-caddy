@@ -25,6 +25,7 @@ import AIHoleAnalysisService from '../services/aiHoleAnalysis';
 import DatabaseService from '../services/database';
 import { GolfHole, MediaItem } from '../types';
 import { Toast, useToast } from '../components/Toast';
+import { calculateRunningRoundStats, formatRunningStatsForSMS } from '../utils/roundStats';
 
 // Shot types with icons - organized into 2 rows of 4
 const SHOT_TYPES = {
@@ -131,21 +132,42 @@ const ShotTrackingScreen = () => {
     // Otherwise, preserve the existing strokes value from the hole data
     // This prevents overwriting scores when just changing par or viewing the hole
     const totalStrokes = currentShots.length > 0 ? currentShots.length : (hole.strokes || 0);
-    
+
     const shotData = {
       par: currentPar,
       shots: currentShots.map(s => ({
         stroke: s.stroke,
         type: s.type,
         results: s.results,
+        ...(s.puttDistance ? { puttDistance: s.puttDistance } : {}),
       })),
       currentStroke: currentShots.length + 1,
     };
+
+    // Derive stats from shot data
+    const puttShots = currentShots.filter(s => s.type === 'putt');
+    const puttsCount = puttShots.length;
+
+    let fairwayHit: boolean | undefined = undefined;
+    if (currentPar > 3) {
+      const teeShot = currentShots.find(s => s.type === 'tee');
+      if (teeShot) {
+        fairwayHit = teeShot.results.includes('target');
+      }
+    }
+
+    let greenInRegulation = false;
+    if (puttShots.length > 0) {
+      greenInRegulation = puttShots[0].stroke <= currentPar - 1;
+    }
 
     const updatedHole: GolfHole = {
       ...hole,
       par: currentPar,
       strokes: totalStrokes,
+      putts: puttsCount > 0 ? puttsCount : undefined,
+      fairwayHit,
+      greenInRegulation: puttShots.length > 0 ? greenInRegulation : undefined,
       shotData: JSON.stringify(shotData),
     };
 
@@ -499,7 +521,13 @@ const ShotTrackingScreen = () => {
       if (media.length > 0) {
         message += `\n\n📸 ${media.length} photo${media.length !== 1 ? 's' : ''} captured`;
       }
-      
+
+      // Append running round stats
+      if (roundId) {
+        const runningStats = await calculateRunningRoundStats(roundId);
+        message += formatRunningStatsForSMS(runningStats);
+      }
+
       // Send SMS to default contact group
       const result = await SMSService.sendQuickUpdate(message);
       if (!result.success) {
