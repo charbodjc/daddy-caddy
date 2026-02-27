@@ -1,13 +1,48 @@
-export interface HoleShotData {
-  par: number;
-  teeShot?: string;
-  approach?: string;
-  chip?: string;
-  greensideBunker?: string;
-  fairwayBunker?: string;
-  troubleShot?: string;
-  putts: string[];
+// ── Shot type and result constants ──────────────────────────────
+// Single source of truth for all shot type/result string literals.
+// Use these constants instead of bare strings to prevent mismatches.
+
+export const SHOT_TYPES = {
+  TEE_SHOT: 'Tee Shot',
+  APPROACH: 'Approach',
+  PUTT: 'Putt',
+  PENALTY: 'Penalty',
+} as const;
+
+export type ShotType = typeof SHOT_TYPES[keyof typeof SHOT_TYPES];
+
+export const SHOT_RESULTS = {
+  LEFT: 'left',
+  RIGHT: 'right',
+  CENTER: 'center',
+  GREEN: 'green',
+  ROUGH: 'rough',
+  SAND: 'sand',
+  HAZARD: 'hazard',
+  OB: 'ob',
+  MADE: 'made',
+  MISSED: 'missed',
+} as const;
+
+export type ShotResult = typeof SHOT_RESULTS[keyof typeof SHOT_RESULTS];
+
+// ── Shot data structures ───────────────────────────────────────
+// This is the actual format stored by ShotTrackingScreen in the DB.
+
+export interface TrackedShot {
+  stroke: number;
+  type: string; // ShotType at write time, but historical data may have variants
+  results: string[]; // ShotResult at write time, but historical data may have variants
+  puttDistance?: string;
 }
+
+export interface ShotData {
+  par: number;
+  shots: TrackedShot[];
+  currentStroke: number;
+}
+
+// ── Core domain interfaces ─────────────────────────────────────
 
 export interface GolfHole {
   holeNumber: number;
@@ -18,7 +53,7 @@ export interface GolfHole {
   putts?: number;
   notes?: string;
   mediaUrls?: string[];
-  shotData?: HoleShotData;
+  shotData?: ShotData;
 }
 
 export interface GolfRound {
@@ -83,32 +118,3 @@ export interface Statistics {
   bogeys: number;
   doubleBogeyOrWorse: number;
 }
-
-// Shot tracking options
-export const TEE_SHOT_OPTIONS_PAR3 = [
-  'Left', 'Right', 'Short', 'Long', 'On Green', 'Bunker'
-];
-
-export const TEE_SHOT_OPTIONS_PAR45 = [
-  'Left', 'Fairway', 'Right', 'Bunker', 'Hazard'
-];
-
-export const APPROACH_OPTIONS = [
-  'Left', 'Right', 'Green', 'Long', 'Short'
-];
-
-export const CHIP_OPTIONS = [
-  'Left', 'Right', 'Long', 'Short', 'On Target'
-];
-
-export const BUNKER_OPTIONS = [
-  'Long', 'Short', 'Right', 'Left', 'On Target'
-];
-
-export const TROUBLE_SHOT_OPTIONS = [
-  'Long', 'Short', 'Left', 'Right', 'On Target'
-];
-
-export const PUTT_OPTIONS = [
-  'Long', 'Short', 'High', 'Low', 'On Target', 'In Hole'
-];

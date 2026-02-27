@@ -1,18 +1,9 @@
 import DatabaseService from '../services/database';
+import { TrackedShot, ShotData, SHOT_TYPES, SHOT_RESULTS } from '../types';
 
-// Interface matching the actual shot data format stored in DB by ShotTrackingScreen
-interface StoredShot {
-  stroke: number;
-  type: string;
-  results: string[];
-  puttDistance?: string;
-}
-
-interface StoredShotData {
-  par: number;
-  shots: StoredShot[];
-  currentStroke: number;
-}
+// Keep local aliases for backward compat within this file
+type StoredShot = TrackedShot;
+type StoredShotData = ShotData;
 
 export interface RunningRoundStats {
   totalPutts: number;
@@ -30,7 +21,7 @@ export interface RunningRoundStats {
 /**
  * Parse the JSON shotData string into the stored format.
  */
-export function parseShotData(shotData: any): StoredShotData | null {
+export function parseShotData(shotData: unknown): StoredShotData | null {
   if (!shotData) return null;
   try {
     const data = typeof shotData === 'string' ? JSON.parse(shotData) : shotData;
@@ -47,15 +38,18 @@ export function parseShotData(shotData: any): StoredShotData | null {
  * Derive hole-level stats from parsed shot data.
  */
 export function deriveHoleStats(shotData: StoredShotData, par: number) {
-  const puttShots = shotData.shots.filter(s => s.type === 'putt');
+  // Match putts case-insensitively for backward compat with historical data
+  const puttShots = shotData.shots.filter(s => s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase());
   const puttsCount = puttShots.length;
 
-  // Fairway hit: par > 3 AND first tee shot result includes 'target'
+  // Fairway hit: par > 3 AND tee shot result is 'center' (or legacy 'target')
   let fairwayHit: boolean | undefined = undefined;
   if (par > 3) {
-    const teeShot = shotData.shots.find(s => s.type === 'tee');
+    const teeShot = shotData.shots.find(s =>
+      s.type === SHOT_TYPES.TEE_SHOT || s.type?.toLowerCase() === 'tee'
+    );
     if (teeShot) {
-      fairwayHit = teeShot.results.includes('target');
+      fairwayHit = teeShot.results.includes(SHOT_RESULTS.CENTER) || teeShot.results.includes('target');
     }
   }
 

@@ -11,7 +11,7 @@ interface Contact {
   phoneNumber: string;
 }
 
-const ContactsScreen = () => {
+const ContactsScreen = ({ navigation }: { navigation: { goBack: () => void } }) => {
   const [phoneContacts, setPhoneContacts] = useState<Contact[]>([]);
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [groupName, setGroupName] = useState<string>('');
@@ -186,10 +186,31 @@ const ContactsScreen = () => {
     }
   };
 
+  const headerWithBack = (
+    <View style={styles.header}>
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}
+        accessibilityRole="button"
+        accessibilityLabel="Go back to Settings"
+      >
+        <Icon name="arrow-left" size={18} color="#fff" />
+        <Text style={styles.backButtonText}>Settings</Text>
+      </TouchableOpacity>
+      <Text style={styles.headerText}>Default SMS Group</Text>
+      <Text style={styles.headerSubtext}>
+        Select SMS-capable contacts from your phone
+      </Text>
+    </View>
+  );
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+      <View style={styles.container}>
+        {headerWithBack}
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+        </View>
       </View>
     );
   }
@@ -197,6 +218,7 @@ const ContactsScreen = () => {
   if (!hasPermission) {
     return (
       <View style={styles.container}>
+        {headerWithBack}
         <View style={styles.permissionContainer}>
           <Icon name="address-book" size={64} color="#ddd" />
           <Text style={styles.permissionTitle}>Contacts Access Required</Text>
@@ -217,12 +239,7 @@ const ContactsScreen = () => {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerText}>Default SMS Group</Text>
-        <Text style={styles.headerSubtext}>
-          Select SMS-capable contacts from your phone
-        </Text>
-      </View>
+      {headerWithBack}
 
       {/* Group Name */}
       <View style={styles.groupNameCard}>
@@ -368,6 +385,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+    minHeight: 44,
+    paddingRight: 16,
+  },
+  backButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
   },
   header: {
     backgroundColor: '#4CAF50',

@@ -19,9 +19,10 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import DatabaseService from '../services/database';
 import AIHoleAnalysisService from '../services/aiHoleAnalysis';
 import SMSService from '../services/sms';
-import { GolfHole, MediaItem, Contact } from '../types';
+import { GolfHole, MediaItem, Contact, ShotData, SHOT_TYPES, SHOT_RESULTS } from '../types';
 import { Toast, useToast } from '../components/Toast';
 import { calculateRunningRoundStats, formatRunningStatsForSMS } from '../utils/roundStats';
+import { getResultLabel } from '../utils/shotLabels';
 
 const aiService = new AIHoleAnalysisService();
 
@@ -119,76 +120,52 @@ const HoleSummaryScreen = () => {
 
   const formatShotData = () => {
     if (!hole.shotData) return [];
-    
-    const shots = [];
-    const data = hole.shotData;
 
-    if (data.teeShot) {
-      shots.push({ 
-        type: hole.par === 3 ? 'Tee Shot' : 'Drive', 
-        result: data.teeShot,
-        icon: 'golf-course',
-        color: data.teeShot === 'Fairway' || data.teeShot === 'On Green' ? '#4CAF50' : '#FF9800'
-      });
-    }
+    // Parse shot data (DB layer may return object or JSON string)
+    let data: ShotData | null = null;
+    try {
+      data = typeof hole.shotData === 'string'
+        ? JSON.parse(hole.shotData)
+        : hole.shotData;
+    } catch { /* ignore */ }
 
-    if (data.approach) {
-      shots.push({ 
-        type: 'Approach', 
-        result: data.approach,
-        icon: 'flag',
-        color: data.approach === 'Green' ? '#4CAF50' : '#FF9800'
-      });
-    }
+    if (!data?.shots || !Array.isArray(data.shots)) return [];
 
-    if (data.chip) {
-      shots.push({ 
-        type: 'Chip', 
-        result: data.chip,
-        icon: 'sports-golf',
-        color: data.chip === 'On Target' ? '#4CAF50' : '#FF9800'
-      });
-    }
 
-    if (data.greensideBunker) {
-      shots.push({ 
-        type: 'Greenside Bunker', 
-        result: data.greensideBunker,
-        icon: 'landscape',
-        color: data.greensideBunker === 'On Target' ? '#4CAF50' : '#F4B400'
-      });
-    }
+    const shotColor = (shot: { type: string; results: string[] }): string => {
+      if (shot.results.includes(SHOT_RESULTS.CENTER) || shot.results.includes(SHOT_RESULTS.GREEN) || shot.results.includes(SHOT_RESULTS.MADE)) {
+        return '#4CAF50';
+      }
+      if (shot.results.includes(SHOT_RESULTS.OB) || shot.results.includes(SHOT_RESULTS.HAZARD)) {
+        return '#F44336';
+      }
+      if (shot.results.includes(SHOT_RESULTS.SAND)) {
+        return '#F4B400';
+      }
+      if (shot.type === SHOT_TYPES.PENALTY) {
+        return '#F44336';
+      }
+      return '#FF9800';
+    };
 
-    if (data.fairwayBunker) {
-      shots.push({ 
-        type: 'Fairway Bunker', 
-        result: data.fairwayBunker,
-        icon: 'landscape',
-        color: data.fairwayBunker === 'On Target' ? '#4CAF50' : '#DB4437'
-      });
-    }
+    const shotIcon = (type: string): string => {
+      if (type === SHOT_TYPES.TEE_SHOT) return 'golf-course';
+      if (type === SHOT_TYPES.APPROACH) return 'flag';
+      if (type === SHOT_TYPES.PUTT) return 'flag';
+      if (type === SHOT_TYPES.PENALTY) return 'warning';
+      return 'sports-golf';
+    };
 
-    if (data.troubleShot) {
-      shots.push({ 
-        type: 'Recovery', 
-        result: data.troubleShot,
-        icon: 'warning',
-        color: data.troubleShot === 'On Target' ? '#4CAF50' : '#9C27B0'
-      });
-    }
-
-    if (data.putts && data.putts.length > 0) {
-      data.putts.forEach((putt, index) => {
-        shots.push({ 
-          type: `Putt ${index + 1}`, 
-          result: putt,
-          icon: 'flag',
-          color: putt === 'In Hole' ? '#4CAF50' : '#0F9D58'
-        });
-      });
-    }
-
-    return shots;
+    return data.shots.map(shot => {
+      const result = shot.results.map(getResultLabel).join(', ');
+      const dist = shot.puttDistance ? ` (${shot.puttDistance})` : '';
+      return {
+        type: shot.type,
+        result: `${result}${dist}`,
+        icon: shotIcon(shot.type),
+        color: shotColor(shot),
+      };
+    });
   };
 
   const sendSMSUpdate = async () => {

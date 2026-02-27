@@ -1,8 +1,27 @@
 import { Platform, Linking } from 'react-native';
 import * as SMS from 'expo-sms';
-import { GolfRound, MediaItem } from '../types';
+import { GolfRound, GolfHole, MediaItem, Contact, SHOT_TYPES } from '../types';
 import AIService from './ai';
 import DatabaseService from './database';
+
+interface RoundStats {
+  totalScore: number;
+  scoreVsPar: string;
+  eagles: number;
+  birdies: number;
+  pars: number;
+  bogeys: number;
+  doubleBogeys: number;
+  fairwaysHit: number;
+  greensInRegulation: number;
+  totalPutts: number;
+  playedHoles?: number;
+}
+
+interface SavedContact {
+  name: string;
+  phoneNumber: string;
+}
 
 class SMSService {
   async sendRoundSummary(
@@ -62,9 +81,23 @@ class SMSService {
         return { success: false, sent: false };
       }
 
-      // Use Linking to open Messages app directly instead of the in-app SMS composer.
-      // This avoids showing all individual recipients in the composer "To:" field,
-      // and if an existing group conversation exists, Messages will show the group name.
+      // Use expo-sms sendSMSAsync which passes the message body directly to the
+      // native SMS composer without URL encoding. The Linking.openURL approach with
+      // sms: URLs causes iOS to display raw percent-encoded text (%20, %0A, etc.)
+      // instead of readable characters — especially with longer messages and emojis.
+      const isAvailable = await SMS.isAvailableAsync();
+      if (isAvailable) {
+        const result = await SMS.sendSMSAsync(recipientArray, body);
+        // On iOS: result is 'sent' or 'cancelled'
+        // On Android: result is always 'unknown' (platform limitation)
+        const wasSent = result.result === 'sent' || result.result === 'unknown';
+        return {
+          success: true,
+          sent: wasSent,
+        };
+      }
+
+      // Fallback to sms: URL scheme if expo-sms is not available
       const addresses = recipientArray.join(',');
       const encodedBody = encodeURIComponent(body);
       const separator = Platform.OS === 'ios' ? '&' : '?';
@@ -76,18 +109,8 @@ class SMSService {
         return { success: true, sent: true };
       }
 
-      // Fallback to in-app SMS composer if Linking is not available
-      const isAvailable = await SMS.isAvailableAsync();
-      if (!isAvailable) {
-        console.warn('SMS is not available on this device');
-        return { success: false, sent: false };
-      }
-
-      const result = await SMS.sendSMSAsync(recipientArray, body);
-      return {
-        success: true,
-        sent: result.result === 'sent',
-      };
+      console.warn('SMS is not available on this device');
+      return { success: false, sent: false };
     } catch (error) {
       console.error('Error opening SMS:', error);
       return { success: false, sent: false };
@@ -149,7 +172,7 @@ class SMSService {
 
   private formatMessage(
     round: GolfRound,
-    stats: any,
+    stats: RoundStats,
     aiAnalysis: string,
     mediaItems: MediaItem[]
   ): string {
@@ -276,10 +299,10 @@ class SMSService {
   }
 
   async sendHoleSummary(
-    hole: any,
+    hole: GolfHole,
     aiSummary: string,
     mediaCount: { photos: number; videos: number },
-    contacts?: any[],
+    contacts?: Contact[],
     runningStatsText?: string
   ): Promise<{ success: boolean; sent: boolean; errors: string[]; groupName?: string }> {
     // Create message with AI summary
@@ -300,8 +323,19 @@ class SMSService {
 
     message += `Score: ${hole.strokes} (${scoreText})\n`;
 
-    if (hole.shotData?.putts) {
-      message += `Putts: ${hole.shotData.putts.length}\n`;
+    // Derive putt count from shots array (putts are shots with type 'Putt')
+    if (hole.shotData) {
+      try {
+        const parsed = typeof hole.shotData === 'string' ? JSON.parse(hole.shotData) : hole.shotData;
+        if (parsed?.shots && Array.isArray(parsed.shots)) {
+          const puttCount = parsed.shots.filter((s: { type: string }) => s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase()).length;
+          if (puttCount > 0) {
+            message += `Putts: ${puttCount}\n`;
+          }
+        }
+      } catch {
+        // shotData not parseable, skip putt count
+      }
     }
 
     // Add media info
@@ -346,10 +380,10 @@ class SMSService {
       if (Array.isArray(contacts)) {
         // Extract phone numbers from contact objects
         const phoneNumbers = contacts
-          .map((c: any) => c.phoneNumber)
+          .map((c: SavedContact) => c.phoneNumber)
           .filter(Boolean)
           .join(',');
-        console.log(`📱 Loaded ${contacts.length} contacts from JSON: ${contacts.map((c: any) => c.name).join(', ')}`);
+        console.log(`📱 Loaded ${contacts.length} contacts from JSON: ${contacts.map((c: SavedContact) => c.name).join(', ')}`);
         return phoneNumbers;
       }
     } catch {

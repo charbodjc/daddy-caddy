@@ -25,13 +25,12 @@ import { useRoundStore } from '../stores/roundStore';
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import {
-  TEE_SHOT_OPTIONS_PAR3,
-  TEE_SHOT_OPTIONS_PAR45,
-  APPROACH_OPTIONS,
-  CHIP_OPTIONS,
-  PUTT_OPTIONS,
-} from '../types';
+// Legacy shot option arrays (this file is unused — kept for reference only)
+const TEE_SHOT_OPTIONS_PAR3 = ['Left', 'Right', 'Short', 'Long', 'On Green', 'Bunker'];
+const TEE_SHOT_OPTIONS_PAR45 = ['Left', 'Fairway', 'Right', 'Bunker', 'Hazard'];
+const APPROACH_OPTIONS = ['Left', 'Right', 'Green', 'Long', 'Short'];
+const CHIP_OPTIONS = ['Left', 'Right', 'Long', 'Short', 'On Target'];
+const PUTT_OPTIONS = ['Long', 'Short', 'High', 'Low', 'On Target', 'In Hole'];
 
 interface RouteParams {
   hole: any;

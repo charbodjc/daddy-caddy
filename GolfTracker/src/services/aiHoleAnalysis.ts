@@ -1,4 +1,5 @@
-import { GolfHole, HoleShotData, MediaItem } from '../types';
+import { GolfHole, ShotData, MediaItem, SHOT_TYPES, SHOT_RESULTS } from '../types';
+import { getResultLabel } from '../utils/shotLabels';
 import Config from 'react-native-config';
 
 class AIHoleAnalysisService {
@@ -68,7 +69,7 @@ class AIHoleAnalysisService {
       `;
 
       const response = await this.openai.chat.completions.create({
-        model: (Config.OPENAI_MODEL || 'gpt-5') as any,
+        model: (Config.OPENAI_MODEL || 'gpt-5') as string,
         messages: [
           {
             role: 'system',
@@ -95,54 +96,29 @@ class AIHoleAnalysisService {
       return `Completed in ${hole.strokes} strokes`;
     }
 
-    const shots: string[] = [];
-    const data = hole.shotData;
-
-    // Tee shot
-    if (data.teeShot) {
-      if (hole.par === 3) {
-        shots.push(`Tee shot: ${data.teeShot}`);
-      } else {
-        shots.push(`Drive: ${data.teeShot}`);
-      }
+    const data = this.parseShotData(hole.shotData);
+    if (!data || !data.shots || data.shots.length === 0) {
+      return `Completed in ${hole.strokes} strokes`;
     }
 
-    // Approach
-    if (data.approach) {
-      shots.push(`Approach: ${data.approach}`);
+    const lines: string[] = [];
+    for (const shot of data.shots) {
+      const resultDesc = shot.results.map(getResultLabel).join(', ');
+      const distSuffix = shot.puttDistance ? ` (${shot.puttDistance})` : '';
+      lines.push(`${shot.type}: ${resultDesc}${distSuffix}`);
     }
 
-    // Short game
-    if (data.chip) {
-      shots.push(`Chip: ${data.chip}`);
-    }
-
-    // Bunker shots
-    if (data.greensideBunker) {
-      shots.push(`Greenside bunker: ${data.greensideBunker}`);
-    }
-    if (data.fairwayBunker) {
-      shots.push(`Fairway bunker: ${data.fairwayBunker}`);
-    }
-
-    // Trouble shot
-    if (data.troubleShot) {
-      shots.push(`Recovery: ${data.troubleShot}`);
-    }
-
-    // Putting
-    if (data.putts && data.putts.length > 0) {
-      const puttCount = data.putts.length;
-      const puttDetails = data.putts.join(', ');
-      if (puttCount === 1) {
-        shots.push(`One putt: ${puttDetails}`);
-      } else {
-        shots.push(`${puttCount} putts: ${puttDetails}`);
-      }
-    }
-
-    return shots.join('\n');
+    return lines.join('\n');
   }
+
+  private parseShotData(raw: ShotData | string): ShotData | null {
+    try {
+      const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (data && Array.isArray(data.shots)) return data as ShotData;
+    } catch { /* ignore */ }
+    return null;
+  }
+
 
   private analyzePerformance(hole: GolfHole): string {
     const analysis: string[] = [];
@@ -163,14 +139,19 @@ class AIHoleAnalysisService {
 
     // Shot analysis
     if (hole.shotData) {
-      if (hole.par > 3 && hole.shotData.teeShot === 'Fairway') {
-        analysis.push('Fairway hit off the tee');
-      }
-      if (hole.greenInRegulation) {
-        analysis.push('Green in regulation');
-      }
-      if (hole.shotData.putts && hole.shotData.putts.length === 1) {
-        analysis.push('One-putt finish!');
+      const data = this.parseShotData(hole.shotData);
+      if (data) {
+        const teeShot = data.shots.find(s => s.type === SHOT_TYPES.TEE_SHOT);
+        if (hole.par > 3 && teeShot?.results.includes(SHOT_RESULTS.CENTER)) {
+          analysis.push('Fairway hit off the tee');
+        }
+        if (hole.greenInRegulation) {
+          analysis.push('Green in regulation');
+        }
+        const putts = data.shots.filter(s => s.type === SHOT_TYPES.PUTT);
+        if (putts.length === 1) {
+          analysis.push('One-putt finish!');
+        }
       }
     }
 
@@ -220,32 +201,32 @@ class AIHoleAnalysisService {
     let summary = `Hole ${hole.holeNumber}: ${score} `;
     
     if (hole.shotData) {
-      const data = hole.shotData;
-      
-      // Add key shot details
-      if (hole.par > 3 && data.teeShot === 'Fairway') {
-        summary += '⛳ Fairway hit! ';
-      } else if (hole.par === 3 && data.teeShot === 'On Green') {
-        summary += '🎯 Green in one! ';
-      }
-      
-      if (hole.greenInRegulation) {
-        summary += '🟢 GIR ';
-      }
-      
-      if (data.putts && data.putts.length === 1) {
-        summary += '🏌️ One-putt! ';
-      } else if (data.putts && data.putts.length > 2) {
-        summary += `${data.putts.length} putts `;
-      }
-      
-      // Add drama
-      if (data.greensideBunker || data.fairwayBunker) {
-        summary += '🏖️ Sand save ';
-      }
-      
-      if (data.troubleShot) {
-        summary += '💪 Great recovery ';
+      const shotData = this.parseShotData(hole.shotData);
+      if (shotData) {
+        const teeShot = shotData.shots.find(s => s.type === SHOT_TYPES.TEE_SHOT);
+        const putts = shotData.shots.filter(s => s.type === SHOT_TYPES.PUTT);
+        const hasSand = shotData.shots.some(s => s.results.includes(SHOT_RESULTS.SAND));
+
+        // Add key shot details
+        if (hole.par > 3 && teeShot?.results.includes(SHOT_RESULTS.CENTER)) {
+          summary += '⛳ Fairway hit! ';
+        } else if (hole.par === 3 && teeShot?.results.includes(SHOT_RESULTS.GREEN)) {
+          summary += '🎯 Green in one! ';
+        }
+
+        if (hole.greenInRegulation) {
+          summary += '🟢 GIR ';
+        }
+
+        if (putts.length === 1) {
+          summary += '🏌️ One-putt! ';
+        } else if (putts.length > 2) {
+          summary += `${putts.length} putts `;
+        }
+
+        if (hasSand) {
+          summary += '🏖️ Sand save ';
+        }
       }
     }
     

@@ -23,16 +23,12 @@ import SMSService from '../services/sms';
 import Share from 'react-native-share';
 import AIHoleAnalysisService from '../services/aiHoleAnalysis';
 import DatabaseService from '../services/database';
-import { GolfHole, MediaItem } from '../types';
+import { GolfHole, MediaItem, TrackedShot, ShotData, SHOT_TYPES, SHOT_RESULTS } from '../types';
 import { Toast, useToast } from '../components/Toast';
 import { calculateRunningRoundStats, formatRunningStatsForSMS } from '../utils/roundStats';
+import { getResultLabel } from '../utils/shotLabels';
 
-interface Shot {
-  stroke: number;
-  type: string;
-  results: string[];
-  puttDistance?: string;
-}
+type Shot = TrackedShot;
 
 // Flow phases for the streamlined tracking
 type FlowPhase = 'direction' | 'classification' | 'putting_distance' | 'putting_mode';
@@ -48,7 +44,10 @@ const ShotTrackingScreen = () => {
   const loadSavedShotData = () => {
     if (hole.shotData) {
       try {
-        const savedData = JSON.parse(hole.shotData);
+        // DB layer may return parsed object or raw JSON string
+        const savedData: ShotData = typeof hole.shotData === 'string'
+          ? JSON.parse(hole.shotData)
+          : hole.shotData;
         return {
           par: savedData.par || hole.par || 4,
           shots: savedData.shots || [],
@@ -60,7 +59,7 @@ const ShotTrackingScreen = () => {
     }
     return {
       par: hole.par || 4,
-      shots: [],
+      shots: [] as Shot[],
       currentStroke: 1,
     };
   };
@@ -104,9 +103,9 @@ const ShotTrackingScreen = () => {
   // Infer shot type based on stroke number and par
   const inferShotType = (strokeNum: number): string => {
     if (strokeNum === 1) {
-      return par === 3 ? 'Approach' : 'Tee Shot';
+      return par === 3 ? SHOT_TYPES.APPROACH : SHOT_TYPES.TEE_SHOT;
     }
-    return 'Approach';
+    return SHOT_TYPES.APPROACH;
   };
 
   // Get the score name for a given number of strokes vs par
@@ -137,14 +136,14 @@ const ShotTrackingScreen = () => {
     };
 
     // Derive stats from shot data
-    const puttShots = currentShots.filter(s => s.type === 'putt');
+    const puttShots = currentShots.filter(s => s.type === SHOT_TYPES.PUTT);
     const puttsCount = puttShots.length;
 
     let fairwayHit: boolean | undefined = undefined;
     if (currentPar > 3) {
-      const teeShot = currentShots.find(s => s.type === 'tee');
+      const teeShot = currentShots.find(s => s.type === SHOT_TYPES.TEE_SHOT);
       if (teeShot) {
-        fairwayHit = teeShot.results.includes('target');
+        fairwayHit = teeShot.results.includes(SHOT_RESULTS.CENTER);
       }
     }
 
@@ -160,7 +159,7 @@ const ShotTrackingScreen = () => {
       putts: puttsCount > 0 ? puttsCount : undefined,
       fairwayHit,
       greenInRegulation: puttShots.length > 0 ? greenInRegulation : undefined,
-      shotData: JSON.stringify(shotData),
+      shotData,
     };
 
     await onSave(updatedHole);
@@ -204,8 +203,8 @@ const ShotTrackingScreen = () => {
     if (addPenalty) {
       const penaltyShot: Shot = {
         stroke: nextStroke,
-        type: 'Penalty',
-        results: results.includes('hazard') ? ['hazard'] : ['ob'],
+        type: SHOT_TYPES.PENALTY,
+        results: results.includes(SHOT_RESULTS.HAZARD) ? [SHOT_RESULTS.HAZARD] : [SHOT_RESULTS.OB],
       };
       newShots = [...newShots, penaltyShot];
       nextStroke += 1;
@@ -227,9 +226,9 @@ const ShotTrackingScreen = () => {
 
   // Handle direction selection (Left / Center / Right)
   const handleDirectionSelect = (direction: string) => {
-    if (direction === 'center') {
+    if (direction === SHOT_RESULTS.CENTER) {
       // Center = fairway/on target, shot complete
-      recordShot(['center']);
+      recordShot([SHOT_RESULTS.CENTER]);
     } else {
       // Left or Right - need further classification
       setPendingDirection(direction);
@@ -240,7 +239,7 @@ const ShotTrackingScreen = () => {
   // Handle classification selection (Rough / Sand / Hazard / OB)
   const handleClassificationSelect = (classification: string) => {
     const results = [pendingDirection, classification];
-    const addPenalty = classification === 'hazard' || classification === 'ob';
+    const addPenalty = classification === SHOT_RESULTS.HAZARD || classification === SHOT_RESULTS.OB;
     recordShot(results, addPenalty);
   };
 
@@ -251,7 +250,7 @@ const ShotTrackingScreen = () => {
     const newShot: Shot = {
       stroke: currentStroke,
       type: shotType,
-      results: ['green'],
+      results: [SHOT_RESULTS.GREEN],
     };
     const newShots = [...shots, newShot];
     setShots(newShots);
@@ -325,23 +324,6 @@ const ShotTrackingScreen = () => {
     setPuttingStrokes(0);
   };
 
-  // Get human-readable label for a result
-  const getResultLabel = (resultId: string): string => {
-    switch (resultId) {
-      case 'left': return 'Left';
-      case 'right': return 'Right';
-      case 'center': return 'Center';
-      case 'rough': return 'Rough';
-      case 'sand': return 'Sand';
-      case 'hazard': return 'Hazard';
-      case 'ob': return 'OB';
-      case 'green': return 'On Green';
-      case 'missed': return 'Missed';
-      case 'made': return 'Made';
-      default: return resultId;
-    }
-  };
-
   // Get emoji for a result
   const getResultEmoji = (resultId: string): string => {
     switch (resultId) {
@@ -363,22 +345,25 @@ const ShotTrackingScreen = () => {
   const handlePuttMissed = () => {
     const missedPutt: Shot = {
       stroke: currentStroke,
-      type: 'Putt',
-      results: ['missed'],
+      type: SHOT_TYPES.PUTT,
+      results: [SHOT_RESULTS.MISSED],
       puttDistance: currentPuttDistance,
     };
 
-    setShots([...shots, missedPutt]);
+    const newShots = [...shots, missedPutt];
+    setShots(newShots);
     setCurrentStroke(currentStroke + 1);
     setPuttingStrokes(puttingStrokes + 1);
+
+    autoSave(newShots, par);
   };
 
   // Handler for "Made It" button in putting mode
   const handlePuttMade = async () => {
     const madePutt: Shot = {
       stroke: currentStroke,
-      type: 'Putt',
-      results: ['made'],
+      type: SHOT_TYPES.PUTT,
+      results: [SHOT_RESULTS.MADE],
       puttDistance: currentPuttDistance,
     };
 
@@ -394,24 +379,51 @@ const ShotTrackingScreen = () => {
 
     await autoSave(newShots, par);
 
+    // Check if SMS recipients are configured
+    const defaultGroup = await DatabaseService.getPreference('default_sms_group');
+    if (!defaultGroup || defaultGroup.trim() === '') {
+      // No recipients configured — just finish the hole
+      navigation.goBack();
+      return;
+    }
+
+    // Ask user if they want to send an update
+    Alert.alert(
+      'Send Hole Update?',
+      'Send SMS update to your group?',
+      [
+        {
+          text: 'Skip',
+          style: 'cancel',
+          onPress: () => navigation.goBack(),
+        },
+        {
+          text: 'Send',
+          onPress: () => sendHoleCompletionSMS(newShots, totalPutts),
+        },
+      ],
+      { cancelable: false }
+    );
+  };
+
+  // Compose and send SMS after hole completion
+  const sendHoleCompletionSMS = async (completedShots: Shot[], totalPutts: number) => {
     const runningScore = await calculateRunningScore();
-    const currentHoleScore = newShots.length - par;
+    const currentHoleScore = completedShots.length - par;
     const totalRunningScore = (runningScore || 0) + currentHoleScore;
 
-    const scoreName = getScoreName(newShots.length, par);
+    const scoreName = getScoreName(completedShots.length, par);
     const scoreEmoji = (() => {
-      const diff = newShots.length - par;
+      const diff = completedShots.length - par;
       if (diff <= -2) return ' \uD83E\uDD85';
       if (diff === -1) return ' \uD83D\uDC26';
       if (diff === 0) return ' \u2705';
       return '';
     })();
 
-    const defaultGroup = await DatabaseService.getPreference('default_sms_group');
-
     try {
       let message = `Hole ${hole.holeNumber} - Par ${par}\n`;
-      message += `Score: ${newShots.length} (${scoreName}${scoreEmoji})\n`;
+      message += `Score: ${completedShots.length} (${scoreName}${scoreEmoji})\n`;
 
       if (totalRunningScore !== undefined) {
         const scoreText = totalRunningScore === 0 ? 'E' : totalRunningScore > 0 ? `+${totalRunningScore}` : `${totalRunningScore}`;
@@ -429,9 +441,9 @@ const ShotTrackingScreen = () => {
         message += `${totalPutts}-putt \uD83D\uDE31`;
       }
 
-      if (newShots.length <= par - 1) {
+      if (completedShots.length <= par - 1) {
         message += '\n\n\uD83C\uDF89 Outstanding play!';
-      } else if (newShots.length === par) {
+      } else if (completedShots.length === par) {
         message += '\n\n\u26F3 Solid par!';
       }
 
@@ -449,17 +461,11 @@ const ShotTrackingScreen = () => {
       const result = await SMSService.sendQuickUpdate(message);
       if (!result.success) {
         console.error('SMS error:', result.errors);
-        showToast('Failed to open Messages', 'error');
-      } else if (!defaultGroup || defaultGroup.trim() === '') {
-        showToast('Add recipients in settings for automatic text group', 'info');
-      } else if (result.sent) {
-        showToast(`Message opened for ${result.groupName}`, 'success');
       }
 
       navigation.goBack();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error sending SMS:', error);
-      showToast('Error sending message', 'error');
       navigation.goBack();
     }
   };
