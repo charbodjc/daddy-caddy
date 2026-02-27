@@ -12,7 +12,7 @@ import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useFocusEffect } from '@react-navigation/native';
 import DatabaseService from '../services/database';
 import RoundDeletionManager from '../utils/RoundDeletionManager';
-import { GolfRound, Tournament } from '../types';
+import { GolfRound, GolfHole, Tournament, TrackedShot, ShotData, SHOT_TYPES } from '../types';
 
 const StatsScreen = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -87,7 +87,7 @@ const StatsScreen = () => {
             {t.rounds.map(r => (
               <TouchableOpacity key={r.id} style={styles.roundRow} onPress={() => setSelectedRound(r)}>
                 <Icon name="bar-chart" size={18} color="#4CAF50" />
-                <Text style={styles.roundName}>{r.name || `Round at ${r.courseName}`} — {new Date(r.date).toLocaleDateString()}</Text>
+                <Text style={styles.roundListName}>{r.name || `Round at ${r.courseName}`} — {new Date(r.date).toLocaleDateString()}</Text>
               </TouchableOpacity>
             ))}
             {t.rounds.length === 0 && (
@@ -105,14 +105,14 @@ const StatsScreen = () => {
   const holes = selectedRound.holes || [];
   
   // Helper to extract shot data
-  const extractShotData = (hole: any) => {
+  const extractShotData = (hole: GolfHole): ShotData | null => {
     try {
       if (!hole.shotData) return null;
       if (typeof hole.shotData === 'string') {
         return JSON.parse(hole.shotData);
       }
       return hole.shotData;
-    } catch (e) {
+    } catch {
       return null;
     }
   };
@@ -125,7 +125,7 @@ const StatsScreen = () => {
   holes.forEach(hole => {
     const shotData = extractShotData(hole);
     if (shotData?.shots && Array.isArray(shotData.shots)) {
-      shotData.shots.forEach((shot: any) => {
+      shotData.shots.forEach((shot: TrackedShot) => {
         totalShots++;
         
         // Initialize shot type if not exists
@@ -147,9 +147,9 @@ const StatsScreen = () => {
       });
     }
     
-    // Count putts
-    if (shotData?.putts && Array.isArray(shotData.putts)) {
-      totalPutts += shotData.putts.length;
+    // Count putts from shot data (putts are shots with type 'Putt')
+    if (shotData?.shots && Array.isArray(shotData.shots)) {
+      totalPutts += shotData.shots.filter((s: { type: string }) => s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase()).length;
     } else if (hole.putts) {
       totalPutts += hole.putts;
     }
@@ -169,12 +169,17 @@ const StatsScreen = () => {
     'down': '⬇️',
     'left': '⬅️',
     'right': '➡️',
-    'target': '🎯',
+    'center': '🎯',
+    'green': '⛳',
+    'rough': '🌿',
+    'sand': '🏖️',
     'hazard': '💧',
     'bunker': '🏖️',
     'ob': '❌',
     'lost': '❓',
     'trees': '🌳',
+    'made': '✅',
+    'missed': '❌',
     'no result': '—'
   };
 
@@ -250,12 +255,17 @@ const StatsScreen = () => {
                      result === 'down' ? 'Short' :
                      result === 'left' ? 'Left' :
                      result === 'right' ? 'Right' :
-                     result === 'target' ? 'On Target' :
+                     result === 'center' ? 'Fairway' :
+                     result === 'green' ? 'On Green' :
+                     result === 'rough' ? 'Rough' :
+                     result === 'sand' ? 'Sand' :
                      result === 'hazard' ? 'Hazard' :
                      result === 'bunker' ? 'Bunker' :
                      result === 'ob' ? 'Out of Bounds' :
                      result === 'lost' ? 'Lost Ball' :
                      result === 'trees' ? 'Trees' :
+                     result === 'made' ? 'Made' :
+                     result === 'missed' ? 'Missed' :
                      result === 'no result' ? 'No Result' :
                      result}
                   </Text>
@@ -371,7 +381,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  roundName: {
+  roundListName: {
     flex: 1,
     fontSize: 16,
     color: '#333',
