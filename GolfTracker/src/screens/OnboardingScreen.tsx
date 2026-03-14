@@ -136,7 +136,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
         <Button
           title={isLastSlide ? 'Get Started' : 'Next'}
           onPress={handleNext}
-          style={[styles.nextButton, { backgroundColor: slide.color }]}
+          style={StyleSheet.flatten([styles.nextButton, { backgroundColor: slide.color }])}
         />
       </View>
     </View>

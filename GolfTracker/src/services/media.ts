@@ -2,8 +2,9 @@ import {
   launchCamera,
   launchImageLibrary,
   ImagePickerResponse,
-  MediaType,
   CameraOptions,
+  ImageLibraryOptions,
+  PhotoQuality,
 } from 'react-native-image-picker';
 import { Platform, PermissionsAndroid } from 'react-native';
 import DatabaseService from './database';
@@ -303,12 +304,12 @@ class MediaService {
   }
 
   async selectFromLibrary(type: 'photo' | 'video' | 'mixed'): Promise<MediaItem | null> {
-    const options: CameraOptions = {
+    const options: ImageLibraryOptions = {
       mediaType: type === 'mixed' ? 'mixed' : type,
       includeBase64: false,
       maxHeight: 2000,
       maxWidth: 2000,
-      quality: 0.9,
+      quality: 0.9 as PhotoQuality,
       includeExtra: true,
       selectionLimit: 1,
     };

@@ -26,6 +26,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { AppNavigationProp } from '../types/navigation';
 import { useRound } from '../hooks/useRound';
 import { useRoundStore } from '../stores/roundStore';
 import { LoadingScreen } from '../components/common/LoadingScreen';
@@ -33,7 +34,7 @@ import { HoleGrid } from '../components/round/HoleGrid';
 import { RoundHeader } from '../components/round/RoundHeader';
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+// FontAwesome5 available for future use
 import Hole from '../database/watermelon/models/Hole';
 
 interface RouteParams {
@@ -44,11 +45,11 @@ interface RouteParams {
 }
 
 const RoundTrackerScreenNew: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<AppNavigationProp>();
   const route = useRoute();
   const params = (route.params as RouteParams) || {};
   
-  const { round, loading, error, reload } = useRound(params.roundId);
+  const { round, loading, error: _error, reload: _reload } = useRound(params.roundId);
   const { createRound, updateHole, finishRound, deleteRound } = useRoundStore();
   
   const [setupVisible, setSetupVisible] = useState(!params.roundId && !round);
@@ -114,7 +115,7 @@ const RoundTrackerScreenNew: React.FC = () => {
   };
   
   const navigateToShotTracking = (hole: Hole | any) => {
-    navigation.navigate('ShotTracking' as never, {
+    navigation.navigate('ShotTracking', {
       hole,
       roundId: round?.id,
       onSave: async (updatedHole: any) => {
@@ -122,7 +123,7 @@ const RoundTrackerScreenNew: React.FC = () => {
           await updateHole(round.id, updatedHole);
         }
       },
-    } as never);
+    } );
   };
   
   const handleFinishRound = () => {
@@ -138,9 +139,9 @@ const RoundTrackerScreenNew: React.FC = () => {
           onPress: async () => {
             try {
               await finishRound(round.id);
-              navigation.navigate('RoundSummary' as never, {
+              navigation.navigate('RoundSummary', {
                 roundId: round.id,
-              } as never);
+              } );
             } catch (error) {
               Alert.alert('Error', 'Failed to finish round');
             }
@@ -177,9 +178,9 @@ const RoundTrackerScreenNew: React.FC = () => {
   const handleViewSummary = () => {
     if (!round) return;
     
-    navigation.navigate('RoundSummary' as never, {
+    navigation.navigate('RoundSummary', {
       roundId: round.id,
-    } as never);
+    } );
   };
   
   if (loading) {

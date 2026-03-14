@@ -48,6 +48,7 @@ const HoleDetailsScreenNew: React.FC = () => {
   
   useEffect(() => {
     loadHoleData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadHoleData depends on holeId
   }, [holeId]);
   
   const loadHoleData = async () => {
@@ -102,10 +103,10 @@ const HoleDetailsScreenNew: React.FC = () => {
   };
   
   const handleNavigateToCamera = () => {
-    navigation.navigate('Camera' as never, {
+    (navigation as any).navigate('Camera', {
       roundId,
       holeNumber: hole?.holeNumber,
-    } as never);
+    });
   };
   
   if (loading) {

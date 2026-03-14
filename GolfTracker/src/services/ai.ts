@@ -1,8 +1,11 @@
-import { GolfRound, GolfHole, Statistics } from '../types';
+import { GolfRound, Statistics } from '../types';
 import Config from 'react-native-config';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI loaded dynamically via require
+type OpenAIClient = any;
+
 class AIService {
-  private openai: OpenAI | null = null;
+  private openai: OpenAIClient = null;
   private initialized: boolean = false;
 
   constructor() {

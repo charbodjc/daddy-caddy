@@ -15,10 +15,11 @@ import {
   Alert,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { AppNavigationProp } from '../types/navigation';
 import { useTournamentStore } from '../stores/tournamentStore';
 import { useRoundStore } from '../stores/roundStore';
 import { LoadingScreen } from '../components/common/LoadingScreen';
-import { ErrorScreen } from '../components/common/ErrorScreen';
+// ErrorScreen available for future use
 import { Button } from '../components/common/Button';
 import Tournament from '../database/watermelon/models/Tournament';
 import Round from '../database/watermelon/models/Round';
@@ -30,7 +31,7 @@ interface RouteParams {
 }
 
 const TournamentRoundsScreenNew: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<AppNavigationProp>();
   const route = useRoute();
   const { tournament } = (route.params as RouteParams) || {};
   
@@ -43,6 +44,7 @@ const TournamentRoundsScreenNew: React.FC = () => {
   
   React.useEffect(() => {
     loadRounds();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadRounds depends on tournament
   }, [tournament]);
   
   const loadRounds = async () => {
@@ -70,10 +72,10 @@ const TournamentRoundsScreenNew: React.FC = () => {
       });
       
       // Navigate to round tracker
-      navigation.navigate('Scoring' as never, {
+      navigation.navigate('Scoring', {
         screen: 'RoundTracker',
         params: { roundId: round.id }
-      } as never);
+      } );
     } catch (error) {
       Alert.alert('Error', 'Failed to start round');
     } finally {
@@ -82,9 +84,9 @@ const TournamentRoundsScreenNew: React.FC = () => {
   };
   
   const handleRoundPress = (round: Round) => {
-    navigation.navigate('RoundSummary' as never, {
+    navigation.navigate('RoundSummary', {
       roundId: round.id,
-    } as never);
+    } );
   };
   
   if (!tournament) {

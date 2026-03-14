@@ -90,12 +90,12 @@ describe('Hole Model', () => {
     expect(holes.length).toBe(18);
     
     // Verify hole numbers are correct
-    const holeNumbers = holes.map(h => h.holeNumber).sort((a, b) => a - b);
+    const holeNumbers = holes.map((h: Hole) => h.holeNumber).sort((a: number, b: number) => a - b);
     expect(holeNumbers).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
   });
 
   it('should update hole data', async () => {
-    let holeId: string;
+    let holeId!: string;
 
     await database.write(async () => {
       const hole = await database.collections.get<Hole>('holes').create((h) => {

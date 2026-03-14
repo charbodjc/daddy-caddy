@@ -11,7 +11,7 @@
  * - Form validation
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useRoundStore } from '../stores/roundStore';
-import { Button } from '../components/common/Button';
+// Button component available for future use
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 // Legacy shot option arrays (this file is unused — kept for reference only)
@@ -52,11 +52,11 @@ const ShotTrackingScreenNew: React.FC = () => {
   const [putts, setPutts] = useState<string[]>([]);
   const [fairwayHit, setFairwayHit] = useState<boolean | undefined>(undefined);
   const [greenInRegulation, setGreenInRegulation] = useState<boolean | undefined>(undefined);
-  const [saving, setSaving] = useState(false);
-  
+  const [_saving, setSaving] = useState(false);
+
   const isPar3 = initialHole?.par === 3;
-  const isPar4 = initialHole?.par === 4;
-  const isPar5 = initialHole?.par === 5;
+  const _isPar4 = initialHole?.par === 4;
+  const _isPar5 = initialHole?.par === 5;
   
   const getTeeOptions = () => {
     return isPar3 ? TEE_SHOT_OPTIONS_PAR3 : TEE_SHOT_OPTIONS_PAR45;

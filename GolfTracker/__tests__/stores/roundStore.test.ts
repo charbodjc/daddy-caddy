@@ -32,19 +32,19 @@ describe('roundStore', () => {
   describe('createRound', () => {
     it('should create a new round with 18 holes', async () => {
       const { createRound } = useRoundStore.getState();
-      
-      let round;
+
+      let round: any;
       await act(async () => {
         round = await createRound({
           courseName: 'Test Course',
           date: new Date('2025-01-01'),
         });
       });
-      
+
       expect(round).toBeDefined();
       expect(round.courseName).toBe('Test Course');
       expect(round.isFinished).toBe(false);
-      
+
       // Verify holes were created
       const holes = await round.holes.fetch();
       expect(holes.length).toBe(18);
@@ -54,24 +54,24 @@ describe('roundStore', () => {
     
     it('should set round as active and save to AsyncStorage', async () => {
       const { createRound } = useRoundStore.getState();
-      
-      let round;
+
+      let round: any;
       await act(async () => {
         round = await createRound({
           courseName: 'Test Course',
         });
       });
-      
+
       expect(AsyncStorage.setItem).toHaveBeenCalledWith('active_round_id', round.id);
-      
+
       const state = useRoundStore.getState();
       expect(state.activeRound?.id).toBe(round.id);
     });
     
     it('should include tournament information', async () => {
       const { createRound } = useRoundStore.getState();
-      
-      let round;
+
+      let round: any;
       await act(async () => {
         round = await createRound({
           courseName: 'Test Course',
@@ -79,7 +79,7 @@ describe('roundStore', () => {
           tournamentName: 'Test Tournament',
         });
       });
-      
+
       expect(round.tournamentId).toBe('tournament_123');
       expect(round.tournamentName).toBe('Test Tournament');
     });
@@ -88,15 +88,15 @@ describe('roundStore', () => {
   describe('updateHole', () => {
     it('should update hole data', async () => {
       const { createRound, updateHole } = useRoundStore.getState();
-      
+
       // Create a round
-      let round;
+      let round: any;
       await act(async () => {
         round = await createRound({
           courseName: 'Test Course',
         });
       });
-      
+
       // Update a hole
       await act(async () => {
         await updateHole(round.id, {
@@ -111,7 +111,7 @@ describe('roundStore', () => {
       
       // Verify hole was updated
       const holes = await round.holes.fetch();
-      const updatedHole = holes.find(h => h.holeNumber === 1);
+      const updatedHole = holes.find((h: any) => h.holeNumber === 1);
       
       expect(updatedHole?.strokes).toBe(5);
       expect(updatedHole?.fairwayHit).toBe(true);
@@ -121,15 +121,15 @@ describe('roundStore', () => {
     
     it('should update round statistics', async () => {
       const { createRound, updateHole } = useRoundStore.getState();
-      
+
       // Create a round
-      let round;
+      let round: any;
       await act(async () => {
         round = await createRound({
           courseName: 'Test Course',
         });
       });
-      
+
       // Update multiple holes
       await act(async () => {
         await updateHole(round.id, {
@@ -152,8 +152,8 @@ describe('roundStore', () => {
       });
       
       // Reload round to get updated stats
-      const updatedRound = await database.collections.get('rounds').find(round.id);
-      
+      const updatedRound: any = await database.collections.get('rounds').find(round.id);
+
       expect(updatedRound.totalScore).toBe(9); // 4 + 5
       expect(updatedRound.totalPutts).toBe(5); // 2 + 3
       expect(updatedRound.fairwaysHit).toBe(1);
@@ -164,22 +164,22 @@ describe('roundStore', () => {
   describe('finishRound', () => {
     it('should mark round as finished', async () => {
       const { createRound, finishRound } = useRoundStore.getState();
-      
+
       // Create a round
-      let round;
+      let round: any;
       await act(async () => {
         round = await createRound({
           courseName: 'Test Course',
         });
       });
-      
+
       // Finish the round
       await act(async () => {
         await finishRound(round.id);
       });
-      
+
       // Verify round is marked as finished
-      const finishedRound = await database.collections.get('rounds').find(round.id);
+      const finishedRound: any = await database.collections.get('rounds').find(round.id);
       expect(finishedRound.isFinished).toBe(true);
       
       // Verify active round is cleared
@@ -191,15 +191,15 @@ describe('roundStore', () => {
   describe('deleteRound', () => {
     it('should delete round and all holes', async () => {
       const { createRound, deleteRound } = useRoundStore.getState();
-      
+
       // Create a round
-      let round;
+      let round: any;
       await act(async () => {
         round = await createRound({
           courseName: 'Test Course',
         });
       });
-      
+
       const roundId = round.id;
       
       // Delete the round
@@ -223,15 +223,15 @@ describe('roundStore', () => {
     
     it('should clear active round if deleted', async () => {
       const { createRound, deleteRound } = useRoundStore.getState();
-      
+
       // Create and set as active
-      let round;
+      let round: any;
       await act(async () => {
         round = await createRound({
           courseName: 'Test Course',
         });
       });
-      
+
       // Delete the active round
       await act(async () => {
         await deleteRound(round.id);

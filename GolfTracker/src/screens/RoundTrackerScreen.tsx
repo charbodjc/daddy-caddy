@@ -17,14 +17,15 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { AppNavigationProp } from '../types/navigation';
 import DatabaseService from '../services/database';
-import MediaService from '../services/media';
+// MediaService used in ShotTrackingScreen
 import RoundManager from '../utils/roundManager';
 import RoundDeletionManager from '../utils/RoundDeletionManager';
 import { GolfRound, GolfHole, Tournament } from '../types';
 
 const RoundTrackerScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<AppNavigationProp>();
   const route = useRoute();
   const tournamentId = (route.params as any)?.tournamentId;
   const tournamentName = (route.params as any)?.tournamentName;
@@ -55,6 +56,7 @@ const RoundTrackerScreen = () => {
     }
     loadActiveRound();
     loadTournaments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loads on mount and when routeRoundId changes
   }, [routeRoundId]);
 
   // Save round data when leaving the screen
@@ -342,7 +344,7 @@ const RoundTrackerScreen = () => {
             
             // Also update the round summary (without re-saving all holes)
             const completedHoles = newHoles.filter(h => h.strokes > 0);
-            const roundUpdate: Partial<GolfRound> = {
+            const _roundUpdate: Partial<GolfRound> = {
               id: currentRoundId,
               totalScore: completedHoles.reduce((sum, h) => sum + (h.strokes || 0), 0),
               totalPutts: completedHoles.reduce((sum, h) => sum + (h.putts || 0), 0),
@@ -376,7 +378,7 @@ const RoundTrackerScreen = () => {
     setHoles(updatedHoles);
     
     // Navigate to shot tracking with pre-selected shot type
-    navigation.navigate('ShotTracking' as never, {
+    navigation.navigate('ShotTracking', {
       hole: updatedHoles[holeNumber - 1],
       roundId: roundId,
       roundName: activeRound?.name,
@@ -385,7 +387,7 @@ const RoundTrackerScreen = () => {
       onSave: async (updatedHole: GolfHole) => {
         await updateHole(holeNumber, updatedHole);
       },
-    } as never);
+    } );
   };
   
   const showParSelection = (holeNumber: number) => {
@@ -396,7 +398,7 @@ const RoundTrackerScreen = () => {
       setParSelectionModal(true);
     } else {
       // If hole has been played, go directly to shot tracking
-      navigation.navigate('ShotTracking' as never, {
+      navigation.navigate('ShotTracking', {
         hole: hole,
         roundId: roundId,
         roundName: activeRound?.name,
@@ -404,7 +406,7 @@ const RoundTrackerScreen = () => {
         onSave: async (updatedHole: GolfHole) => {
           await updateHole(holeNumber, updatedHole);
         },
-      } as never);
+      } );
     }
   };
   
@@ -464,19 +466,19 @@ const RoundTrackerScreen = () => {
         
         if (tournament) {
           // Navigate to the Tournament tab and then to the rounds screen
-          navigation.getParent()?.navigate('Tournaments' as never, {
+          navigation.getParent()?.navigate('Tournaments', {
             screen: 'TournamentRounds',
             params: {
               tournament: tournament
             }
-          } as never);
+          } );
         } else {
           // If no tournament found, just go to tournaments list
-          navigation.getParent()?.navigate('Tournaments' as never);
+          navigation.getParent()?.navigate('Tournaments' );
         }
       } else {
         // If no tournament, just go to tournaments tab
-        navigation.getParent()?.navigate('Tournaments' as never);
+        navigation.getParent()?.navigate('Tournaments' );
       }
     } catch (error) {
       console.error('Error saving round:', error);
@@ -529,16 +531,16 @@ const RoundTrackerScreen = () => {
 
       // Navigate to summary screen with the round ID
       console.log('Navigating to summary with roundId:', currentRoundId);
-      navigation.navigate('RoundSummary' as never, {
+      navigation.navigate('RoundSummary', {
         roundId: currentRoundId,
-      } as never);
+      } );
     } catch (error) {
       console.error('Error saving round for summary:', error);
       Alert.alert('Error', 'Failed to save round data. Please try again.');
     }
   };
 
-  const finishRound = async () => {
+  const _finishRound = async () => {
     const stats = calculateScore();
     
     if (stats.completedHoles === 0) {
@@ -575,7 +577,7 @@ const RoundTrackerScreen = () => {
               await DatabaseService.saveRound(round);
               // Clear the active round preference
               await DatabaseService.setPreference('active_round_id', '');
-              navigation.navigate('RoundSummary' as never, { roundId: round.id } as never);
+              navigation.navigate('RoundSummary', { roundId: round.id } );
             } catch (error) {
               Alert.alert('Error', 'Failed to save round. Please try again.');
               console.error('Save round error:', error);
@@ -586,7 +588,7 @@ const RoundTrackerScreen = () => {
     );
   };
 
-  const deleteRound = async () => {
+  const _deleteRound = async () => {
     const currentRoundId = roundId || activeRound?.id;
     
     if (!currentRoundId) {
@@ -619,7 +621,7 @@ const RoundTrackerScreen = () => {
               console.log(`✅ Database deleteRound completed for ${currentRoundId}`);
               
               // Wait a moment to ensure all async operations complete
-              await new Promise(resolve => setTimeout(resolve, 150));
+              await new Promise<void>(resolve => setTimeout(resolve, 150));
               
               // Reset the screen to default state and navigate to Home
               // isLoading will be cleared in resetToDefaultState when it sets isStarted=false
@@ -733,14 +735,14 @@ const RoundTrackerScreen = () => {
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
               <View style={styles.modalOverlay}>
                 <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                  <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalContent}>
-                    <View style={styles.modalHeader}>
-                      <Text style={styles.modalTitle}>Select Tournament</Text>
+                  <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.parModalContent}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                      <Text style={styles.parModalTitle}>Select Tournament</Text>
                       <TouchableOpacity onPress={() => setTournamentPickerVisible(false)}>
                         <Icon name="close" size={24} color="#666" />
                       </TouchableOpacity>
                     </View>
-                    <ScrollView contentContainerStyle={styles.modalForm}>
+                    <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
                       {tournamentsList.length === 0 ? (
                         <Text style={{ color: '#666' }}>No tournaments. Create one in Tournaments tab.</Text>
                       ) : (
@@ -764,14 +766,14 @@ const RoundTrackerScreen = () => {
                       )}
                       {selectedTournamentId && (
                         <TouchableOpacity
-                          style={[styles.cancelButton, { marginTop: 10 }]}
+                          style={[styles.parCancelButton, { marginTop: 10 }]}
                           onPress={() => {
                             setSelectedTournamentId(undefined);
                             setSelectedTournamentName(undefined);
                             setTournamentPickerVisible(false);
                           }}
                         >
-                          <Text style={styles.cancelButtonText}>Clear Selection</Text>
+                          <Text style={styles.parCancelText}>Clear Selection</Text>
                         </TouchableOpacity>
                       )}
                     </ScrollView>

@@ -1,3 +1,4 @@
+// @ts-ignore - detox types not installed
 import { device, element, by, expect as detoxExpect } from 'detox';
 
 describe('Round Tracking E2E', () => {

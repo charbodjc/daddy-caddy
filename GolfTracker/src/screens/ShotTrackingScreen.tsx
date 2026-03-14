@@ -21,7 +21,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import MediaService from '../services/media';
 import SMSService from '../services/sms';
 import Share from 'react-native-share';
-import AIHoleAnalysisService from '../services/aiHoleAnalysis';
+// AIHoleAnalysisService imported in HoleSummaryScreen instead
 import DatabaseService from '../services/database';
 import { GolfHole, MediaItem, TrackedShot, ShotData, SHOT_TYPES, SHOT_RESULTS } from '../types';
 import { Toast, useToast } from '../components/Toast';
@@ -37,7 +37,7 @@ const ShotTrackingScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const scrollViewRef = useRef<ScrollView>(null);
-  const { hole, onSave, roundId, roundName, tournamentName, preselectedShotType } = route.params as { hole: GolfHole; onSave: (hole: GolfHole) => Promise<void>; roundId?: string; roundName?: string; tournamentName?: string; preselectedShotType?: string };
+  const { hole, onSave, roundId, roundName, tournamentName, preselectedShotType: _preselectedShotType } = route.params as { hole: GolfHole; onSave: (hole: GolfHole) => Promise<void>; roundId?: string; roundName?: string; tournamentName?: string; preselectedShotType?: string };
   const { toastConfig, showToast, hideToast } = useToast();
 
   // Initialize state from saved data if available
@@ -269,7 +269,7 @@ const ShotTrackingScreen = () => {
 
     const runningScore = await calculateRunningScore();
     const currentHoleScore = shots.length - par;
-    const totalRunningScore = (runningScore || 0) + currentHoleScore;
+    const _totalRunningScore = (runningScore || 0) + currentHoleScore;
 
     // Calculate what the putt is for based on current stroke count
     // shots already includes the "on green" shot, so currentStroke is the putt stroke
@@ -325,7 +325,7 @@ const ShotTrackingScreen = () => {
   };
 
   // Get emoji for a result
-  const getResultEmoji = (resultId: string): string => {
+  const _getResultEmoji = (resultId: string): string => {
     switch (resultId) {
       case 'left': return '\u2B05\uFE0F';
       case 'right': return '\u27A1\uFE0F';
@@ -447,9 +447,11 @@ const ShotTrackingScreen = () => {
         message += '\n\n\u26F3 Solid par!';
       }
 
-      const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
-      if (media.length > 0) {
-        message += `\n\n\uD83D\uDCF8 ${media.length} photo${media.length !== 1 ? 's' : ''} captured`;
+      if (roundId) {
+        const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
+        if (media.length > 0) {
+          message += `\n\n\uD83D\uDCF8 ${media.length} photo${media.length !== 1 ? 's' : ''} captured`;
+        }
       }
 
       // Append running round stats
@@ -483,7 +485,7 @@ const ShotTrackingScreen = () => {
 
     const runningScore = await calculateRunningScore();
     const currentHoleScore = shots.length - par;
-    const totalRunningScore = (runningScore || 0) + currentHoleScore;
+    const _totalRunningScore = (runningScore || 0) + currentHoleScore;
 
     Alert.alert(
       'Share Hole Summary?',
@@ -521,7 +523,7 @@ const ShotTrackingScreen = () => {
                 description += '\n\u26F3 Solid par!';
               }
 
-              const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
+              const media = roundId ? await DatabaseService.getMediaForHole(roundId, hole.holeNumber) : [];
               const mediaUrls = media.map(m => m.uri).filter(uri => uri);
 
               await Share.open({
@@ -549,6 +551,7 @@ const ShotTrackingScreen = () => {
     if (hole.strokes && hole.strokes > 0 && shots.length === 0 && hole.shotData) {
       setCurrentStroke(hole.strokes + 1);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
   }, []);
 
   const loadMediaCount = async () => {

@@ -9,8 +9,6 @@ import {
   ActivityIndicator,
   Alert,
   Share,
-  Linking,
-  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
@@ -45,6 +43,7 @@ const HoleSummaryScreen = () => {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
   }, []);
 
   const loadData = async () => {

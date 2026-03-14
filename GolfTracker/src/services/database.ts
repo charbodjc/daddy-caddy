@@ -301,10 +301,11 @@ class DatabaseService {
     for (let i = 0; i < results.rows.length; i++) {
       const roundRow = results.rows.item(i);
       
-      const [holeResults] = await this.db.executeSql(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SQLite result type
+      const holeResults: any = (await this.db.executeSql(
         'SELECT * FROM holes WHERE roundId = ? ORDER BY holeNumber',
         [roundRow.id]
-      );
+      ))[0];
 
       // Always start with 18 empty holes
       const holes: GolfHole[] = [];
@@ -320,22 +321,22 @@ class DatabaseService {
           shotData: undefined,
         });
       }
-      
+
       // Merge saved hole data
       for (let j = 0; j < holeResults.rows.length; j++) {
         const holeRow = holeResults.rows.item(j);
-        let parsedShotData = undefined;
+        let parsedShotData;
         if (holeRow.shotData) {
           try {
-            parsedShotData = typeof holeRow.shotData === 'string' 
-              ? JSON.parse(holeRow.shotData) 
+            parsedShotData = typeof holeRow.shotData === 'string'
+              ? JSON.parse(holeRow.shotData)
               : holeRow.shotData;
           } catch (e) {
             console.error(`Error parsing shotData for hole ${holeRow.holeNumber}:`, e);
             parsedShotData = undefined;
           }
         }
-        
+
         // Find and update the corresponding hole
         const holeIndex = holeRow.holeNumber - 1;
         if (holeIndex >= 0 && holeIndex < 18) {
@@ -414,18 +415,18 @@ class DatabaseService {
     // Merge saved hole data into the 18-hole array
     for (let j = 0; j < holeResults.rows.length; j++) {
       const holeRow = holeResults.rows.item(j);
-      let parsedShotData = undefined;
+      let parsedShotData;
       if (holeRow.shotData) {
         try {
-          parsedShotData = typeof holeRow.shotData === 'string' 
-            ? JSON.parse(holeRow.shotData) 
+          parsedShotData = typeof holeRow.shotData === 'string'
+            ? JSON.parse(holeRow.shotData)
             : holeRow.shotData;
         } catch (e) {
           console.error(`Error parsing shotData for hole ${holeRow.holeNumber}:`, e);
           parsedShotData = undefined;
         }
       }
-      
+
       // Find and update the corresponding hole in our 18-hole array
       const holeIndex = holeRow.holeNumber - 1;
       if (holeIndex >= 0 && holeIndex < 18) {
@@ -896,9 +897,11 @@ class DatabaseService {
         [roundId, hole.holeNumber]
       );
       
-      let shotDataToSave = hole.shotData;
-      if (shotDataToSave && typeof shotDataToSave !== 'string') {
-        shotDataToSave = JSON.stringify(shotDataToSave);
+      let shotDataToSave: string | null = null;
+      if (hole.shotData) {
+        shotDataToSave = typeof hole.shotData === 'string'
+          ? hole.shotData
+          : JSON.stringify(hole.shotData);
       }
       
       if (existing.rows.length > 0) {
@@ -1133,7 +1136,7 @@ class DatabaseService {
       return diagnostics;
     } catch (error) {
       console.error('❌ Error running diagnostics:', error);
-      return { error: error.toString() };
+      return { error: String(error) };
     }
   }
 }

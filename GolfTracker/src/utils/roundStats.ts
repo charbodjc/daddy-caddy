@@ -1,8 +1,6 @@
 import DatabaseService from '../services/database';
-import { TrackedShot, ShotData, SHOT_TYPES, SHOT_RESULTS } from '../types';
+import { ShotData, SHOT_TYPES, SHOT_RESULTS } from '../types';
 
-// Keep local aliases for backward compat within this file
-type StoredShot = TrackedShot;
 type StoredShotData = ShotData;
 
 export interface RunningRoundStats {
@@ -43,7 +41,7 @@ export function deriveHoleStats(shotData: StoredShotData, par: number) {
   const puttsCount = puttShots.length;
 
   // Fairway hit: par > 3 AND tee shot result is 'center' (or legacy 'target')
-  let fairwayHit: boolean | undefined = undefined;
+  let fairwayHit: boolean | undefined;
   if (par > 3) {
     const teeShot = shotData.shots.find(s =>
       s.type === SHOT_TYPES.TEE_SHOT || s.type?.toLowerCase() === 'tee'
@@ -60,7 +58,7 @@ export function deriveHoleStats(shotData: StoredShotData, par: number) {
   }
 
   // First putt distance: parse numeric feet from string like "25 ft"
-  let firstPuttDistanceFeet: number | undefined = undefined;
+  let firstPuttDistanceFeet: number | undefined;
   if (puttShots.length > 0 && puttShots[0].puttDistance) {
     const distStr = puttShots[0].puttDistance.replace(/\s*(ft|feet)\s*$/i, '').trim();
     const parsed = parseFloat(distStr);

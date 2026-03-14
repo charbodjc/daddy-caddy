@@ -10,27 +10,29 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { AppNavigationProp } from '../types/navigation';
 import DatabaseService from '../services/database';
 import RoundDeletionManager from '../utils/RoundDeletionManager';
 import { GolfRound, GolfHole } from '../types';
 
 const TournamentRoundsScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<AppNavigationProp>();
   const route = useRoute();
   const { tournament } = route.params as { tournament: any };
   const [rounds, setRounds] = useState<GolfRound[]>([]);
 
   useEffect(() => {
     loadRounds();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
   }, []);
 
   // Reload rounds when screen is focused (e.g., after deletion)
   useFocusEffect(
     React.useCallback(() => {
       loadRounds();
-      
+
       // Also listen for round deletions
-      const cleanup = RoundDeletionManager.addListener((deletedRoundId) => {
+      const cleanup = RoundDeletionManager.addListener((_deletedRoundId) => {
         console.log('Round deleted, refreshing TournamentRoundsScreen for tournament:', tournament.id);
         // Reload rounds after a brief delay to ensure database has completed the delete
         setTimeout(() => {
@@ -39,6 +41,7 @@ const TournamentRoundsScreen = () => {
       });
 
       return cleanup;
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- loadRounds is stable
     }, [tournament.id])
   );
 
@@ -81,14 +84,14 @@ const TournamentRoundsScreen = () => {
   const selectRound = (round: GolfRound) => {
     // Set as active round and navigate to scoring tab
     DatabaseService.setPreference('active_round_id', round.id);
-    navigation.getParent()?.navigate('Scoring' as never, {
+    navigation.getParent()?.navigate('Scoring', {
       screen: 'RoundTracker',
       params: {
         roundId: round.id,
         tournamentId: tournament.id,
         tournamentName: tournament.name,
       }
-    } as never);
+    } );
   };
 
   const deleteRound = (round: GolfRound) => {
@@ -116,7 +119,7 @@ const TournamentRoundsScreen = () => {
               console.log(`✅ Database deleteRound completed for ${round.id}`);
               
               // Wait for deletion to propagate
-              await new Promise(resolve => setTimeout(resolve, 100));
+              await new Promise<void>(resolve => setTimeout(resolve, 100));
               
               // Force reload the rounds list
               await loadRounds();
@@ -174,14 +177,14 @@ const TournamentRoundsScreen = () => {
       
       // Set as active round and navigate to scoring tab
       await DatabaseService.setPreference('active_round_id', newRound.id);
-      navigation.getParent()?.navigate('Scoring' as never, {
+      navigation.getParent()?.navigate('Scoring', {
         screen: 'RoundTracker',
         params: {
           roundId: newRound.id,
           tournamentId: tournament.id,
           tournamentName: tournament.name,
         }
-      } as never);
+      } );
     } catch (error) {
       console.error('Error creating round:', error);
       Alert.alert('Error', 'Failed to create round');
