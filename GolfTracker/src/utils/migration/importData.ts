@@ -5,7 +5,57 @@ import Hole from '../../database/watermelon/models/Hole';
 import Tournament from '../../database/watermelon/models/Tournament';
 import Media from '../../database/watermelon/models/Media';
 import Contact from '../../database/watermelon/models/Contact';
-import { ExportedData } from './exportData';
+
+// Matches the format originally defined in exportData.ts
+interface ExportedData {
+  version: number;
+  exportDate: string;
+  rounds: Array<{
+    id: string;
+    courseName: string;
+    date: string;
+    isFinished?: boolean;
+    tournamentId?: string;
+    tournamentName?: string;
+    totalScore?: number;
+    totalPutts?: number;
+    fairwaysHit?: number;
+    greensInRegulation?: number;
+    aiAnalysis?: string;
+    holes?: Array<{
+      holeNumber: number;
+      par: number;
+      strokes?: number;
+      fairwayHit?: boolean;
+      greenInRegulation?: boolean;
+      putts?: number;
+      notes?: string;
+      shotData?: string | object;
+    }>;
+  }>;
+  tournaments: Array<{
+    id: string;
+    name: string;
+    courseName: string;
+    startDate: string;
+    endDate: string;
+  }>;
+  contacts: Array<{
+    id: string;
+    name: string;
+    phoneNumber: string;
+    isActive?: boolean;
+  }>;
+  media: Array<{
+    id: string;
+    uri: string;
+    type: 'photo' | 'video';
+    timestamp: string;
+    roundId?: string;
+    holeNumber?: number;
+    description?: string;
+  }>;
+}
 
 interface ImportProgress {
   stage: string;

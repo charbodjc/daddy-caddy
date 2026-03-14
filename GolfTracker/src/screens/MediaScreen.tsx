@@ -2,17 +2,29 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, ActivityIndicator, Modal, Dimensions, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import DatabaseService from '../services/database';
-import { Tournament, GolfRound, MediaItem } from '../types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { database } from '../database/watermelon/database';
+import Tournament from '../database/watermelon/models/Tournament';
+import Round from '../database/watermelon/models/Round';
+import MediaModel from '../database/watermelon/models/Media';
+import { Q } from '@nozbe/watermelondb';
+import { MediaItem } from '../types';
 import Video from 'react-native-video';
+import { formatDateShort } from '../utils/dateFormatting';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
+interface TournamentWithRounds {
+  id: string;
+  name: string;
+  rounds: { id: string; name?: string; courseName: string; date: Date }[];
+}
+
 const MediaScreen = () => {
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const insets = useSafeAreaInsets();
+  const [tournaments, setTournaments] = useState<TournamentWithRounds[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedRound, setSelectedRound] = useState<GolfRound | null>(null);
-  const [_media, _setMedia] = useState<MediaItem[]>([]);
+  const [selectedRound, setSelectedRound] = useState<{ id: string; name?: string; courseName: string; date: Date } | null>(null);
   const [mediaByHole, setMediaByHole] = useState<Record<number, MediaItem[]>>({});
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const [showMediaViewer, setShowMediaViewer] = useState(false);
@@ -20,7 +32,28 @@ const MediaScreen = () => {
   useEffect(() => {
     (async () => {
       try {
-        const items = await DatabaseService.getTournaments();
+        const tournamentModels = await database.collections
+          .get<Tournament>('tournaments')
+          .query()
+          .fetch();
+
+        const items: TournamentWithRounds[] = [];
+        for (const t of tournamentModels) {
+          const rounds = await database.collections
+            .get<Round>('rounds')
+            .query(Q.where('tournament_id', t.id))
+            .fetch();
+
+          items.push({
+            id: t.id,
+            name: t.name,
+            rounds: rounds.map(r => ({
+              id: r.id,
+              courseName: r.courseName,
+              date: r.date,
+            })),
+          });
+        }
         setTournaments(items);
       } finally {
         setLoading(false);
@@ -28,18 +61,29 @@ const MediaScreen = () => {
     })();
   }, []);
 
-  const openRound = async (round: GolfRound) => {
+  const openRound = async (round: { id: string; name?: string; courseName: string; date: Date }) => {
     try {
       setSelectedRound(round);
-      const items = await DatabaseService.getMediaForRound(round.id);
-      console.log(`📸 Loaded ${items.length} media items for round ${round.id}`);
-      
+      const mediaModels = await database.collections
+        .get<MediaModel>('media')
+        .query(Q.where('round_id', round.id))
+        .fetch();
+      console.log(`Loaded ${mediaModels.length} media items for round ${round.id}`);
+
       const grouped: Record<number, MediaItem[]> = {};
-      items.forEach(m => {
-        console.log(`Media item: ${m.id}, type: ${m.type}, uri: ${m.uri}`);
-        const key = m.holeNumber || 0;
+      mediaModels.forEach(m => {
+        const item: MediaItem = {
+          id: m.id,
+          uri: m.uri,
+          type: m.type,
+          roundId: m.roundId,
+          holeNumber: m.holeNumber,
+          timestamp: m.timestamp,
+          description: m.description,
+        };
+        const key = item.holeNumber || 0;
         if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(m);
+        grouped[key].push(item);
       });
       setMediaByHole(grouped);
     } catch (error) {
@@ -68,12 +112,18 @@ const MediaScreen = () => {
     return (
       <>
         <ScrollView style={styles.container}>
-          <View style={styles.header}>
+          <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
             <Text style={styles.headerTitle}>Photos and Videos</Text>
           </View>
           
           <View style={styles.roundHeader}>
-            <TouchableOpacity onPress={() => setSelectedRound(null)} style={styles.backButton}>
+            <TouchableOpacity
+              onPress={() => setSelectedRound(null)}
+              style={styles.backButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Go back"
+              accessibilityRole="button"
+            >
               <Icon name="arrow-back" size={24} color="#333" />
             </TouchableOpacity>
             <View style={styles.roundInfo}>
@@ -81,7 +131,7 @@ const MediaScreen = () => {
                 {selectedRound.name || `Round at ${selectedRound.courseName}`}
               </Text>
               <Text style={styles.roundDetails}>
-                {selectedRound.courseName} • {new Date(selectedRound.date).toLocaleDateString()}
+                {selectedRound.courseName} • {formatDateShort(new Date(selectedRound.date))}
               </Text>
             </View>
           </View>
@@ -129,7 +179,13 @@ const MediaScreen = () => {
           onRequestClose={closeMediaViewer}
         >
           <View style={styles.modalContainer}>
-            <TouchableOpacity style={styles.closeButton} onPress={closeMediaViewer}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={closeMediaViewer}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Close media viewer"
+              accessibilityRole="button"
+            >
               <Icon name="close" size={30} color="#fff" />
             </TouchableOpacity>
             {selectedMedia && (
@@ -175,7 +231,7 @@ const MediaScreen = () => {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Text style={styles.headerTitle}>Photos and Videos</Text>
       </View>
       {tournaments.length === 0 ? (
@@ -194,11 +250,11 @@ const MediaScreen = () => {
           {t.rounds.map(r => (
             <TouchableOpacity key={r.id} style={styles.roundRow} onPress={() => openRound(r)}>
               <Icon name="image" size={18} color="#4CAF50" />
-              <Text style={styles.roundItemName}>{r.name || `Round at ${r.courseName}`} — {new Date(r.date).toLocaleDateString()}</Text>
+              <Text style={styles.roundItemName}>{r.name || `Round at ${r.courseName}`} — {formatDateShort(new Date(r.date))}</Text>
             </TouchableOpacity>
           ))}
           {t.rounds.length === 0 && (
-            <Text style={{ color: '#999' }}>No rounds yet</Text>
+            <Text style={{ color: '#767676' }}>No rounds yet</Text>
           )}
         </View>
       ))}
@@ -210,7 +266,7 @@ const MediaScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
-  header: { backgroundColor: '#4CAF50', paddingTop: 60, paddingBottom: 20, paddingHorizontal: 20 },
+  header: { backgroundColor: '#4CAF50', paddingBottom: 20, paddingHorizontal: 20 },
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
   emptyState: {
     flex: 1,
@@ -226,7 +282,7 @@ const styles = StyleSheet.create({
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#999',
+    color: '#767676',
     marginTop: 10,
     textAlign: 'center',
     paddingHorizontal: 40,

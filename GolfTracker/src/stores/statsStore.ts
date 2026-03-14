@@ -4,6 +4,7 @@ import { database } from '../database/watermelon/database';
 import Round from '../database/watermelon/models/Round';
 import { Q } from '@nozbe/watermelondb';
 import type { Statistics } from '../types';
+import { calculateScoreBreakdown } from '../utils/scoreCalculations';
 
 interface StatsState {
   stats: Statistics | null;
@@ -98,17 +99,12 @@ export const useStatsStore = create<StatsState>()(
           if (round.greensInRegulation) totalGIR += round.greensInRegulation;
           
           // Calculate hole-by-hole stats
-          for (const hole of holes) {
-            if (hole.strokes > 0) {
-              const score = hole.strokes - hole.par;
-              
-              if (score <= -2) stats.eaglesOrBetter++;
-              else if (score === -1) stats.birdies++;
-              else if (score === 0) stats.pars++;
-              else if (score === 1) stats.bogeys++;
-              else if (score >= 2) stats.doubleBogeyOrWorse++;
-            }
-          }
+          const breakdown = calculateScoreBreakdown(holes);
+          stats.eaglesOrBetter += breakdown.eagles;
+          stats.birdies += breakdown.birdies;
+          stats.pars += breakdown.pars;
+          stats.bogeys += breakdown.bogeys;
+          stats.doubleBogeyOrWorse += breakdown.doublePlus;
         }
         
         // Calculate averages

@@ -72,7 +72,7 @@ class AIHoleAnalysisService {
       `;
 
       const response = await this.openai.chat.completions.create({
-        model: (Config.OPENAI_MODEL || 'gpt-5') as string,
+        model: (Config.OPENAI_MODEL || 'gpt-4o') as string,
         messages: [
           {
             role: 'system',

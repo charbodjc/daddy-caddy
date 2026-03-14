@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   launchCamera,
   launchImageLibrary,
@@ -16,16 +17,16 @@ import {
   MediaType,
   PhotoQuality,
 } from 'react-native-image-picker';
-import DatabaseService from '../services/database';
-import { MediaItem } from '../types';
+import { database } from '../database/watermelon/database';
+import Media from '../database/watermelon/models/Media';
 
 const CameraScreen = () => {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const route = useRoute();
-  const { currentHole, roundId, onCapture } = route.params as {
+  const { currentHole, roundId } = route.params as {
     currentHole?: number;
     roundId?: string;
-    onCapture?: (uri: string) => void;
   };
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -68,21 +69,16 @@ const CameraScreen = () => {
 
     try {
       if (roundId) {
-        const mediaItem: MediaItem = {
-          id: Date.now().toString(),
-          uri: selectedImage,
-          type: isVideo ? 'video' : 'photo',
-          roundId,
-          holeNumber: currentHole,
-          timestamp: new Date(),
-          description: currentHole ? `Hole ${currentHole}` : undefined,
-        };
-
-        await DatabaseService.saveMedia(mediaItem);
-      }
-
-      if (onCapture) {
-        onCapture(selectedImage);
+        await database.write(async () => {
+          await database.collections.get<Media>('media').create((m) => {
+            m.uri = selectedImage;
+            m.type = isVideo ? 'video' : 'photo';
+            m.roundId = roundId;
+            m.holeNumber = currentHole;
+            m.timestamp = new Date();
+            m.description = currentHole ? `Hole ${currentHole}` : undefined;
+          });
+        });
       }
 
       Alert.alert('Success', 'Media saved successfully', [
@@ -96,7 +92,7 @@ const CameraScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Text style={styles.title}>Capture Media</Text>
         {currentHole && (
           <Text style={styles.subtitle}>Hole {currentHole}</Text>

@@ -1,27 +1,29 @@
 import { NavigationProp as RNNavigationProp } from '@react-navigation/native';
-import { GolfHole, Tournament } from './index';
+
+// Home stack (nested inside Home tab)
+export type HomeStackParamList = {
+  HomeMain: undefined;
+  Stats: undefined;
+};
 
 // Scoring flow stack
 export type ScoringStackParamList = {
-  RoundTracker: { tournamentId?: string; tournamentName?: string; roundId?: string } | undefined;
-  HoleDetails: { hole: GolfHole; onSave: (hole: GolfHole) => void };
+  RoundTracker: { tournamentId?: string; tournamentName?: string; roundId?: string; quickStart?: boolean } | undefined;
+  HoleDetails: { holeId: string; roundId: string };
   ShotTracking: {
-    hole: GolfHole;
-    onSave: (hole: GolfHole) => Promise<void>;
-    roundId?: string;
-    roundName?: string;
-    tournamentName?: string;
+    holeId: string;
+    roundId: string;
     preselectedShotType?: string;
   };
-  HoleSummary: { hole: GolfHole; roundId: string; onNext?: () => void };
+  HoleSummary: { holeId: string; roundId: string };
   RoundSummary: { roundId: string };
-  Camera: { currentHole: number; roundId: string; onCapture?: (uri: string) => void };
+  Camera: { currentHole: number; roundId: string };
 };
 
 // Tournament stack
 export type TournamentStackParamList = {
   TournamentsList: undefined;
-  TournamentRounds: { tournament: Tournament };
+  TournamentRounds: { tournamentId: string; tournamentName?: string };
   RoundSummary: { roundId: string };
 };
 

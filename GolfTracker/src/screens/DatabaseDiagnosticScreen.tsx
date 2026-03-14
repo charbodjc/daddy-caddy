@@ -10,7 +10,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import DatabaseService from '../services/database';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { database } from '../database/watermelon/database';
 
 interface TableInfo {
   name: string;
@@ -19,10 +20,10 @@ interface TableInfo {
     name: string;
     type: string;
     notNull: boolean;
-    defaultValue: any;
+    defaultValue: unknown;
     primaryKey: boolean;
   }>;
-  sampleData: any[];
+  sampleData: Record<string, unknown>[];
 }
 
 interface DiagnosticData {
@@ -33,7 +34,8 @@ interface DiagnosticData {
   error?: string;
 }
 
-const DatabaseDiagnosticScreen = ({ navigation }: any) => {
+const DatabaseDiagnosticScreen = ({ navigation }: { navigation: { goBack: () => void } }) => {
+  const insets = useSafeAreaInsets();
   const [diagnostics, setDiagnostics] = useState<DiagnosticData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,8 +43,35 @@ const DatabaseDiagnosticScreen = ({ navigation }: any) => {
 
   const loadDiagnostics = async () => {
     try {
-      const data = await DatabaseService.getDatabaseDiagnostics();
-      setDiagnostics(data);
+      const collectionNames = ['rounds', 'holes', 'tournaments', 'media', 'contacts'];
+      const tables: Record<string, TableInfo> = {};
+
+      for (const name of collectionNames) {
+        const collection = database.collections.get(name);
+        const allRecords = await collection.query().fetch();
+        const sampleRecords = allRecords.slice(0, 3);
+
+        // Extract sample data as plain objects
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- WatermelonDB _raw is internal
+        const sampleData = sampleRecords.map((record: any) => {
+          const raw = record._raw || {};
+          return { ...raw } as Record<string, unknown>;
+        });
+
+        tables[name] = {
+          name,
+          rowCount: allRecords.length,
+          columns: [], // WatermelonDB doesn't expose schema columns easily at runtime
+          sampleData,
+        };
+      }
+
+      setDiagnostics({
+        database: 'WatermelonDB (SQLite)',
+        location: 'DaddyCaddy',
+        tables,
+        timestamp: new Date().toISOString(),
+      });
     } catch (error) {
       console.error('Error loading diagnostics:', error);
       Alert.alert('Error', 'Failed to load database diagnostics');
@@ -82,7 +111,9 @@ const DatabaseDiagnosticScreen = ({ navigation }: any) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await DatabaseService.clearAllData();
+              await database.write(async () => {
+                await database.unsafeResetDatabase();
+              });
               Alert.alert('Success', 'Database cleared successfully');
               loadDiagnostics();
             } catch (error) {
@@ -94,7 +125,7 @@ const DatabaseDiagnosticScreen = ({ navigation }: any) => {
     );
   };
 
-  const formatValue = (value: any): string => {
+  const formatValue = (value: unknown): string => {
     if (value === null) return 'NULL';
     if (value === undefined) return 'undefined';
     if (typeof value === 'object') {
@@ -119,7 +150,7 @@ const DatabaseDiagnosticScreen = ({ navigation }: any) => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Icon name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
@@ -135,7 +166,7 @@ const DatabaseDiagnosticScreen = ({ navigation }: any) => {
   if (!diagnostics) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Icon name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
@@ -155,7 +186,7 @@ const DatabaseDiagnosticScreen = ({ navigation }: any) => {
   if (diagnostics.error) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Icon name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
@@ -177,8 +208,14 @@ const DatabaseDiagnosticScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+        >
           <Icon name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Database Diagnostics</Text>
@@ -311,7 +348,6 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#4CAF50',
-    paddingTop: 60,
     paddingBottom: 20,
     paddingHorizontal: 20,
     flexDirection: 'row',
@@ -455,7 +491,7 @@ const styles = StyleSheet.create({
   },
   columnType: {
     fontSize: 12,
-    color: '#999',
+    color: '#767676',
     fontStyle: 'italic',
   },
   sampleDataContainer: {
@@ -487,7 +523,7 @@ const styles = StyleSheet.create({
   },
   emptyTableText: {
     fontSize: 14,
-    color: '#999',
+    color: '#767676',
     fontStyle: 'italic',
     textAlign: 'center',
     marginVertical: 10,

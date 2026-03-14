@@ -1,5 +1,7 @@
-import DatabaseService from '../services/database';
 import { ShotData, SHOT_TYPES, SHOT_RESULTS } from '../types';
+import { database } from '../database/watermelon/database';
+import Round from '../database/watermelon/models/Round';
+import Hole from '../database/watermelon/models/Hole';
 
 type StoredShotData = ShotData;
 
@@ -96,10 +98,15 @@ export async function calculateRunningRoundStats(
     holesWithFirstPuttData: 0,
   };
 
-  const round = await DatabaseService.getRound(roundId);
-  if (!round) return stats;
+  let round: Round;
+  try {
+    round = await database.get<Round>('rounds').find(roundId);
+  } catch {
+    return stats;
+  }
+  const holes: Hole[] = await round.holes.fetch();
 
-  for (const hole of round.holes) {
+  for (const hole of holes) {
     if (hole.strokes <= 0) continue;
 
     const shotData = parseShotData(hole.shotData);

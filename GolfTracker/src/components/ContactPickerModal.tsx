@@ -78,11 +78,23 @@ const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
     >
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={handleCancel} style={styles.headerButton}>
+          <TouchableOpacity
+            onPress={handleCancel}
+            style={styles.headerButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Cancel"
+            accessibilityRole="button"
+          >
             <Icon name="times" size={20} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Select Contacts</Text>
-          <TouchableOpacity onPress={handleSave} style={styles.headerButton}>
+          <TouchableOpacity
+            onPress={handleSave}
+            style={styles.headerButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Save selection"
+            accessibilityRole="button"
+          >
             <Icon name="check" size={20} color="#4CAF50" />
           </TouchableOpacity>
         </View>
@@ -98,8 +110,13 @@ const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
             autoCorrect={false}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Icon name="times-circle" size={16} color="#999" />
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Clear search"
+              accessibilityRole="button"
+            >
+              <Icon name="times-circle" size={16} color="#767676" />
             </TouchableOpacity>
           )}
         </View>
@@ -129,6 +146,9 @@ const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
               <TouchableOpacity
                 style={[styles.contactRow, isSelected && styles.contactRowSelected]}
                 onPress={() => toggleContact(item.id)}
+                accessibilityRole="checkbox"
+                accessibilityLabel={`${item.name}, ${item.phoneNumber}${isSelected ? ', selected' : ''}`}
+                accessibilityState={{ checked: isSelected }}
               >
                 <View style={styles.contactContent}>
                   <Icon
@@ -226,6 +246,8 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     padding: 6,
+    minHeight: 44,
+    justifyContent: 'center' as const,
   },
   actionButtonText: {
     fontSize: 14,
@@ -286,7 +308,7 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#999',
+    color: '#767676',
     marginTop: 16,
   },
   emptyStateSubtext: {

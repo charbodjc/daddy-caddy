@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import { getScoreName } from '../../utils/scoreColors';
 
 interface HoleCardProps {
   holeNumber: number;
@@ -29,12 +30,16 @@ export const HoleCard: React.FC<HoleCardProps> = React.memo(({
   };
   
   const getTextColor = () => {
-    if (strokes === 0) return '#999';
+    if (strokes === 0) return '#767676';
     if (score === -1) return '#fff';
     if (score >= 2) return '#fff';
     return '#000';
   };
   
+  const accessLabel = strokes > 0
+    ? `Hole ${holeNumber}, Par ${par}, Score ${strokes}, ${getScoreName(strokes - par)}`
+    : `Hole ${holeNumber}, Par ${par}, not yet played`;
+
   return (
     <TouchableOpacity
       style={[
@@ -43,6 +48,8 @@ export const HoleCard: React.FC<HoleCardProps> = React.memo(({
       ]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityLabel={accessLabel}
+      accessibilityRole="button"
     >
       <Text style={styles.holeNumber}>{holeNumber}</Text>
       <View style={[styles.scoreCircle, getScoreCircleStyle()]}>
@@ -51,7 +58,7 @@ export const HoleCard: React.FC<HoleCardProps> = React.memo(({
             {strokes}
           </Text>
         ) : (
-          <FontAwesome5 name="golf-ball" size={20} color="#999" />
+          <FontAwesome5 name="golf-ball" size={20} color="#767676" />
         )}
       </View>
       <Text style={styles.par}>Par {par}</Text>
@@ -121,7 +128,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   scorePending: {
-    color: '#999',
+    color: '#767676',
   },
   scoreEagle: {
     color: '#000',
@@ -140,7 +147,7 @@ const styles = StyleSheet.create({
   },
   par: {
     fontSize: 11,
-    color: '#999',
+    color: '#767676',
   },
 });
 

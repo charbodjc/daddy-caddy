@@ -1,19 +1,24 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Round from '../../database/watermelon/models/Round';
+import { formatScoreVsPar } from '../../utils/scoreCalculations';
+import { formatDateShort } from '../../utils/dateFormatting';
 
 interface RoundHeaderProps {
   round: Round;
+  totalPar?: number;
 }
 
-export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round }) => {
+export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, totalPar: totalParProp }) => {
+  const insets = useSafeAreaInsets();
   const calculateScore = () => {
     if (!round.totalScore) return { strokes: 0, toPar: 0 };
-    
-    // Calculate total par from holes (assuming 72 for now, should be fetched from holes)
-    const totalPar = 72;
+
+    // Use provided totalPar from actual hole data, fall back to 72 if not available
+    const totalPar = totalParProp && totalParProp > 0 ? totalParProp : 72;
     const toPar = round.totalScore - totalPar;
-    
+
     return {
       strokes: round.totalScore,
       toPar,
@@ -21,21 +26,17 @@ export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round }) =>
   };
   
   const score = calculateScore();
-  const scoreDisplay = score.toPar > 0 ? `+${score.toPar}` : score.toPar === 0 ? 'E' : `${score.toPar}`;
+  const scoreDisplay = formatScoreVsPar(score.toPar);
   
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
       <View style={styles.courseInfo}>
         <Text style={styles.courseName}>{round.courseName}</Text>
         {round.tournamentName && (
           <Text style={styles.tournamentName}>{round.tournamentName}</Text>
         )}
         <Text style={styles.date}>
-          {round.date.toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
-            year: 'numeric' 
-          })}
+          {formatDateShort(round.date)}
         </Text>
       </View>
       
@@ -56,7 +57,6 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#4CAF50',
     padding: 20,
-    paddingTop: 60,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
