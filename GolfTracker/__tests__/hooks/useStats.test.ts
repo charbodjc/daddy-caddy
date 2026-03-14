@@ -1,4 +1,6 @@
-import { renderHook, act, waitFor } from '@testing-library/react-hooks';
+import { renderHook, act } from '@testing-library/react-hooks';
+// @ts-ignore - waitFor imported from react-native testing lib for standalone usage
+const { waitFor } = require('@testing-library/react-native') as { waitFor: (cb: () => void) => Promise<void> };
 import { useStats } from '../../src/hooks/useStats';
 import { useStatsStore } from '../../src/stores/statsStore';
 import { database } from '../../src/database/watermelon/database';

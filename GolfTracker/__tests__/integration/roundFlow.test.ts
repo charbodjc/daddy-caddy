@@ -34,18 +34,18 @@ describe('Round Flow Integration Test', () => {
     } = useRoundStore.getState();
     
     // Step 1: Create a new round
-    let round: Round;
+    let round: any;
     await act(async () => {
       round = await createRound({
         courseName: 'Pebble Beach',
         date: new Date('2025-01-15'),
       });
     });
-    
+
     expect(round).toBeDefined();
     expect(round.courseName).toBe('Pebble Beach');
     expect(round.isFinished).toBe(false);
-    
+
     // Verify 18 holes were created
     const initialHoles = await round.holes.fetch();
     expect(initialHoles.length).toBe(18);
@@ -68,7 +68,7 @@ describe('Round Flow Integration Test', () => {
     const updatedRound = await database.collections.get<Round>('rounds').find(round.id);
     const holes = await updatedRound.holes.fetch();
     
-    const playedHoles = holes.filter(h => h.strokes > 0);
+    const playedHoles = holes.filter((h: any) => h.strokes > 0);
     expect(playedHoles.length).toBe(9);
     
     // Verify statistics were calculated
@@ -95,7 +95,7 @@ describe('Round Flow Integration Test', () => {
     const finalRound = await database.collections.get<Round>('rounds').find(round.id);
     const allHoles = await finalRound.holes.fetch();
     
-    const allPlayedHoles = allHoles.filter(h => h.strokes > 0);
+    const allPlayedHoles = allHoles.filter((h: any) => h.strokes > 0);
     expect(allPlayedHoles.length).toBe(18);
     
     // Step 4: Finish the round
@@ -126,7 +126,7 @@ describe('Round Flow Integration Test', () => {
     const { createRound, updateHole, deleteRound } = useRoundStore.getState();
     
     // Create round
-    let round: Round;
+    let round: any;
     await act(async () => {
       round = await createRound({
         courseName: 'Test Course',
@@ -148,7 +148,7 @@ describe('Round Flow Integration Test', () => {
     const partialRound = await database.collections.get<Round>('rounds').find(round.id);
     const holes = await partialRound.holes.fetch();
     
-    const playedHoles = holes.filter(h => h.strokes > 0);
+    const playedHoles = holes.filter((h: any) => h.strokes > 0);
     expect(playedHoles.length).toBe(5);
     expect(partialRound.isFinished).toBe(false);
     
@@ -167,18 +167,19 @@ describe('Round Flow Integration Test', () => {
     const { createRound, updateHole, loadAllRounds } = useRoundStore.getState();
     
     // Create multiple rounds
-    const round1 = await act(async () => {
-      return await createRound({ courseName: 'Course 1', date: new Date('2025-01-01') });
+    let round1: any, round2: any, round3: any;
+    await act(async () => {
+      round1 = await createRound({ courseName: 'Course 1', date: new Date('2025-01-01') });
     });
-    
-    const round2 = await act(async () => {
-      return await createRound({ courseName: 'Course 2', date: new Date('2025-01-02') });
+
+    await act(async () => {
+      round2 = await createRound({ courseName: 'Course 2', date: new Date('2025-01-02') });
     });
-    
-    const round3 = await act(async () => {
-      return await createRound({ courseName: 'Course 3', date: new Date('2025-01-03') });
+
+    await act(async () => {
+      round3 = await createRound({ courseName: 'Course 3', date: new Date('2025-01-03') });
     });
-    
+
     // Update holes in different rounds
     await act(async () => {
       await updateHole(round1.id, { holeNumber: 1, par: 4, strokes: 4 });
@@ -204,13 +205,14 @@ describe('Round Flow Integration Test', () => {
     const { createRound, updateHole, finishRound } = useRoundStore.getState();
     
     // Create and fully play a round
-    const round = await act(async () => {
-      return await createRound({ courseName: 'Integrity Test' });
+    let round: any;
+    await act(async () => {
+      round = await createRound({ courseName: 'Integrity Test' });
     });
-    
+
     // Play all 18 holes with specific scores
     const expectedScores = [4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 5, 4, 4, 3, 5, 4, 4];
-    
+
     for (let i = 0; i < 18; i++) {
       await act(async () => {
         await updateHole(round.id, {
@@ -235,7 +237,7 @@ describe('Round Flow Integration Test', () => {
     expect(holes.length).toBe(18);
     
     // All holes should have data
-    holes.forEach((hole, index) => {
+    holes.forEach((hole: any, index: number) => {
       expect(hole.holeNumber).toBe(index + 1);
       expect(hole.strokes).toBe(expectedScores[index]);
       expect(hole.putts).toBe(2);

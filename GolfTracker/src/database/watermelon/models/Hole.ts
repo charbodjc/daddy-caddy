@@ -1,11 +1,11 @@
 import { Model, Relation } from '@nozbe/watermelondb';
-import { field, relation, immutableRelation } from '@nozbe/watermelondb/decorators';
+import { field, immutableRelation } from '@nozbe/watermelondb/decorators';
 import Round from './Round';
 
 export default class Hole extends Model {
-  static table = 'holes';
+  static table = 'holes' as const;
   static associations = {
-    rounds: { type: 'belongs_to', key: 'round_id' },
+    rounds: { type: 'belongs_to' as const, key: 'round_id' },
   };
 
   @field('round_id') roundId!: string;

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, ActivityIndicator, Modal, Dimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, ActivityIndicator, Modal, Dimensions, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import DatabaseService from '../services/database';
@@ -12,7 +12,7 @@ const MediaScreen = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRound, setSelectedRound] = useState<GolfRound | null>(null);
-  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [_media, _setMedia] = useState<MediaItem[]>([]);
   const [mediaByHole, setMediaByHole] = useState<Record<number, MediaItem[]>>({});
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const [showMediaViewer, setShowMediaViewer] = useState(false);

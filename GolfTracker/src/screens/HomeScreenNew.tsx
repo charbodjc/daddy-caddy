@@ -15,17 +15,18 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { AppNavigationProp } from '../types/navigation';
 import { useRound } from '../hooks/useRound';
 import { useRoundStore } from '../stores/roundStore';
 import { useStats } from '../hooks/useStats';
 import { LoadingScreen } from '../components/common/LoadingScreen';
-import { ErrorScreen } from '../components/common/ErrorScreen';
+// ErrorScreen available for future use
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
 const HomeScreenNew: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<AppNavigationProp>();
   const { round: activeRound, loading: roundLoading, reload: reloadRound } = useRound();
   const { stats, loading: statsLoading, refresh: refreshStats } = useStats();
   const { loadAllRounds } = useRoundStore();
@@ -45,23 +46,23 @@ const HomeScreenNew: React.FC = () => {
   };
   
   const handleStartQuickRound = () => {
-    navigation.navigate('Scoring' as never, {
+    navigation.navigate('Scoring', {
       screen: 'RoundTracker',
       params: { quickStart: true }
-    } as never);
+    } );
   };
   
   const handleContinueRound = () => {
     if (activeRound) {
-      navigation.navigate('Scoring' as never, {
+      navigation.navigate('Scoring', {
         screen: 'RoundTracker',
         params: { roundId: activeRound.id }
-      } as never);
+      } );
     }
   };
   
   const handleGoToTournaments = () => {
-    navigation.navigate('Tournaments' as never);
+    navigation.navigate('Tournaments' );
   };
   
   if (loading && !activeRound && !stats) {
@@ -163,7 +164,7 @@ const HomeScreenNew: React.FC = () => {
           
           <TouchableOpacity
             style={styles.viewAllButton}
-            onPress={() => navigation.navigate('Stats' as never)}
+            onPress={() => navigation.navigate('Stats' )}
           >
             <Text style={styles.viewAllText}>View All Stats</Text>
             <Icon name="chevron-right" size={20} color="#4CAF50" />
@@ -186,7 +187,7 @@ const HomeScreenNew: React.FC = () => {
         
         <TouchableOpacity
           style={styles.actionItem}
-          onPress={() => navigation.navigate('Stats' as never)}
+          onPress={() => navigation.navigate('Stats' )}
         >
           <FontAwesome5 name="chart-line" size={20} color="#4CAF50" />
           <Text style={styles.actionText}>Statistics</Text>
@@ -195,7 +196,7 @@ const HomeScreenNew: React.FC = () => {
         
         <TouchableOpacity
           style={styles.actionItem}
-          onPress={() => navigation.navigate('Settings' as never)}
+          onPress={() => navigation.navigate('Settings' )}
         >
           <Icon name="settings" size={20} color="#4CAF50" />
           <Text style={styles.actionText}>Settings</Text>

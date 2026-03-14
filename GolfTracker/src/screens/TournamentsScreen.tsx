@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { AppNavigationProp } from '../types/navigation';
 import DatabaseService from '../services/database';
 import RoundDeletionManager from '../utils/RoundDeletionManager';
 import { Tournament } from '../types';
@@ -22,7 +23,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
 
 const TournamentsScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<AppNavigationProp>();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [rounds, setRounds] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -45,7 +46,7 @@ const TournamentsScreen = () => {
       loadRounds();
       
       // Also listen for round deletions
-      const cleanup = RoundDeletionManager.addListener((deletedRoundId) => {
+      const cleanup = RoundDeletionManager.addListener((_deletedRoundId) => {
         console.log('Round deleted, refreshing TournamentsScreen');
         loadRounds(); // Reload rounds to update tournament stats
       });
@@ -122,9 +123,9 @@ const TournamentsScreen = () => {
   };
 
   const viewTournamentRounds = (tournament: Tournament) => {
-    navigation.navigate('TournamentRounds' as never, {
+    navigation.navigate('TournamentRounds', {
       tournament: tournament,
-    } as never);
+    } );
   };
 
   // Removed markTournamentComplete function - not needed in main screen

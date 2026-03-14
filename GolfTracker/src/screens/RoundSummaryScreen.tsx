@@ -25,7 +25,7 @@ const RoundSummaryScreen = () => {
   const { toastConfig, showToast, hideToast } = useToast();
 
   const [round, setRound] = useState<GolfRound | null>(null);
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [_contacts, _setContacts] = useState<Contact[]>([]);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -38,12 +38,13 @@ const RoundSummaryScreen = () => {
       console.error('No roundId provided to RoundSummaryScreen');
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadRoundData depends on roundId
   }, [roundId]);
 
   const loadRoundData = async () => {
     try {
       console.log('Loading round data for ID:', roundId);
-      const roundData = await DatabaseService.getRound(roundId);
+      const roundData = await DatabaseService.getRound(roundId!);
       if (roundData) {
         console.log('Loaded round data:', {
           id: roundData.id,
@@ -53,9 +54,9 @@ const RoundSummaryScreen = () => {
           totalScore: roundData.totalScore,
         });
         setRound(roundData);
-        
+
         // Load contacts and media
-        const media = await DatabaseService.getMediaForRound(roundId);
+        const media = await DatabaseService.getMediaForRound(roundId!);
         
         setMediaItems(media);
 

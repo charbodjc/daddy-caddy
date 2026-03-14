@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import ShotTrackingScreen from '../ShotTrackingScreen';
-import DatabaseService from '../../services/database';
+// DatabaseService is mocked below via jest.mock
 import { GolfHole } from '../../types';
 
 // Mock navigation
@@ -72,11 +72,11 @@ describe('ShotTrackingScreen', () => {
         shotData: undefined,
       } as GolfHole;
 
-      let component;
+      let component: any;
       await act(async () => {
         component = render(<ShotTrackingScreen />);
       });
-      const { getByText } = component;
+      const { getByText } = component!;
       
       // Wait for async operations to complete
       await waitFor(() => {
@@ -104,25 +104,25 @@ describe('ShotTrackingScreen', () => {
         shotData: undefined,
       } as GolfHole;
 
-      let component;
+      let component: any;
       await act(async () => {
         component = render(<ShotTrackingScreen />);
       });
-      const { getByText, getAllByText } = component;
-      
+      const { getByText } = component!;
+
       // Wait for component to fully load
       await waitFor(() => {
         expect(getByText('Tee Shot')).toBeTruthy();
       });
-      
+
       // Record a tee shot
       fireEvent.press(getByText('Tee Shot'));
-      
+
       // After selecting shot type, the Confirm Shot button should appear
       await waitFor(() => {
         expect(getByText('Confirm Shot')).toBeTruthy();
       });
-      
+
       // Just verify the basic flow works without completing full shot recording
     });
 
@@ -144,11 +144,11 @@ describe('ShotTrackingScreen', () => {
         shotData: JSON.stringify(existingShotData),
       } as any;
 
-      let component;
+      let component: any;
       await act(async () => {
         component = render(<ShotTrackingScreen />);
       });
-      const { getByText } = component;
+      const { getByText } = component!;
       
       // Wait for component to fully load
       await waitFor(() => {
@@ -166,20 +166,20 @@ describe('ShotTrackingScreen', () => {
         shotData: undefined,
       } as GolfHole;
 
-      let component;
+      let component: any;
       await act(async () => {
         component = render(<ShotTrackingScreen />);
       });
-      const { getByText, getAllByText } = component;
-      
+      const { getByText } = component!;
+
       // Wait for component to fully load
       await waitFor(() => {
         expect(getByText('Tee Shot')).toBeTruthy();
       });
-      
+
       // Record a shot
       fireEvent.press(getByText('Tee Shot'));
-      
+
       // After selecting shot type, the Confirm Shot button should appear
       await waitFor(() => {
         expect(getByText('Confirm Shot')).toBeTruthy();
@@ -194,11 +194,11 @@ describe('ShotTrackingScreen', () => {
         shotData: undefined,
       } as GolfHole;
 
-      let component;
+      let component: any;
       await act(async () => {
         component = render(<ShotTrackingScreen />);
       });
-      const { getByText } = component;
+      const { getByText } = component!;
       
       // Wait for component to fully load
       await waitFor(() => {
@@ -233,17 +233,17 @@ describe('ShotTrackingScreen', () => {
         shotData: undefined,
       } as GolfHole;
 
-      let component;
+      let component: any;
       await act(async () => {
         component = render(<ShotTrackingScreen />);
       });
-      const { getByText, getAllByText } = component;
-      
+      const { getByText } = component!;
+
       // Wait for component to fully load
       await waitFor(() => {
         expect(getByText('Tee Shot')).toBeTruthy();
       });
-      
+
       // Just verify shot type buttons are available
       expect(getByText('Approach')).toBeTruthy();
       expect(getByText('Putt')).toBeTruthy();
@@ -257,17 +257,17 @@ describe('ShotTrackingScreen', () => {
         shotData: undefined,
       } as GolfHole;
 
-      let component;
+      let component: any;
       await act(async () => {
         component = render(<ShotTrackingScreen />);
       });
-      const { getByText, getAllByText } = component;
-      
+      const { getByText } = component!;
+
       // Wait for component to fully load
       await waitFor(() => {
         expect(getByText('Tee Shot')).toBeTruthy();
       });
-      
+
       // Just verify shot type buttons are available
       expect(getByText('Chip/Pitch')).toBeTruthy();
       expect(getByText('Putt')).toBeTruthy();

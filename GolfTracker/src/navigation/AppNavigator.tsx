@@ -4,6 +4,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import {
+  ScoringStackParamList,
+  TournamentStackParamList,
+  SettingsStackParamList,
+  RootTabParamList,
+} from '../types/navigation';
 
 // Import screens
 import HomeScreen from '../screens/HomeScreen';
@@ -11,7 +17,6 @@ import RoundTrackerScreen from '../screens/RoundTrackerScreen';
 import HoleDetailsScreen from '../screens/HoleDetailsScreen';
 import ShotTrackingScreen from '../screens/ShotTrackingScreen';
 import HoleSummaryScreen from '../screens/HoleSummaryScreen';
-import StatsScreen from '../screens/StatsScreen';
 import TournamentsScreen from '../screens/TournamentsScreen';
 import TournamentRoundsScreen from '../screens/TournamentRoundsScreen';
 import RoundSummaryScreen from '../screens/RoundSummaryScreen';
@@ -20,95 +25,96 @@ import SettingsScreen from '../screens/SettingsScreen';
 import DatabaseDiagnosticScreen from '../screens/DatabaseDiagnosticScreen';
 import ContactsScreen from '../screens/ContactsScreen';
 
-const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator<RootTabParamList>();
+const ScoringStackNav = createStackNavigator<ScoringStackParamList>();
+const TournamentStackNav = createStackNavigator<TournamentStackParamList>();
+const SettingsStackNav = createStackNavigator<SettingsStackParamList>();
 
 // Stack navigator for Scoring/Round tracking flow
 const ScoringStack = () => {
   return (
-    <Stack.Navigator
+    <ScoringStackNav.Navigator
       screenOptions={{
         headerShown: true,
-        headerBackTitleVisible: false,
       }}
     >
-      <Stack.Screen 
-        name="RoundTracker" 
+      <ScoringStackNav.Screen
+        name="RoundTracker"
         component={RoundTrackerScreen}
         options={{ headerShown: false }}
       />
-      <Stack.Screen 
-        name="HoleDetails" 
+      <ScoringStackNav.Screen
+        name="HoleDetails"
         component={HoleDetailsScreen}
         options={{ title: 'Hole Details' }}
       />
-      <Stack.Screen 
-        name="ShotTracking" 
+      <ScoringStackNav.Screen
+        name="ShotTracking"
         component={ShotTrackingScreen}
         options={{ headerShown: false }}
       />
-      <Stack.Screen 
-        name="HoleSummary" 
+      <ScoringStackNav.Screen
+        name="HoleSummary"
         component={HoleSummaryScreen}
         options={{ title: 'Hole Summary' }}
       />
-      <Stack.Screen 
-        name="RoundSummary" 
+      <ScoringStackNav.Screen
+        name="RoundSummary"
         component={RoundSummaryScreen}
         options={{ title: 'Round Summary' }}
       />
-      <Stack.Screen 
-        name="Camera" 
+      <ScoringStackNav.Screen
+        name="Camera"
         component={CameraScreen}
         options={{ title: 'Capture Media' }}
       />
-    </Stack.Navigator>
+    </ScoringStackNav.Navigator>
   );
 };
 
 // Stack navigator for Tournaments
 const TournamentStack = () => {
   return (
-    <Stack.Navigator>
-      <Stack.Screen 
-        name="TournamentsList" 
+    <TournamentStackNav.Navigator>
+      <TournamentStackNav.Screen
+        name="TournamentsList"
         component={TournamentsScreen}
         options={{ title: 'Tournaments', headerShown: false }}
       />
-      <Stack.Screen 
-        name="TournamentRounds" 
+      <TournamentStackNav.Screen
+        name="TournamentRounds"
         component={TournamentRoundsScreen}
         options={{ title: 'Tournament Rounds', headerShown: false }}
       />
-      <Stack.Screen 
-        name="RoundSummary" 
+      <TournamentStackNav.Screen
+        name="RoundSummary"
         component={RoundSummaryScreen}
         options={{ title: 'Round Summary' }}
       />
-    </Stack.Navigator>
+    </TournamentStackNav.Navigator>
   );
 };
 
 // Stack navigator for Settings
 const SettingsStack = () => {
   return (
-    <Stack.Navigator>
-      <Stack.Screen 
-        name="SettingsList" 
+    <SettingsStackNav.Navigator>
+      <SettingsStackNav.Screen
+        name="SettingsList"
         component={SettingsScreen}
         options={{ title: 'Settings', headerShown: false }}
       />
-      <Stack.Screen 
-        name="Contacts" 
+      <SettingsStackNav.Screen
+        name="Contacts"
         component={ContactsScreen}
         options={{ title: 'Default Text Group', headerShown: false }}
       />
-      <Stack.Screen 
-        name="DatabaseDiagnostic" 
+      <SettingsStackNav.Screen
+        name="DatabaseDiagnostic"
         component={DatabaseDiagnosticScreen}
         options={{ title: 'Database Diagnostics', headerShown: false }}
       />
-    </Stack.Navigator>
+    </SettingsStackNav.Navigator>
   );
 };
 
@@ -117,7 +123,7 @@ const AppNavigator = () => {
     <NavigationContainer>
       <Tab.Navigator
         screenOptions={({ route }) => ({
-          tabBarIcon: ({ focused, color, size }) => {
+          tabBarIcon: ({ color, size }) => {
             if (route.name === 'Home') {
               return <FontAwesome5 name="home" size={size} color={color} />;
             } else if (route.name === 'Scoring') {

@@ -119,14 +119,14 @@ const StatsScreen = () => {
 
   // Aggregate shot statistics by type
   const shotStats: { [key: string]: { [result: string]: number } } = {};
-  let totalShots = 0;
+  let _totalShots = 0;
   let totalPutts = 0;
 
   holes.forEach(hole => {
     const shotData = extractShotData(hole);
     if (shotData?.shots && Array.isArray(shotData.shots)) {
       shotData.shots.forEach((shot: TrackedShot) => {
-        totalShots++;
+        _totalShots++;
         
         // Initialize shot type if not exists
         if (!shotStats[shot.type]) {

@@ -120,12 +120,12 @@ describe('OnboardingScreen', () => {
   
   it('should display correct number of dots', () => {
     const { UNSAFE_getAllByType } = render(<OnboardingScreen onComplete={mockOnComplete} />);
-    
+
     // Should have 6 dots for 6 slides
-    const dots = UNSAFE_getAllByType('View').filter(
-      view => view.props.style && view.props.style.width === 8
+    const dots = UNSAFE_getAllByType('View' as any).filter(
+      (view: any) => view.props.style && view.props.style.width === 8
     );
-    
+
     expect(dots.length).toBeGreaterThanOrEqual(6);
   });
 });

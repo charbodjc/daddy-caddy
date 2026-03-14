@@ -12,7 +12,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   Share,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -22,7 +21,7 @@ import { LoadingScreen } from '../components/common/LoadingScreen';
 import { ErrorScreen } from '../components/common/ErrorScreen';
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+// FontAwesome5 available for future use
 import { format } from 'date-fns';
 
 interface RouteParams {
@@ -41,6 +40,7 @@ const RoundSummaryScreenNew: React.FC = () => {
   
   useEffect(() => {
     loadRound();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadRound depends on roundId
   }, [roundId]);
   
   const loadRound = async () => {

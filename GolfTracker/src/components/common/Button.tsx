@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text, ActivityIndicator, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { TouchableOpacity, Text, ActivityIndicator, StyleSheet, ViewStyle } from 'react-native';
 
 interface ButtonProps {
   title: string;
@@ -8,6 +8,7 @@ interface ButtonProps {
   loading?: boolean;
   disabled?: boolean;
   style?: ViewStyle;
+  testID?: string;
 }
 
 export const Button: React.FC<ButtonProps> = React.memo(({
@@ -17,11 +18,13 @@ export const Button: React.FC<ButtonProps> = React.memo(({
   loading = false,
   disabled = false,
   style,
+  testID,
 }) => {
   const isDisabled = disabled || loading;
-  
+
   return (
     <TouchableOpacity
+      testID={testID}
       onPress={onPress}
       disabled={isDisabled}
       style={[

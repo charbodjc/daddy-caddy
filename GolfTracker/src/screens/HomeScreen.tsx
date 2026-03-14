@@ -15,13 +15,14 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
+import { AppNavigationProp } from '../types/navigation';
 import { useFocusEffect } from '@react-navigation/native';
 import DatabaseService from '../services/database';
-import { GolfRound, Tournament } from '../types';
+import { GolfRound } from '../types';
 import RoundDeletionManager from '../utils/RoundDeletionManager';
 
 const HomeScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<AppNavigationProp>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeRound, setActiveRound] = useState<GolfRound | null>(null);
@@ -118,7 +119,7 @@ const HomeScreen = () => {
     React.useCallback(() => {
       loadData();
       
-      const cleanup = RoundDeletionManager.addListener((deletedRoundId) => {
+      const cleanup = RoundDeletionManager.addListener((_deletedRoundId) => {
         console.log('Round deleted, refreshing HomeScreen');
         loadData();
       });
@@ -132,24 +133,24 @@ const HomeScreen = () => {
     loadData();
   };
 
-  const startQuickRound = () => {
-    navigation.navigate('Scoring' as never, {
+  const _startQuickRound = () => {
+    navigation.navigate('Scoring', {
       screen: 'RoundTracker',
       params: { quickStart: true }
-    } as never);
+    } );
   };
 
   const continueRound = () => {
     if (activeRound) {
-      navigation.navigate('Scoring' as never, {
+      navigation.navigate('Scoring', {
         screen: 'RoundTracker',
         params: { roundId: activeRound.id }
-      } as never);
+      } );
     }
   };
 
   const goToTournaments = () => {
-    navigation.navigate('Tournaments' as never);
+    navigation.navigate('Tournaments' );
   };
 
   const handleDeleteRound = async (round: GolfRound) => {
@@ -166,8 +167,7 @@ const HomeScreen = () => {
               await DatabaseService.deleteRound(round.id);
               console.log(`✅ Round ${round.id} deleted`);
               // Refresh the data
-              loadRecentRounds();
-              loadStats();
+              loadData();
             } catch (error) {
               console.error('❌ Failed to delete round:', error);
               Alert.alert('Error', 'Failed to delete round');
@@ -311,7 +311,7 @@ const HomeScreen = () => {
       {recentRounds.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Rounds</Text>
-          {recentRounds.map((round, index) => (
+          {recentRounds.map((round) => (
             <View key={round.id} style={styles.recentRound}>
               <View style={styles.recentRoundLeft}>
                 <Text style={styles.recentRoundCourse}>{round.courseName}</Text>
@@ -322,7 +322,7 @@ const HomeScreen = () => {
               <View style={styles.recentRoundMiddle}>
                 <Text style={styles.recentRoundScore}>{round.totalScore}</Text>
                 <Text style={styles.recentRoundPar}>
-                  {round.totalScore - 72 > 0 ? '+' : ''}{round.totalScore - 72}
+                  {(round.totalScore ?? 0) - 72 > 0 ? '+' : ''}{(round.totalScore ?? 0) - 72}
                 </Text>
               </View>
               <TouchableOpacity 

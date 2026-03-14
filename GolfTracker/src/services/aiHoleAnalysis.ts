@@ -2,8 +2,11 @@ import { GolfHole, ShotData, MediaItem, SHOT_TYPES, SHOT_RESULTS } from '../type
 import { getResultLabel } from '../utils/shotLabels';
 import Config from 'react-native-config';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI loaded dynamically via require
+type OpenAIClient = any;
+
 class AIHoleAnalysisService {
-  private openai: OpenAI | null = null;
+  private openai: OpenAIClient = null;
   private initialized: boolean = false;
 
   constructor() {

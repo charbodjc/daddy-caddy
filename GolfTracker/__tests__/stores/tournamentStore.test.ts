@@ -25,7 +25,7 @@ describe('tournamentStore', () => {
     it('should create a new tournament', async () => {
       const { createTournament } = useTournamentStore.getState();
       
-      let tournament;
+      let tournament: any;
       await act(async () => {
         tournament = await createTournament({
           name: 'Test Tournament',
@@ -36,8 +36,8 @@ describe('tournamentStore', () => {
       });
       
       expect(tournament).toBeDefined();
-      expect(tournament.name).toBe('Test Tournament');
-      expect(tournament.courseName).toBe('Test Course');
+      expect(tournament!.name).toBe('Test Tournament');
+      expect(tournament!.courseName).toBe('Test Course');
     });
     
     it('should reload tournaments after creation', async () => {
@@ -106,8 +106,8 @@ describe('tournamentStore', () => {
   
   describe('deleteTournament', () => {
     it('should delete tournament and all associated rounds', async () => {
-      let tournamentId: string;
-      let roundId: string;
+      let tournamentId: string = '';
+      let roundId: string = '';
       
       // Create tournament with rounds
       await database.write(async () => {
@@ -166,8 +166,8 @@ describe('tournamentStore', () => {
     });
     
     it('should clear selected tournament if deleted', async () => {
-      let tournamentId: string;
-      
+      let tournamentId: string = '';
+
       await database.write(async () => {
         const tournament = await database.collections.get<Tournament>('tournaments').create((t) => {
           t.name = 'Test Tournament';
@@ -177,14 +177,14 @@ describe('tournamentStore', () => {
         });
         tournamentId = tournament.id;
       });
-      
+
       const { selectTournament, deleteTournament } = useTournamentStore.getState();
-      
+
       // Select tournament
       await act(async () => {
         await selectTournament(tournamentId);
       });
-      
+
       expect(useTournamentStore.getState().selectedTournament?.id).toBe(tournamentId);
       
       // Delete selected tournament
@@ -198,7 +198,7 @@ describe('tournamentStore', () => {
   
   describe('getTournamentRounds', () => {
     it('should get all rounds for a tournament', async () => {
-      let tournamentId: string;
+      let tournamentId: string = '';
       
       await database.write(async () => {
         const tournament = await database.collections.get<Tournament>('tournaments').create((t) => {
@@ -234,11 +234,11 @@ describe('tournamentStore', () => {
       
       const { getTournamentRounds } = useTournamentStore.getState();
       
-      let rounds;
+      let rounds: any;
       await act(async () => {
         rounds = await getTournamentRounds(tournamentId);
       });
-      
+
       expect(rounds.length).toBe(2);
       expect(rounds[0].courseName).toBe('Course 2'); // Sorted by date desc
       expect(rounds[1].courseName).toBe('Course 1');
@@ -247,7 +247,7 @@ describe('tournamentStore', () => {
   
   describe('selectTournament', () => {
     it('should set selected tournament', async () => {
-      let tournamentId: string;
+      let tournamentId: string = '';
       
       await database.write(async () => {
         const tournament = await database.collections.get<Tournament>('tournaments').create((t) => {

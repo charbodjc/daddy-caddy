@@ -19,15 +19,6 @@ export const HoleCard: React.FC<HoleCardProps> = React.memo(({
 }) => {
   const score = strokes - par;
   
-  const getScoreStyle = () => {
-    if (strokes === 0) return styles.scorePending;
-    if (score <= -2) return styles.scoreEagle;
-    if (score === -1) return styles.scoreBirdie;
-    if (score === 0) return styles.scorePar;
-    if (score === 1) return styles.scoreBogey;
-    return styles.scoreDouble;
-  };
-  
   const getScoreCircleStyle = () => {
     if (strokes === 0) return styles.circleNone;
     if (score <= -2) return styles.circleEagle;

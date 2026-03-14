@@ -18,7 +18,7 @@ describe('Round Model', () => {
   });
 
   it('should create round with holes', async () => {
-    let roundId: string;
+    let roundId!: string;
 
     await database.write(async () => {
       const round = await database.collections.get<Round>('rounds').create((r) => {
@@ -49,7 +49,7 @@ describe('Round Model', () => {
   });
 
   it('should calculate total score from holes', async () => {
-    let roundId: string;
+    let roundId!: string;
 
     await database.write(async () => {
       const round = await database.collections.get<Round>('rounds').create((r) => {
@@ -91,7 +91,7 @@ describe('Round Model', () => {
       });
 
       // Subscribe to hole changes
-      const subscription = round.holesArray.subscribe((holes) => {
+      const subscription = round.holesArray.subscribe((holes: Hole[]) => {
         observedHoles.push(holes.length);
       });
 
@@ -145,7 +145,7 @@ describe('Round Model', () => {
   });
 
   it('should mark round as finished', async () => {
-    let roundId: string;
+    let roundId!: string;
 
     await database.write(async () => {
       const round = await database.collections.get<Round>('rounds').create((r) => {

@@ -14,6 +14,7 @@ import {
   launchImageLibrary,
   ImagePickerResponse,
   MediaType,
+  PhotoQuality,
 } from 'react-native-image-picker';
 import DatabaseService from '../services/database';
 import { MediaItem } from '../types';
@@ -35,7 +36,7 @@ const CameraScreen = () => {
     includeBase64: false,
     maxHeight: 2000,
     maxWidth: 2000,
-    quality: 0.8,
+    quality: 0.8 as PhotoQuality,
     videoQuality: 'high' as const,
   };
 

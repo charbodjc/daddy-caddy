@@ -25,19 +25,22 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { AppNavigationProp } from '../types/navigation';
+import { format } from 'date-fns';
 import { useTournaments } from '../hooks/useTournaments';
 import { useTournamentStore } from '../stores/tournamentStore';
 import { LoadingScreen } from '../components/common/LoadingScreen';
 import { ErrorScreen } from '../components/common/ErrorScreen';
 import { Button } from '../components/common/Button';
+// Tournament type used via useTournaments hook
 import { TournamentCard } from '../components/tournament/TournamentCard';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const TournamentsScreenNew: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<AppNavigationProp>();
   const { tournaments, loading, error, reload } = useTournaments();
-  const { createTournament, deleteTournament } = useTournamentStore();
+  const { createTournament, deleteTournament: _deleteTournament } = useTournamentStore();
   
   const [modalVisible, setModalVisible] = useState(false);
   const [formData, setFormData] = useState({
@@ -80,39 +83,18 @@ const TournamentsScreenNew: React.FC = () => {
       });
       
       Alert.alert('Success', 'Tournament created successfully');
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to create tournament');
     } finally {
       setCreating(false);
     }
   };
-  
-  const handleDelete = (tournament: Tournament) => {
-    Alert.alert(
-      'Delete Tournament',
-      `Are you sure you want to delete "${tournament.name}"? This will also delete all rounds in this tournament.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteTournament(tournament.id);
-              Alert.alert('Success', 'Tournament deleted');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete tournament');
-            }
-          },
-        },
-      ]
-    );
-  };
-  
-  const handleTournamentPress = async (tournament: Tournament) => {
-    navigation.navigate('TournamentRounds' as never, {
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts both WatermelonDB and plain Tournament
+  const handleTournamentPress = async (tournament: any) => {
+    navigation.navigate('TournamentRounds', {
       tournament,
-    } as never);
+    } );
   };
   
   if (loading) {
