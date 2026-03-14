@@ -123,18 +123,20 @@ export const useRoundStore = create<RoundState>()(
               )
               .fetch();
 
-            if (holes.length > 0) {
-              const hole = holes[0];
-              await hole.update((h) => {
-                h.par = holeData.par;
-                h.strokes = holeData.strokes;
-                if (holeData.fairwayHit !== undefined) h.fairwayHit = holeData.fairwayHit;
-                if (holeData.greenInRegulation !== undefined) h.greenInRegulation = holeData.greenInRegulation;
-                if (holeData.putts !== undefined) h.putts = holeData.putts;
-                if (holeData.notes !== undefined) h.notes = holeData.notes;
-                if (holeData.shotData !== undefined) h.shotData = holeData.shotData;
-              });
+            if (holes.length === 0) {
+              throw new Error(`Hole ${holeData.holeNumber} not found for round ${roundId}`);
             }
+
+            const hole = holes[0];
+            await hole.update((h) => {
+              h.par = holeData.par;
+              h.strokes = holeData.strokes;
+              if (holeData.fairwayHit !== undefined) h.fairwayHit = holeData.fairwayHit;
+              if (holeData.greenInRegulation !== undefined) h.greenInRegulation = holeData.greenInRegulation;
+              if (holeData.putts !== undefined) h.putts = holeData.putts;
+              if (holeData.notes !== undefined) h.notes = holeData.notes;
+              if (holeData.shotData !== undefined) h.shotData = holeData.shotData;
+            });
 
             // Recalculate round statistics
             const round = await database.collections.get<Round>('rounds').find(roundId);

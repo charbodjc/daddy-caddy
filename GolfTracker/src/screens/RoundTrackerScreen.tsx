@@ -30,10 +30,10 @@ import { AppNavigationProp } from '../types/navigation';
 import { useRound } from '../hooks/useRound';
 import { useRoundStore } from '../stores/roundStore';
 import { LoadingScreen } from '../components/common/LoadingScreen';
+import { ErrorScreen } from '../components/common/ErrorScreen';
 import { RoundHeader } from '../components/round/RoundHeader';
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-// FontAwesome5 available for future use
 import Hole from '../database/watermelon/models/Hole';
 import { useObservable } from '../hooks/useObservable';
 import { HoleCard } from '../components/round/HoleCard';
@@ -50,13 +50,17 @@ const RoundTrackerScreen: React.FC = () => {
   const route = useRoute();
   const params = (route.params as RouteParams) || {};
   
-  const { round, loading, error: _error, reload: _reload } = useRound(params.roundId);
+  const { round, loading, error } = useRound(params.roundId);
   const { createRound, updateHole, finishRound, deleteRound } = useRoundStore();
   
-  // Observe holes reactively — UI updates automatically on DB changes
+  // Observe holes reactively — UI updates automatically on DB changes.
+  // Depend on round?.id (not round) to avoid creating a new Observable
+  // when loadActiveRound() returns a new Round object with the same ID.
+  const roundId = round?.id;
   const holesObservable = useMemo(
     () => round?.holes.observe(),
-    [round],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stabilize on ID, not object reference
+    [roundId],
   );
   const rawHoles = useObservable<Hole[]>(holesObservable);
   const holes = useMemo(
@@ -198,6 +202,15 @@ const RoundTrackerScreen: React.FC = () => {
   if (loading) {
     return <LoadingScreen message="Loading round..." />;
   }
+
+  if (error) {
+    return (
+      <ErrorScreen
+        error={error}
+        onRetry={() => useRoundStore.getState().loadActiveRound()}
+      />
+    );
+  }
   
   // Setup screen for new round
   if (setupVisible || !round) {
@@ -292,20 +305,26 @@ const RoundTrackerScreen: React.FC = () => {
               <TouchableOpacity
                 style={styles.parButton}
                 onPress={() => handleParSelect(3)}
+                accessibilityRole="button"
+                accessibilityLabel="Par 3"
               >
                 <Text style={styles.parButtonText}>Par 3</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={styles.parButton}
                 onPress={() => handleParSelect(4)}
+                accessibilityRole="button"
+                accessibilityLabel="Par 4"
               >
                 <Text style={styles.parButtonText}>Par 4</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={styles.parButton}
                 onPress={() => handleParSelect(5)}
+                accessibilityRole="button"
+                accessibilityLabel="Par 5"
               >
                 <Text style={styles.parButtonText}>Par 5</Text>
               </TouchableOpacity>
@@ -380,7 +399,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    minHeight: 44,
   },
   actionText: {
     fontSize: 14,

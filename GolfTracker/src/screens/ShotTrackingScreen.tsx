@@ -268,6 +268,9 @@ const ShotTrackingScreen: React.FC = () => {
               key={t}
               style={[styles.typeBtn, selectedType === t && styles.typeBtnActive]}
               onPress={() => setSelectedType(t)}
+              accessibilityRole="button"
+              accessibilityLabel={`${t}${selectedType === t ? ', selected' : ''}`}
+              accessibilityState={{ selected: selectedType === t }}
             >
               <Text
                 style={[styles.typeBtnText, selectedType === t && styles.typeBtnTextActive]}
@@ -300,6 +303,9 @@ const ShotTrackingScreen: React.FC = () => {
             <TouchableOpacity
               style={[styles.penaltyBtn, penaltyCount === 1 && styles.penaltyBtnActive]}
               onPress={() => setPenaltyCount(1)}
+              accessibilityRole="button"
+              accessibilityLabel={`1 stroke penalty${penaltyCount === 1 ? ', selected' : ''}`}
+              accessibilityState={{ selected: penaltyCount === 1 }}
             >
               <Text style={[styles.penaltyBtnText, penaltyCount === 1 && styles.penaltyBtnTextActive]}>
                 1 stroke
@@ -308,6 +314,9 @@ const ShotTrackingScreen: React.FC = () => {
             <TouchableOpacity
               style={[styles.penaltyBtn, penaltyCount === 2 && styles.penaltyBtnActive]}
               onPress={() => setPenaltyCount(2)}
+              accessibilityRole="button"
+              accessibilityLabel={`2 stroke penalty${penaltyCount === 2 ? ', selected' : ''}`}
+              accessibilityState={{ selected: penaltyCount === 2 }}
             >
               <Text style={[styles.penaltyBtnText, penaltyCount === 2 && styles.penaltyBtnTextActive]}>
                 2 strokes
@@ -324,6 +333,8 @@ const ShotTrackingScreen: React.FC = () => {
               key={opt.value + opt.label}
               style={styles.resultBtn}
               onPress={() => addShot(opt.value)}
+              accessibilityRole="button"
+              accessibilityLabel={`${opt.label} result for ${selectedType}`}
             >
               <Text style={styles.resultBtnText}>{opt.label}</Text>
             </TouchableOpacity>
@@ -383,7 +394,7 @@ const ShotTrackingScreen: React.FC = () => {
       </ScrollView>
 
       {/* Footer actions */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <Button
           title="Done"
           onPress={handleSave}
@@ -416,7 +427,7 @@ const styles = StyleSheet.create({
   typeBtnTextActive: { color: S.white },
   puttRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
   penaltyRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
-  penaltyBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#e8e8e8' },
+  penaltyBtn: { paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#e8e8e8', minHeight: 44 },
   penaltyBtnActive: { backgroundColor: '#F44336' },
   penaltyBtnText: { fontSize: 13, fontWeight: '600', color: '#555' },
   penaltyBtnTextActive: { color: '#fff' },

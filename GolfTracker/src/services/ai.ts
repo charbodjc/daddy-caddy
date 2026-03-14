@@ -1,50 +1,25 @@
 import { GolfRound, Statistics } from '../types';
 import Config from 'react-native-config';
+import { isCircuitOpen, recordSuccess, recordFailure, withTimeout } from './aiCircuitBreaker';
 
- 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI loaded dynamically via require
 type OpenAIClient = any;
-
-const AI_TIMEOUT_MS = 5_000;
-const CIRCUIT_BREAKER_THRESHOLD = 3;
-
-/** Race a promise against a timeout. */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<T>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`AI request timed out after ${ms}ms`)), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
 
 class AIService {
   private openai: OpenAIClient = null;
   private initialized: boolean = false;
-  private consecutiveFailures = 0;
 
   constructor() {
     // Delay initialization to avoid accessing native module at load time
-  }
-
-  private get circuitOpen(): boolean {
-    return this.consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD;
-  }
-
-  private recordSuccess(): void {
-    this.consecutiveFailures = 0;
-  }
-
-  private recordFailure(): void {
-    this.consecutiveFailures += 1;
   }
 
   private initializeOpenAI() {
     if (this.initialized) return;
     this.initialized = true;
 
-    // Initialize with API key from environment (guarded dynamic require)
     try {
       if (Config.OPENAI_API_KEY) {
-         
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const OpenAI = require('openai').default;
         this.openai = new OpenAI({ apiKey: Config.OPENAI_API_KEY });
       }
@@ -60,7 +35,7 @@ class AIService {
       return 'AI analysis unavailable. Please configure OpenAI API key.';
     }
 
-    if (this.circuitOpen) {
+    if (isCircuitOpen()) {
       console.warn('AI circuit breaker open — using fallback');
       return this.generateBasicAnalysis(round);
     }
@@ -93,30 +68,26 @@ class AIService {
         Keep the analysis concise but insightful, focusing on actionable feedback.
       `;
 
-       
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI types not available at runtime
       const response: any = await withTimeout(
         this.openai.chat.completions.create({
-          model: (Config.OPENAI_MODEL || 'gpt-4-turbo') as 'gpt-4-turbo' | 'gpt-4o' | 'gpt-3.5-turbo',
+          model: (Config.OPENAI_MODEL || 'gpt-4-turbo') as string,
           messages: [
             {
               role: 'system',
               content: 'You are a professional golf coach providing detailed analysis and recommendations based on round statistics.',
             },
-            {
-              role: 'user',
-              content: prompt,
-            },
+            { role: 'user', content: prompt },
           ],
           max_tokens: 500,
           temperature: 0.7,
         }),
-        AI_TIMEOUT_MS,
       );
 
-      this.recordSuccess();
-      return response.choices[0].message.content || 'Unable to generate analysis';
+      recordSuccess();
+      return response?.choices?.[0]?.message?.content || 'Unable to generate analysis';
     } catch (error) {
-      this.recordFailure();
+      recordFailure();
       console.error('AI analysis error:', error);
       return this.generateBasicAnalysis(round);
     }
@@ -226,7 +197,7 @@ class AIService {
       return 'Shot recommendations unavailable.';
     }
 
-    if (this.circuitOpen) {
+    if (isCircuitOpen()) {
       return 'Shot recommendations temporarily unavailable.';
     }
 
@@ -240,30 +211,23 @@ class AIService {
         Give a concise recommendation (2-3 sentences) for club selection and shot strategy.
       `;
 
-       
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI types not available at runtime
       const response: any = await withTimeout(
         this.openai.chat.completions.create({
-          model: (Config.OPENAI_MODEL || 'gpt-4-turbo') as 'gpt-4-turbo' | 'gpt-4o' | 'gpt-3.5-turbo',
+          model: (Config.OPENAI_MODEL || 'gpt-4-turbo') as string,
           messages: [
-            {
-              role: 'system',
-              content: 'You are a golf caddie providing strategic advice.',
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
+            { role: 'system', content: 'You are a golf caddie providing strategic advice.' },
+            { role: 'user', content: prompt },
           ],
           max_tokens: 100,
           temperature: 0.7,
         }),
-        AI_TIMEOUT_MS,
       );
 
-      this.recordSuccess();
-      return response.choices[0].message.content || 'Unable to generate recommendation';
+      recordSuccess();
+      return response?.choices?.[0]?.message?.content || 'Unable to generate recommendation';
     } catch (error) {
-      this.recordFailure();
+      recordFailure();
       console.error('Shot recommendation error:', error);
       return 'Unable to generate recommendation';
     }

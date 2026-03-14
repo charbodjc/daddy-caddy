@@ -1,41 +1,17 @@
 import { GolfHole, ShotData, MediaItem, SHOT_TYPES, SHOT_RESULTS } from '../types';
 import { getResultLabel } from '../utils/shotLabels';
 import Config from 'react-native-config';
+import { isCircuitOpen, recordSuccess, recordFailure, withTimeout } from './aiCircuitBreaker';
 
- 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI loaded dynamically via require
 type OpenAIClient = any;
-
-const AI_TIMEOUT_MS = 5_000;
-const CIRCUIT_BREAKER_THRESHOLD = 3;
-
-/** Race a promise against a timeout. */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<T>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`AI request timed out after ${ms}ms`)), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
 
 class AIHoleAnalysisService {
   private openai: OpenAIClient = null;
   private initialized: boolean = false;
-  private consecutiveFailures = 0;
 
   constructor() {
     // Delay initialization to avoid accessing native module at load time
-  }
-
-  private get circuitOpen(): boolean {
-    return this.consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD;
-  }
-
-  private recordSuccess(): void {
-    this.consecutiveFailures = 0;
-  }
-
-  private recordFailure(): void {
-    this.consecutiveFailures += 1;
   }
 
   private initializeOpenAI() {
@@ -44,7 +20,7 @@ class AIHoleAnalysisService {
 
     try {
       if (Config.OPENAI_API_KEY) {
-         
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const OpenAI = require('openai').default;
         this.openai = new OpenAI({ apiKey: Config.OPENAI_API_KEY });
       }
@@ -59,7 +35,7 @@ class AIHoleAnalysisService {
     mediaItems: MediaItem[]
   ): Promise<string> {
     this.initializeOpenAI();
-    if (!this.openai || this.circuitOpen) {
+    if (!this.openai || isCircuitOpen()) {
       return this.generateBasicSummary(hole, mediaItems);
     }
 
@@ -96,7 +72,7 @@ class AIHoleAnalysisService {
         Keep it under 200 characters for SMS friendliness.
       `;
 
-       
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI types not available at runtime
       const response: any = await withTimeout(
         this.openai.chat.completions.create({
           model: (Config.OPENAI_MODEL || 'gpt-4o') as string,
@@ -105,21 +81,17 @@ class AIHoleAnalysisService {
               role: 'system',
               content: 'You are a golf buddy sharing exciting updates from the course. Be enthusiastic, use golf slang appropriately, and keep messages brief and engaging.',
             },
-            {
-              role: 'user',
-              content: prompt,
-            },
+            { role: 'user', content: prompt },
           ],
           max_tokens: 150,
           temperature: 0.8,
         }),
-        AI_TIMEOUT_MS,
       );
 
-      this.recordSuccess();
-      return response.choices[0].message.content || this.generateBasicSummary(hole, mediaItems);
+      recordSuccess();
+      return response?.choices?.[0]?.message?.content || this.generateBasicSummary(hole, mediaItems);
     } catch (error) {
-      this.recordFailure();
+      recordFailure();
       console.error('AI analysis error:', error);
       return this.generateBasicSummary(hole, mediaItems);
     }
@@ -158,7 +130,6 @@ class AIHoleAnalysisService {
     const analysis: string[] = [];
     const score = hole.strokes - hole.par;
 
-    // Score analysis
     if (score <= -2) {
       analysis.push('Outstanding hole! Eagle or better');
     } else if (score === -1) {
@@ -171,7 +142,6 @@ class AIHoleAnalysisService {
       analysis.push('Challenging hole');
     }
 
-    // Shot analysis
     if (hole.shotData) {
       const data = this.parseShotData(hole.shotData);
       if (data) {
@@ -189,7 +159,6 @@ class AIHoleAnalysisService {
       }
     }
 
-    // Stats
     if (hole.putts) {
       analysis.push(`${hole.putts} putt${hole.putts !== 1 ? 's' : ''}`);
     }
@@ -241,7 +210,6 @@ class AIHoleAnalysisService {
         const putts = shotData.shots.filter(s => s.type === SHOT_TYPES.PUTT);
         const hasSand = shotData.shots.some(s => s.results.includes(SHOT_RESULTS.SAND));
 
-        // Add key shot details
         if (hole.par > 3 && teeShot?.results.includes(SHOT_RESULTS.CENTER)) {
           summary += '⛳ Fairway hit! ';
         } else if (hole.par === 3 && teeShot?.results.includes(SHOT_RESULTS.GREEN)) {
@@ -272,7 +240,6 @@ class AIHoleAnalysisService {
   }
 
   async generateMediaAnalysisPrompt(mediaItems: MediaItem[]): Promise<string> {
-    // This would be enhanced with actual image analysis if using Vision API
     const photos = mediaItems.filter(m => m.type === 'photo');
     const videos = mediaItems.filter(m => m.type === 'video');
 
@@ -306,4 +273,5 @@ class AIHoleAnalysisService {
   }
 }
 
-export default AIHoleAnalysisService;
+// Singleton — shared circuit breaker state requires single instance
+export default new AIHoleAnalysisService();

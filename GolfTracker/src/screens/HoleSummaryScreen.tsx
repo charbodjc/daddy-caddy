@@ -27,7 +27,7 @@ import { LoadingScreen } from '../components/common/LoadingScreen';
 import { ErrorScreen } from '../components/common/ErrorScreen';
 import { Button } from '../components/common/Button';
 import { Toast, useToast } from '../components/Toast';
-import AIHoleAnalysisService from '../services/aiHoleAnalysis';
+import aiService from '../services/aiHoleAnalysis';
 import SMSService from '../services/sms';
 import MediaService from '../services/media';
 import { holeToGolfHole } from '../services/adapters';
@@ -43,7 +43,7 @@ import type { RouteProp } from '@react-navigation/native';
 type NavProp = StackNavigationProp<ScoringStackParamList, 'HoleSummary'>;
 type RoutePropT = RouteProp<ScoringStackParamList, 'HoleSummary'>;
 
-const aiService = new AIHoleAnalysisService();
+// aiService is the singleton default export from aiHoleAnalysis
 
 function getScoreDisplay(strokes: number, par: number) {
   const diff = strokes - par;
