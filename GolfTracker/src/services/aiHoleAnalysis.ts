@@ -2,15 +2,40 @@ import { GolfHole, ShotData, MediaItem, SHOT_TYPES, SHOT_RESULTS } from '../type
 import { getResultLabel } from '../utils/shotLabels';
 import Config from 'react-native-config';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI loaded dynamically via require
+ 
 type OpenAIClient = any;
+
+const AI_TIMEOUT_MS = 5_000;
+const CIRCUIT_BREAKER_THRESHOLD = 3;
+
+/** Race a promise against a timeout. */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`AI request timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
 class AIHoleAnalysisService {
   private openai: OpenAIClient = null;
   private initialized: boolean = false;
+  private consecutiveFailures = 0;
 
   constructor() {
     // Delay initialization to avoid accessing native module at load time
+  }
+
+  private get circuitOpen(): boolean {
+    return this.consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD;
+  }
+
+  private recordSuccess(): void {
+    this.consecutiveFailures = 0;
+  }
+
+  private recordFailure(): void {
+    this.consecutiveFailures += 1;
   }
 
   private initializeOpenAI() {
@@ -19,7 +44,7 @@ class AIHoleAnalysisService {
 
     try {
       if (Config.OPENAI_API_KEY) {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+         
         const OpenAI = require('openai').default;
         this.openai = new OpenAI({ apiKey: Config.OPENAI_API_KEY });
       }
@@ -34,7 +59,7 @@ class AIHoleAnalysisService {
     mediaItems: MediaItem[]
   ): Promise<string> {
     this.initializeOpenAI();
-    if (!this.openai) {
+    if (!this.openai || this.circuitOpen) {
       return this.generateBasicSummary(hole, mediaItems);
     }
 
@@ -45,21 +70,21 @@ class AIHoleAnalysisService {
 
       const prompt = `
         Analyze this golf hole and create an engaging, conversational summary suitable for sharing with friends via text message.
-        
+
         Hole ${hole.holeNumber} - Par ${hole.par}
         Score: ${hole.strokes} strokes (${this.getScoreName(hole)})
-        
+
         Shot Sequence:
         ${shotNarrative}
-        
+
         Performance Details:
         ${performanceAnalysis}
-        
+
         Media Captured:
         ${mediaDescription}
-        
+
         ${hole.notes ? `Personal Notes: ${hole.notes}` : ''}
-        
+
         Create a brief, engaging summary (2-3 sentences) that:
         1. Tells the story of the hole in a conversational, exciting way
         2. Highlights any notable shots or moments
@@ -67,28 +92,34 @@ class AIHoleAnalysisService {
         4. Includes any drama, success, or learning moments
         5. Uses golf terminology naturally but keeps it accessible
         6. Adds appropriate emojis for social sharing
-        
+
         Keep it under 200 characters for SMS friendliness.
       `;
 
-      const response = await this.openai.chat.completions.create({
-        model: (Config.OPENAI_MODEL || 'gpt-4o') as string,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a golf buddy sharing exciting updates from the course. Be enthusiastic, use golf slang appropriately, and keep messages brief and engaging.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        max_tokens: 150,
-        temperature: 0.8,
-      });
+       
+      const response: any = await withTimeout(
+        this.openai.chat.completions.create({
+          model: (Config.OPENAI_MODEL || 'gpt-4o') as string,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a golf buddy sharing exciting updates from the course. Be enthusiastic, use golf slang appropriately, and keep messages brief and engaging.',
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          max_tokens: 150,
+          temperature: 0.8,
+        }),
+        AI_TIMEOUT_MS,
+      );
 
+      this.recordSuccess();
       return response.choices[0].message.content || this.generateBasicSummary(hole, mediaItems);
     } catch (error) {
+      this.recordFailure();
       console.error('AI analysis error:', error);
       return this.generateBasicSummary(hole, mediaItems);
     }
@@ -200,9 +231,9 @@ class AIHoleAnalysisService {
   generateBasicSummary(hole: GolfHole, mediaItems: MediaItem[]): string {
     const score = this.getScoreName(hole);
     const mediaCount = mediaItems.length;
-    
+
     let summary = `Hole ${hole.holeNumber}: ${score} `;
-    
+
     if (hole.shotData) {
       const shotData = this.parseShotData(hole.shotData);
       if (shotData) {
@@ -232,11 +263,11 @@ class AIHoleAnalysisService {
         }
       }
     }
-    
+
     if (mediaCount > 0) {
       summary += `📸 ${mediaCount} ${mediaCount === 1 ? 'shot' : 'shots'} captured`;
     }
-    
+
     return summary.trim();
   }
 
@@ -244,9 +275,9 @@ class AIHoleAnalysisService {
     // This would be enhanced with actual image analysis if using Vision API
     const photos = mediaItems.filter(m => m.type === 'photo');
     const videos = mediaItems.filter(m => m.type === 'video');
-    
+
     let analysis = '';
-    
+
     if (photos.length > 0) {
       analysis += `📸 ${photos.length} photo${photos.length !== 1 ? 's' : ''} showing`;
       if (photos.some(p => p.description?.includes('swing'))) {
@@ -259,7 +290,7 @@ class AIHoleAnalysisService {
         analysis += ' celebration moment';
       }
     }
-    
+
     if (videos.length > 0) {
       if (analysis) analysis += ' and ';
       analysis += `🎥 ${videos.length} video${videos.length !== 1 ? 's' : ''} capturing`;
@@ -270,7 +301,7 @@ class AIHoleAnalysisService {
         analysis += ' putting stroke';
       }
     }
-    
+
     return analysis || 'Visual moments from the hole';
   }
 }
