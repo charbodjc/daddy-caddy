@@ -12,7 +12,7 @@
  * - Clean, maintainable code
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -35,6 +35,7 @@ import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 // FontAwesome5 available for future use
 import Hole from '../database/watermelon/models/Hole';
+import { useObservable } from '../hooks/useObservable';
 import { HoleCard } from '../components/round/HoleCard';
 
 interface RouteParams {
@@ -52,7 +53,17 @@ const RoundTrackerScreen: React.FC = () => {
   const { round, loading, error: _error, reload: _reload } = useRound(params.roundId);
   const { createRound, updateHole, finishRound, deleteRound } = useRoundStore();
   
-  const [holes, setHoles] = useState<Hole[]>([]);
+  // Observe holes reactively — UI updates automatically on DB changes
+  const holesObservable = useMemo(
+    () => round?.holes.observe(),
+    [round],
+  );
+  const rawHoles = useObservable<Hole[]>(holesObservable);
+  const holes = useMemo(
+    () => (rawHoles ? [...rawHoles].sort((a, b) => a.holeNumber - b.holeNumber) : []),
+    [rawHoles],
+  );
+
   const [setupVisible, setSetupVisible] = useState(!params.roundId && !round);
   const [courseName, setCourseName] = useState('');
   const [parModalVisible, setParModalVisible] = useState(false);
@@ -63,26 +74,6 @@ const RoundTrackerScreen: React.FC = () => {
   useEffect(() => {
     setSetupVisible(!params.roundId && !round);
   }, [params.roundId, round]);
-
-  // Load holes from round
-  const loadHoles = useCallback(async () => {
-    if (!round) {
-      setHoles([]);
-      return;
-    }
-    try {
-      const fetchedHoles = await round.holes.fetch();
-      // Sort by hole number
-      const sorted = [...fetchedHoles].sort((a, b) => a.holeNumber - b.holeNumber);
-      setHoles(sorted);
-    } catch (err) {
-      console.error('Failed to load holes:', err);
-    }
-  }, [round]);
-
-  useEffect(() => {
-    loadHoles();
-  }, [loadHoles]);
   
   const handleStartRound = async () => {
     if (!courseName.trim()) {
