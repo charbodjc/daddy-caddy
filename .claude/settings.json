@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx expo lint*)",
+      "Bash(npx tsc*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run test*)",
+      "Bash(npm test*)",
+      "Bash(npx jest*)",
+      "Bash(npx expo prebuild*)",
+      "Bash(npx expo start*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git fetch*)",
+      "Bash(git checkout*)",
+      "Bash(git stash*)",
+      "Bash(npm audit*)",
+      "Bash(npm install*)",
+      "Bash(ls *)"
+    ]
+  }
+}
