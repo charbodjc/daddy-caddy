@@ -5,6 +5,16 @@ import Hole from '../database/watermelon/models/Hole';
 
 type StoredShotData = ShotData;
 
+/**
+ * Calculate total strokes for a set of tracked shots.
+ * Total = number of shots + any extra penalty strokes.
+ * Penalty shots record the shot itself (1 entry) plus additional penaltyStrokes (1 or 2).
+ */
+export function calculateTotalStrokes(shots: StoredShotData['shots']): number {
+  const penaltyExtra = shots.reduce((sum, s) => sum + (s.penaltyStrokes || 0), 0);
+  return shots.length + penaltyExtra;
+}
+
 export interface RunningRoundStats {
   totalPutts: number;
   totalFairwaysHit: number;

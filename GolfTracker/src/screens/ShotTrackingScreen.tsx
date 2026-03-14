@@ -30,7 +30,7 @@ import {
   SHOT_TYPES,
   SHOT_RESULTS,
 } from '../types';
-import { parseShotData, deriveHoleStats } from '../utils/roundStats';
+import { parseShotData, deriveHoleStats, calculateTotalStrokes } from '../utils/roundStats';
 import { getResultLabel } from '../utils/shotLabels';
 import { formatScoreVsPar } from '../utils/scoreCalculations';
 import type { ScoringStackParamList } from '../types/navigation';
@@ -94,6 +94,9 @@ const ShotTrackingScreen: React.FC = () => {
   const [selectedType, setSelectedType] = useState<string>(SHOT_TYPES.TEE_SHOT);
   const [puttDistance, setPuttDistance] = useState('');
 
+  // Penalty stroke selector (1 or 2) — only shown when Penalty type is selected
+  const [penaltyCount, setPenaltyCount] = useState<1 | 2>(1);
+
   // Derived stats
   const [derivedStats, setDerivedStats] = useState<ReturnType<typeof deriveHoleStats> | null>(null);
 
@@ -145,6 +148,7 @@ const ShotTrackingScreen: React.FC = () => {
 
   const addShot = useCallback(
     (result: string) => {
+      const isPenalty = selectedType === SHOT_TYPES.PENALTY;
       const newShot: TrackedShot = {
         stroke: currentStroke,
         type: selectedType,
@@ -152,10 +156,13 @@ const ShotTrackingScreen: React.FC = () => {
         ...(selectedType === SHOT_TYPES.PUTT && puttDistance
           ? { puttDistance: `${puttDistance} ft` }
           : {}),
+        ...(isPenalty ? { penaltyStrokes: penaltyCount } : {}),
       };
 
       const updated = [...shots, newShot];
       setShots(updated);
+      // Penalty adds 1 (for the entry) + penaltyCount extra strokes to the total,
+      // but currentStroke tracks the *next shot number* which always increments by 1.
       setCurrentStroke(currentStroke + 1);
       setPuttDistance('');
 
@@ -177,7 +184,7 @@ const ShotTrackingScreen: React.FC = () => {
       }
       // Putt stays on putt
     },
-    [currentStroke, selectedType, shots, puttDistance],
+    [currentStroke, selectedType, shots, puttDistance, penaltyCount],
   );
 
   const undoLastShot = useCallback(() => {
@@ -194,7 +201,7 @@ const ShotTrackingScreen: React.FC = () => {
     try {
       const shotData: ShotData = { par: hole.par, shots, currentStroke };
       const stats = shots.length > 0 ? deriveHoleStats(shotData, hole.par) : null;
-      const totalStrokes = shots.length;
+      const totalStrokes = calculateTotalStrokes(shots);
 
       await updateHole(roundId, {
         holeNumber: hole.holeNumber,
@@ -226,7 +233,8 @@ const ShotTrackingScreen: React.FC = () => {
     );
   }
 
-  const scoreVsPar = shots.length - hole.par;
+  const totalStrokes = calculateTotalStrokes(shots);
+  const scoreVsPar = totalStrokes - hole.par;
   const scoreLabel = formatScoreVsPar(scoreVsPar);
 
   return (
@@ -247,7 +255,7 @@ const ShotTrackingScreen: React.FC = () => {
           <Text style={styles.headerSub}>Par {hole.par}</Text>
         </View>
         <View style={styles.strokeBadge}>
-          <Text style={styles.strokeNum}>{shots.length}</Text>
+          <Text style={styles.strokeNum}>{totalStrokes}</Text>
           <Text style={styles.strokeLabel}>{scoreLabel}</Text>
         </View>
       </View>
@@ -282,6 +290,29 @@ const ShotTrackingScreen: React.FC = () => {
               placeholder="e.g. 25"
               placeholderTextColor="#999"
             />
+          </View>
+        )}
+
+        {/* Penalty stroke selector */}
+        {selectedType === SHOT_TYPES.PENALTY && (
+          <View style={styles.penaltyRow}>
+            <Text style={styles.puttLabel}>Penalty strokes:</Text>
+            <TouchableOpacity
+              style={[styles.penaltyBtn, penaltyCount === 1 && styles.penaltyBtnActive]}
+              onPress={() => setPenaltyCount(1)}
+            >
+              <Text style={[styles.penaltyBtnText, penaltyCount === 1 && styles.penaltyBtnTextActive]}>
+                1 stroke
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.penaltyBtn, penaltyCount === 2 && styles.penaltyBtnActive]}
+              onPress={() => setPenaltyCount(2)}
+            >
+              <Text style={[styles.penaltyBtnText, penaltyCount === 2 && styles.penaltyBtnTextActive]}>
+                2 strokes
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -322,6 +353,7 @@ const ShotTrackingScreen: React.FC = () => {
                 <Text style={styles.logResult}>
                   {s.results.map(getResultLabel).join(', ')}
                   {s.puttDistance ? ` (${s.puttDistance})` : ''}
+                  {s.penaltyStrokes ? ` +${s.penaltyStrokes}` : ''}
                 </Text>
               </View>
             ))}
@@ -383,6 +415,11 @@ const styles = StyleSheet.create({
   typeBtnText: { fontSize: 12, fontWeight: '600', color: '#555' },
   typeBtnTextActive: { color: S.white },
   puttRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
+  penaltyRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
+  penaltyBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#e8e8e8' },
+  penaltyBtnActive: { backgroundColor: '#F44336' },
+  penaltyBtnText: { fontSize: 13, fontWeight: '600', color: '#555' },
+  penaltyBtnTextActive: { color: '#fff' },
   puttLabel: { fontSize: 14, fontWeight: '600', color: '#333' },
   puttInput: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 16, backgroundColor: S.white, color: '#333' },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 10 },
