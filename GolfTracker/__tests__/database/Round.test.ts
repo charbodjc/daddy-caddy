@@ -41,7 +41,7 @@ describe('Round Model', () => {
 
     // Verify round and holes
     const round = await database.collections.get<Round>('rounds').find(roundId!);
-    const holes = await round.holes.fetch();
+    const holes = (await round.holes.fetch()).sort((a, b) => a.holeNumber - b.holeNumber);
 
     expect(holes.length).toBe(18);
     expect(holes[0].holeNumber).toBe(1);

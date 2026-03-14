@@ -157,10 +157,9 @@ describe('Round Flow Integration Test', () => {
       await deleteRound(round.id);
     });
     
-    // Verify deletion
-    await expect(
-      database.collections.get('rounds').find(round.id)
-    ).rejects.toThrow();
+    // Verify deletion (markAsDeleted sets _status to 'deleted')
+    const deletedRound: any = await database.collections.get('rounds').find(round.id);
+    expect(deletedRound._raw._status).toBe('deleted');
   });
   
   it('should handle multiple rounds simultaneously', async () => {
@@ -235,9 +234,12 @@ describe('Round Flow Integration Test', () => {
     
     // All holes should be present
     expect(holes.length).toBe(18);
-    
+
+    // Sort by hole number for ordered assertions
+    const sortedHoles = [...holes].sort((a: any, b: any) => a.holeNumber - b.holeNumber);
+
     // All holes should have data
-    holes.forEach((hole: any, index: number) => {
+    sortedHoles.forEach((hole: any, index: number) => {
       expect(hole.holeNumber).toBe(index + 1);
       expect(hole.strokes).toBe(expectedScores[index]);
       expect(hole.putts).toBe(2);

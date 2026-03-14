@@ -1,12 +1,15 @@
 import React from 'react';
-import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import ShotTrackingScreen from '../ShotTrackingScreen';
-// DatabaseService is mocked below via jest.mock
-import { GolfHole } from '../../types';
+import { database } from '../../database/watermelon/database';
+import Round from '../../database/watermelon/models/Round';
+import Hole from '../../database/watermelon/models/Hole';
 
 // Mock navigation
 const mockGoBack = jest.fn();
 const mockNavigate = jest.fn();
+let mockRouteParams: Record<string, any> = {};
+
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({
     goBack: mockGoBack,
@@ -17,260 +20,146 @@ jest.mock('@react-navigation/native', () => ({
   }),
 }));
 
-// Mock database service
-jest.mock('../../services/database', () => ({
-  __esModule: true,
-  default: {
-    getRound: jest.fn(),
-    saveMedia: jest.fn(),
-    getMediaForHole: jest.fn().mockResolvedValue([]),
-  },
+// Mock roundStore
+const mockUpdateHole = jest.fn().mockResolvedValue(undefined);
+jest.mock('../../stores/roundStore', () => ({
+  useRoundStore: () => ({
+    updateHole: mockUpdateHole,
+  }),
 }));
-
-// Mock media service
-jest.mock('../../services/media', () => ({
-  __esModule: true,
-  default: {
-    captureMedia: jest.fn(),
-    getMediaCount: jest.fn().mockResolvedValue({ photos: 0, videos: 0 }),
-    getMediaForHole: jest.fn().mockResolvedValue([]),
-    saveMedia: jest.fn(),
-    deleteMedia: jest.fn(),
-    capturePhoto: jest.fn(),
-    captureVideo: jest.fn(),
-  },
-}));
-
-// Default route params
-let mockRouteParams = {
-  hole: {
-    holeNumber: 1,
-    par: 4,
-    strokes: 0,
-  } as GolfHole,
-  onSave: jest.fn(),
-  roundId: 'test-round-1',
-};
 
 describe('ShotTrackingScreen', () => {
-  beforeEach(() => {
+  let testRound: Round;
+  let testHole: Hole;
+
+  beforeEach(async () => {
     jest.clearAllMocks();
-    mockRouteParams.onSave = jest.fn();
-    // Reset media service mocks to resolved values
-    const MediaService = require('../../services/media').default;
-    MediaService.getMediaCount.mockResolvedValue({ photos: 0, videos: 0 });
-    MediaService.getMediaForHole.mockResolvedValue([]);
+
+    await database.write(async () => {
+      await database.unsafeResetDatabase();
+
+      testRound = await database.collections.get<Round>('rounds').create((r) => {
+        r.courseName = 'Test Course';
+        r.date = new Date();
+        r.isFinished = false;
+      });
+
+      testHole = await database.collections.get<Hole>('holes').create((h) => {
+        h.roundId = testRound.id;
+        h.holeNumber = 1;
+        h.par = 4;
+        h.strokes = 0;
+      });
+    });
+
+    mockRouteParams = {
+      holeId: testHole.id,
+      roundId: testRound.id,
+    };
   });
 
-  describe('Shot Data Preservation', () => {
-    it('should preserve existing strokes when no shots are recorded', async () => {
-      // Set up a hole with existing strokes
-      mockRouteParams.hole = {
-        holeNumber: 1,
-        par: 4,
-        strokes: 3, // Existing score
-        shotData: undefined,
-      } as GolfHole;
+  it('should render hole information', async () => {
+    const { getByText } = render(<ShotTrackingScreen />);
 
-      let component: any;
-      await act(async () => {
-        component = render(<ShotTrackingScreen />);
-      });
-      const { getByText } = component!;
-      
-      // Wait for async operations to complete
-      await waitFor(() => {
-        expect(getByText('Hole 1 • Par 4')).toBeTruthy();
-      });
-      
-      // Change par without recording shots
-      fireEvent.press(getByText('Hole 1 • Par 4'));
-      
-      // Wait for any async operations
-      await waitFor(() => {
-        expect(mockRouteParams.onSave).not.toHaveBeenCalled();
-      });
-
-      // The component should preserve existing strokes
-      // Note: The actual save happens automatically or via a different mechanism
-      // since there's no explicit "Save" button in the UI
-    });
-
-    it('should update strokes when shots are recorded', async () => {
-      mockRouteParams.hole = {
-        holeNumber: 1,
-        par: 4,
-        strokes: 0,
-        shotData: undefined,
-      } as GolfHole;
-
-      let component: any;
-      await act(async () => {
-        component = render(<ShotTrackingScreen />);
-      });
-      const { getByText } = component!;
-
-      // Wait for component to fully load
-      await waitFor(() => {
-        expect(getByText('Tee Shot')).toBeTruthy();
-      });
-
-      // Record a tee shot
-      fireEvent.press(getByText('Tee Shot'));
-
-      // After selecting shot type, the Confirm Shot button should appear
-      await waitFor(() => {
-        expect(getByText('Confirm Shot')).toBeTruthy();
-      });
-
-      // Just verify the basic flow works without completing full shot recording
-    });
-
-    it('should load and display existing shot data', async () => {
-      const existingShotData = {
-        par: 4,
-        shots: [
-          { stroke: 1, type: 'Tee Shot', results: ['Fairway'] },
-          { stroke: 2, type: 'Approach', results: ['Green'] },
-          { stroke: 3, type: 'Putt', results: ['Holed'] },
-        ],
-        currentStroke: 4,
-      };
-
-      mockRouteParams.hole = {
-        holeNumber: 1,
-        par: 4,
-        strokes: 3,
-        shotData: JSON.stringify(existingShotData),
-      } as any;
-
-      let component: any;
-      await act(async () => {
-        component = render(<ShotTrackingScreen />);
-      });
-      const { getByText } = component!;
-      
-      // Wait for component to fully load
-      await waitFor(() => {
-        expect(getByText(/Hole 1/)).toBeTruthy();
-      });
+    await waitFor(() => {
+      expect(getByText('Hole 1')).toBeTruthy();
+      expect(getByText('Par 4')).toBeTruthy();
     });
   });
 
-  describe('Shot Data Format', () => {
-    it('should save shot data in correct format', async () => {
-      mockRouteParams.hole = {
-        holeNumber: 1,
-        par: 4,
-        strokes: 0,
-        shotData: undefined,
-      } as GolfHole;
+  it('should display shot type buttons', async () => {
+    const { getByText } = render(<ShotTrackingScreen />);
 
-      let component: any;
-      await act(async () => {
-        component = render(<ShotTrackingScreen />);
-      });
-      const { getByText } = component!;
-
-      // Wait for component to fully load
-      await waitFor(() => {
-        expect(getByText('Tee Shot')).toBeTruthy();
-      });
-
-      // Record a shot
-      fireEvent.press(getByText('Tee Shot'));
-
-      // After selecting shot type, the Confirm Shot button should appear
-      await waitFor(() => {
-        expect(getByText('Confirm Shot')).toBeTruthy();
-      });
-    });
-
-    it('should handle par changes correctly', async () => {
-      mockRouteParams.hole = {
-        holeNumber: 1,
-        par: 4,
-        strokes: 0,
-        shotData: undefined,
-      } as GolfHole;
-
-      let component: any;
-      await act(async () => {
-        component = render(<ShotTrackingScreen />);
-      });
-      const { getByText } = component!;
-      
-      // Wait for component to fully load
-      await waitFor(() => {
-        expect(getByText('Hole 1 • Par 4')).toBeTruthy();
-      });
-      
-      // Change to Par 3
-      fireEvent.press(getByText('Hole 1 • Par 4'));
-      fireEvent.press(getByText('Par 3'));
-
-      // The onSave should be called automatically when par changes
-      await waitFor(() => {
-        expect(mockRouteParams.onSave).toHaveBeenCalled();
-      });
-
-      const savedHole = mockRouteParams.onSave.mock.calls[0][0];
-      expect(savedHole.par).toBe(3);
-      
-      if (savedHole.shotData) {
-        const shotData = JSON.parse(savedHole.shotData);
-        expect(shotData.par).toBe(3);
-      }
-    });
-  });
-
-  describe('Score Calculation', () => {
-    it('should calculate correct score for birdie', async () => {
-      mockRouteParams.hole = {
-        holeNumber: 1,
-        par: 4,
-        strokes: 0,
-        shotData: undefined,
-      } as GolfHole;
-
-      let component: any;
-      await act(async () => {
-        component = render(<ShotTrackingScreen />);
-      });
-      const { getByText } = component!;
-
-      // Wait for component to fully load
-      await waitFor(() => {
-        expect(getByText('Tee Shot')).toBeTruthy();
-      });
-
-      // Just verify shot type buttons are available
+    await waitFor(() => {
+      expect(getByText('Tee Shot')).toBeTruthy();
       expect(getByText('Approach')).toBeTruthy();
       expect(getByText('Putt')).toBeTruthy();
+      expect(getByText('Penalty')).toBeTruthy();
+    });
+  });
+
+  it('should display result options for selected shot type', async () => {
+    const { getByText } = render(<ShotTrackingScreen />);
+
+    await waitFor(() => {
+      // Default is Tee Shot, which shows these results
+      expect(getByText('Fairway')).toBeTruthy();
+      expect(getByText('Left')).toBeTruthy();
+      expect(getByText('Right')).toBeTruthy();
+      expect(getByText('OB')).toBeTruthy();
+    });
+  });
+
+  it('should add shot when result button is pressed', async () => {
+    const { getByText, queryByText } = render(<ShotTrackingScreen />);
+
+    await waitFor(() => {
+      expect(getByText('Tee Shot')).toBeTruthy();
     });
 
-    it('should calculate correct score for bogey', async () => {
-      mockRouteParams.hole = {
-        holeNumber: 1,
-        par: 4,
-        strokes: 0,
-        shotData: undefined,
-      } as GolfHole;
+    // Record a tee shot to fairway
+    fireEvent.press(getByText('Fairway'));
 
-      let component: any;
-      await act(async () => {
-        component = render(<ShotTrackingScreen />);
-      });
-      const { getByText } = component!;
-
-      // Wait for component to fully load
-      await waitFor(() => {
-        expect(getByText('Tee Shot')).toBeTruthy();
-      });
-
-      // Just verify shot type buttons are available
-      expect(getByText('Chip/Pitch')).toBeTruthy();
-      expect(getByText('Putt')).toBeTruthy();
+    // Shot log should appear
+    await waitFor(() => {
+      expect(queryByText('Shot Log')).toBeTruthy();
     });
+  });
+
+  it('should show penalty stroke selector when Penalty type selected', async () => {
+    const { getByText } = render(<ShotTrackingScreen />);
+
+    await waitFor(() => {
+      expect(getByText('Penalty')).toBeTruthy();
+    });
+
+    // Select penalty type
+    fireEvent.press(getByText('Penalty'));
+
+    // Should show penalty stroke options
+    await waitFor(() => {
+      expect(getByText('1 stroke')).toBeTruthy();
+      expect(getByText('2 strokes')).toBeTruthy();
+    });
+  });
+
+  it('should load existing shot data', async () => {
+    const existingShotData = {
+      par: 4,
+      shots: [
+        { stroke: 1, type: 'Tee Shot', results: ['center'] },
+        { stroke: 2, type: 'Approach', results: ['green'] },
+        { stroke: 3, type: 'Putt', results: ['made'] },
+      ],
+      currentStroke: 4,
+    };
+
+    // Update hole with existing shot data
+    await database.write(async () => {
+      await testHole.update((h) => {
+        h.shotData = JSON.stringify(existingShotData);
+        h.strokes = 3;
+      });
+    });
+
+    const { getByText } = render(<ShotTrackingScreen />);
+
+    await waitFor(() => {
+      expect(getByText('Hole 1')).toBeTruthy();
+      // Should show shot log with existing shots
+      expect(getByText('Shot Log')).toBeTruthy();
+    });
+  });
+
+  it('should navigate back when back button is pressed', async () => {
+    const { getByLabelText } = render(<ShotTrackingScreen />);
+
+    await waitFor(() => {
+      expect(getByLabelText('Go back')).toBeTruthy();
+    });
+
+    fireEvent.press(getByLabelText('Go back'));
+
+    expect(mockGoBack).toHaveBeenCalled();
   });
 });

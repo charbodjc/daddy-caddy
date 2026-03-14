@@ -132,9 +132,7 @@ describe('HoleCard Component', () => {
     );
     
     const card = getByText('1').parent?.parent?.parent;
-    expect(card?.props.style).toContainEqual(
-      expect.objectContaining({ borderWidth: 2 })
-    );
+    expect(card?.props.style).toMatchObject({ borderWidth: 2 });
   });
   
   it('should not highlight inactive hole', () => {
@@ -149,9 +147,7 @@ describe('HoleCard Component', () => {
     );
     
     const card = getByText('1').parent?.parent?.parent;
-    expect(card?.props.style).toContainEqual(
-      expect.objectContaining({ borderWidth: 1 })
-    );
+    expect(card?.props.style).toMatchObject({ borderWidth: 1 });
   });
 });
 

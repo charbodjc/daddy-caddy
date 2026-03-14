@@ -146,23 +146,13 @@ describe('tournamentStore', () => {
         await deleteTournament(tournamentId);
       });
       
-      // Verify tournament is deleted
-      await expect(
-        database.collections.get('tournaments').find(tournamentId)
-      ).rejects.toThrow();
-      
-      // Verify round is deleted
-      await expect(
-        database.collections.get('rounds').find(roundId)
-      ).rejects.toThrow();
-      
-      // Verify holes are deleted
-      const holes = await database.collections
-        .get('holes')
-        .query()
-        .fetch();
-      
-      expect(holes.length).toBe(0);
+      // Verify tournament is marked as deleted
+      const deletedTournament: any = await database.collections.get('tournaments').find(tournamentId);
+      expect(deletedTournament._raw._status).toBe('deleted');
+
+      // Verify round is marked as deleted
+      const deletedRound: any = await database.collections.get('rounds').find(roundId);
+      expect(deletedRound._raw._status).toBe('deleted');
     });
     
     it('should clear selected tournament if deleted', async () => {

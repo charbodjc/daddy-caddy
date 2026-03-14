@@ -1,13 +1,4 @@
-// Mock react-native modules
-jest.mock('react-native-sqlite-storage', () => ({
-  enablePromise: jest.fn(),
-  DEBUG: jest.fn(),
-  openDatabase: jest.fn(() => ({
-    transaction: jest.fn(),
-    executeSql: jest.fn(),
-  })),
-}));
-
+// Mock react-native-vector-icons
 jest.mock('react-native-vector-icons/MaterialIcons', () => 'Icon');
 jest.mock('react-native-vector-icons/FontAwesome5', () => 'Icon');
 jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => 'Icon');
@@ -86,4 +77,31 @@ jest.mock('react-native-image-picker', () => ({
 // Mock react-native-video
 jest.mock('react-native-video', () => 'Video');
 
-// Additional mocks if needed
+// Mock react-native-config
+jest.mock('react-native-config', () => ({
+  OPENAI_API_KEY: '',
+  OPENAI_MODEL: 'gpt-4-turbo',
+}));
+
+// Mock @react-native-async-storage/async-storage
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  setItem: jest.fn(() => Promise.resolve()),
+  getItem: jest.fn(() => Promise.resolve(null)),
+  removeItem: jest.fn(() => Promise.resolve()),
+  clear: jest.fn(() => Promise.resolve()),
+  getAllKeys: jest.fn(() => Promise.resolve([])),
+  multiGet: jest.fn(() => Promise.resolve([])),
+  multiSet: jest.fn(() => Promise.resolve()),
+}));
+
+// Mock expo-sms
+jest.mock('expo-sms', () => ({
+  isAvailableAsync: jest.fn(() => Promise.resolve(false)),
+  sendSMSAsync: jest.fn(() => Promise.resolve({ result: 'cancelled' })),
+}));
+
+// Mock expo-contacts
+jest.mock('expo-contacts', () => ({
+  requestPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
+  getContactsAsync: jest.fn(() => Promise.resolve({ data: [] })),
+}));
