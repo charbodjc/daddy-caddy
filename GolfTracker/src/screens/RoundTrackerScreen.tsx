@@ -12,12 +12,14 @@
  * - Clean, maintainable code
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  TouchableWithoutFeedback,
+  Keyboard,
   Modal,
   TextInput,
   Alert,
@@ -30,11 +32,12 @@ import { AppNavigationProp } from '../types/navigation';
 import { useRound } from '../hooks/useRound';
 import { useRoundStore } from '../stores/roundStore';
 import { LoadingScreen } from '../components/common/LoadingScreen';
+import { ErrorScreen } from '../components/common/ErrorScreen';
 import { RoundHeader } from '../components/round/RoundHeader';
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-// FontAwesome5 available for future use
 import Hole from '../database/watermelon/models/Hole';
+import { useObservable } from '../hooks/useObservable';
 import { HoleCard } from '../components/round/HoleCard';
 
 interface RouteParams {
@@ -49,10 +52,24 @@ const RoundTrackerScreen: React.FC = () => {
   const route = useRoute();
   const params = (route.params as RouteParams) || {};
   
-  const { round, loading, error: _error, reload: _reload } = useRound(params.roundId);
+  const { round, loading, error } = useRound(params.roundId);
   const { createRound, updateHole, finishRound, deleteRound } = useRoundStore();
   
-  const [holes, setHoles] = useState<Hole[]>([]);
+  // Observe holes reactively — UI updates automatically on DB changes.
+  // Depend on round?.id (not round) to avoid creating a new Observable
+  // when loadActiveRound() returns a new Round object with the same ID.
+  const roundId = round?.id;
+  const holesObservable = useMemo(
+    () => round?.holes.observe(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stabilize on ID, not object reference
+    [roundId],
+  );
+  const rawHoles = useObservable<Hole[]>(holesObservable);
+  const holes = useMemo(
+    () => (rawHoles ? [...rawHoles].sort((a, b) => a.holeNumber - b.holeNumber) : []),
+    [rawHoles],
+  );
+
   const [setupVisible, setSetupVisible] = useState(!params.roundId && !round);
   const [courseName, setCourseName] = useState('');
   const [parModalVisible, setParModalVisible] = useState(false);
@@ -63,26 +80,6 @@ const RoundTrackerScreen: React.FC = () => {
   useEffect(() => {
     setSetupVisible(!params.roundId && !round);
   }, [params.roundId, round]);
-
-  // Load holes from round
-  const loadHoles = useCallback(async () => {
-    if (!round) {
-      setHoles([]);
-      return;
-    }
-    try {
-      const fetchedHoles = await round.holes.fetch();
-      // Sort by hole number
-      const sorted = [...fetchedHoles].sort((a, b) => a.holeNumber - b.holeNumber);
-      setHoles(sorted);
-    } catch (err) {
-      console.error('Failed to load holes:', err);
-    }
-  }, [round]);
-
-  useEffect(() => {
-    loadHoles();
-  }, [loadHoles]);
   
   const handleStartRound = async () => {
     if (!courseName.trim()) {
@@ -101,7 +98,7 @@ const RoundTrackerScreen: React.FC = () => {
       
       setSetupVisible(false);
       setCourseName('');
-    } catch (error) {
+    } catch (_err) {
       Alert.alert('Error', 'Failed to start round');
     } finally {
       setSaving(false);
@@ -158,7 +155,7 @@ const RoundTrackerScreen: React.FC = () => {
               navigation.navigate('RoundSummary', {
                 roundId: round.id,
               } );
-            } catch (error) {
+            } catch (_err) {
               Alert.alert('Error', 'Failed to finish round');
             }
           },
@@ -182,7 +179,7 @@ const RoundTrackerScreen: React.FC = () => {
             try {
               await deleteRound(round.id);
               navigation.goBack();
-            } catch (error) {
+            } catch (_err) {
               Alert.alert('Error', 'Failed to delete round');
             }
           },
@@ -207,41 +204,55 @@ const RoundTrackerScreen: React.FC = () => {
   if (loading) {
     return <LoadingScreen message="Loading round..." />;
   }
+
+  if (error) {
+    return (
+      <ErrorScreen
+        error={error}
+        onRetry={() => useRoundStore.getState().loadActiveRound()}
+      />
+    );
+  }
   
   // Setup screen for new round
   if (setupVisible || !round) {
     return (
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.setupContainer}>
-          <Text style={styles.setupTitle}>New Round Setup</Text>
-          
-          {params.tournamentName && (
-            <View style={styles.tournamentBadge}>
-              <Icon name="emoji-events" size={20} color="#4CAF50" />
-              <Text style={styles.tournamentText}>{params.tournamentName}</Text>
-            </View>
-          )}
-          
-          <TextInput
-            style={styles.input}
-            placeholder="Course Name"
-            value={courseName}
-            onChangeText={setCourseName}
-            autoCapitalize="words"
-            autoFocus
-          />
-          
-          <Button
-            title="Start Round"
-            onPress={handleStartRound}
-            loading={saving}
-            style={styles.startButton}
-          />
-        </View>
-      </KeyboardAvoidingView>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.setupContainer}>
+            <Text style={styles.setupTitle}>New Round Setup</Text>
+
+            {params.tournamentName && (
+              <View style={styles.tournamentBadge}>
+                <Icon name="emoji-events" size={20} color="#4CAF50" />
+                <Text style={styles.tournamentText}>{params.tournamentName}</Text>
+              </View>
+            )}
+
+            <TextInput
+              style={styles.input}
+              placeholder="Course Name"
+              value={courseName}
+              onChangeText={setCourseName}
+              autoCapitalize="words"
+              autoFocus
+              accessibilityLabel="Course name"
+              returnKeyType="done"
+              onSubmitEditing={handleStartRound}
+            />
+
+            <Button
+              title="Start Round"
+              onPress={handleStartRound}
+              loading={saving}
+              style={styles.startButton}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
     );
   }
   
@@ -301,20 +312,26 @@ const RoundTrackerScreen: React.FC = () => {
               <TouchableOpacity
                 style={styles.parButton}
                 onPress={() => handleParSelect(3)}
+                accessibilityRole="button"
+                accessibilityLabel="Par 3"
               >
                 <Text style={styles.parButtonText}>Par 3</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={styles.parButton}
                 onPress={() => handleParSelect(4)}
+                accessibilityRole="button"
+                accessibilityLabel="Par 4"
               >
                 <Text style={styles.parButtonText}>Par 4</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={styles.parButton}
                 onPress={() => handleParSelect(5)}
+                accessibilityRole="button"
+                accessibilityLabel="Par 5"
               >
                 <Text style={styles.parButtonText}>Par 5</Text>
               </TouchableOpacity>
@@ -389,7 +406,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    minHeight: 44,
   },
   actionText: {
     fontSize: 14,

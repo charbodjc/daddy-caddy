@@ -25,10 +25,8 @@ describe('LoadingScreen Component', () => {
   it('should have correct styling', () => {
     const { getByText } = render(<LoadingScreen message="Test" />);
     
-    const container = getByText('Test').parent;
-    expect(container?.props.style).toContainEqual(
-      expect.objectContaining({ flex: 1 })
-    );
+    const container = getByText('Test').parent?.parent;
+    expect(container?.props.style).toMatchObject({ flex: 1 });
   });
 });
 

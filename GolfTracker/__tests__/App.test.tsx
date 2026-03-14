@@ -4,19 +4,25 @@
 
 import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import App from '../App';
 
 // Mock the AppNavigator
 jest.mock('../src/navigation/AppNavigator', () => {
-  const React = require('react');
+  const _React = require('react');
   const { View, Text } = require('react-native');
   return function AppNavigator() {
-    return (
-      <View>
-        <Text>App Navigator</Text>
-      </View>
-    );
+    return _React.createElement(View, null, _React.createElement(Text, null, 'App Navigator'));
+  };
+});
+
+// Mock OnboardingScreen
+jest.mock('../src/screens/OnboardingScreen', () => {
+  const _React = require('react');
+  const { View, Text } = require('react-native');
+  return function OnboardingScreen() {
+    return _React.createElement(View, null, _React.createElement(Text, null, 'Onboarding Screen'));
   };
 });
 
@@ -30,11 +36,25 @@ describe('App', () => {
     expect(getByText('Initializing Daddy Caddy...')).toBeTruthy();
   });
 
-  it('renders AppNavigator after initialization', async () => {
+  it('renders AppNavigator after initialization when onboarding is complete', async () => {
+    // Mock onboarding as completed
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue('true');
+
     const { getByText } = render(<App />);
 
     await waitFor(() => {
       expect(getByText('App Navigator')).toBeTruthy();
+    }, { timeout: 3000 });
+  });
+
+  it('renders OnboardingScreen for first-time users', async () => {
+    // Mock onboarding as not completed
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+
+    const { getByText } = render(<App />);
+
+    await waitFor(() => {
+      expect(getByText('Onboarding Screen')).toBeTruthy();
     }, { timeout: 3000 });
   });
 });

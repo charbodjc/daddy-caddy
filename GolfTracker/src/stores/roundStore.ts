@@ -4,15 +4,19 @@ import { database } from '../database/watermelon/database';
 import Round from '../database/watermelon/models/Round';
 import Hole from '../database/watermelon/models/Hole';
 import { Q } from '@nozbe/watermelondb';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { HoleData, CreateRoundData } from '../validators/roundValidator';
+import {
+  validateCreateRound,
+  safeValidateHole,
+  type HoleData,
+  type CreateRoundData,
+} from '../validators/roundValidator';
 
 interface RoundState {
   activeRound: Round | null;
   rounds: Round[];
   loading: boolean;
   error: Error | null;
-  
+
   // Actions
   loadActiveRound: () => Promise<void>;
   createRound: (data: CreateRoundData) => Promise<Round>;
@@ -31,36 +35,37 @@ export const useRoundStore = create<RoundState>()(
       rounds: [],
       loading: false,
       error: null,
-      
-      // Load active round from storage
+
+      // Load active round by querying WatermelonDB for unfinished rounds
       loadActiveRound: async () => {
         set({ loading: true, error: null });
-        
+
         try {
-          const activeRoundId = await AsyncStorage.getItem('active_round_id');
-          
-          if (!activeRoundId) {
-            set({ activeRound: null, loading: false });
-            return;
-          }
-          
-          const round = await database.collections
+          const unfinished = await database.collections
             .get<Round>('rounds')
-            .find(activeRoundId);
-          
-          set({ activeRound: round, loading: false });
+            .query(
+              Q.where('is_finished', false),
+              Q.sortBy('created_at', Q.desc),
+              Q.take(1),
+            )
+            .fetch();
+
+          set({ activeRound: unfinished[0] ?? null, loading: false });
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
           console.error('Failed to load active round:', error);
           set({ error, loading: false, activeRound: null });
         }
       },
-      
+
       // Create a new round
       createRound: async (data: CreateRoundData) => {
         set({ loading: true, error: null });
-        
+
         try {
+          // Validate input before touching the database
+          validateCreateRound(data);
+
           // Create round and all 18 holes in a single write transaction
           const round = await database.write(async () => {
             const newRound = await database.collections.get<Round>('rounds').create((r) => {
@@ -83,11 +88,10 @@ export const useRoundStore = create<RoundState>()(
 
             return newRound;
           });
-          
-          // Set as active round
-          await AsyncStorage.setItem('active_round_id', round.id);
+
+          // Round is unfinished, so it becomes the active round automatically
           set({ activeRound: round, loading: false });
-          
+
           return round;
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
@@ -99,7 +103,15 @@ export const useRoundStore = create<RoundState>()(
       // Update a hole (optimistic update + database save)
       updateHole: async (roundId: string, holeData: HoleData) => {
         const { activeRound } = get();
-        
+
+        // Validate hole data before writing
+        const validation = safeValidateHole(holeData);
+        if (!validation.success) {
+          const error = new Error(validation.error || 'Invalid hole data');
+          set({ error });
+          throw error;
+        }
+
         try {
           // Update hole and round statistics in a single write transaction
           await database.write(async () => {
@@ -111,18 +123,20 @@ export const useRoundStore = create<RoundState>()(
               )
               .fetch();
 
-            if (holes.length > 0) {
-              const hole = holes[0];
-              await hole.update((h) => {
-                h.par = holeData.par;
-                h.strokes = holeData.strokes;
-                if (holeData.fairwayHit !== undefined) h.fairwayHit = holeData.fairwayHit;
-                if (holeData.greenInRegulation !== undefined) h.greenInRegulation = holeData.greenInRegulation;
-                if (holeData.putts !== undefined) h.putts = holeData.putts;
-                if (holeData.notes !== undefined) h.notes = holeData.notes;
-                if (holeData.shotData !== undefined) h.shotData = holeData.shotData;
-              });
+            if (holes.length === 0) {
+              throw new Error(`Hole ${holeData.holeNumber} not found for round ${roundId}`);
             }
+
+            const hole = holes[0];
+            await hole.update((h) => {
+              h.par = holeData.par;
+              h.strokes = holeData.strokes;
+              if (holeData.fairwayHit !== undefined) h.fairwayHit = holeData.fairwayHit;
+              if (holeData.greenInRegulation !== undefined) h.greenInRegulation = holeData.greenInRegulation;
+              if (holeData.putts !== undefined) h.putts = holeData.putts;
+              if (holeData.notes !== undefined) h.notes = holeData.notes;
+              if (holeData.shotData !== undefined) h.shotData = holeData.shotData;
+            });
 
             // Recalculate round statistics
             const round = await database.collections.get<Round>('rounds').find(roundId);
@@ -141,7 +155,7 @@ export const useRoundStore = create<RoundState>()(
               r.greensInRegulation = greensInRegulation;
             });
           });
-          
+
           // Reload active round if it's the one being updated
           if (activeRound?.id === roundId) {
             await get().loadActiveRound();
@@ -156,7 +170,7 @@ export const useRoundStore = create<RoundState>()(
       // Finish a round
       finishRound: async (roundId: string) => {
         set({ loading: true });
-        
+
         try {
           await database.write(async () => {
             const round = await database.collections.get<Round>('rounds').find(roundId);
@@ -164,9 +178,8 @@ export const useRoundStore = create<RoundState>()(
               r.isFinished = true;
             });
           });
-          
-          // Clear active round
-          await AsyncStorage.removeItem('active_round_id');
+
+          // Round is now finished — no longer the active round
           set({ activeRound: null, loading: false });
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
@@ -178,7 +191,7 @@ export const useRoundStore = create<RoundState>()(
       // Delete a round
       deleteRound: async (roundId: string) => {
         set({ loading: true });
-        
+
         try {
           await database.write(async () => {
             // Delete all holes for the round
@@ -186,24 +199,23 @@ export const useRoundStore = create<RoundState>()(
               .get<Hole>('holes')
               .query(Q.where('round_id', roundId))
               .fetch();
-            
+
             for (const hole of holes) {
               await hole.markAsDeleted();
             }
-            
+
             // Delete the round
             const round = await database.collections.get<Round>('rounds').find(roundId);
             await round.markAsDeleted();
           });
-          
+
           const { activeRound } = get();
-          
+
           // Clear active round if it was deleted
           if (activeRound?.id === roundId) {
-            await AsyncStorage.removeItem('active_round_id');
             set({ activeRound: null });
           }
-          
+
           // Reload all rounds
           await get().loadAllRounds();
           set({ loading: false });
@@ -214,34 +226,44 @@ export const useRoundStore = create<RoundState>()(
         }
       },
 
-      // Clear active round
+      // Clear active round (mark it finished so it won't be picked up again)
       clearActiveRound: async () => {
-        await AsyncStorage.removeItem('active_round_id');
+        const { activeRound } = get();
+        if (activeRound) {
+          try {
+            await database.write(async () => {
+              await activeRound.update((r) => {
+                r.isFinished = true;
+              });
+            });
+          } catch (err) {
+            console.error('Failed to mark active round as finished:', err);
+          }
+        }
         set({ activeRound: null });
       },
-      
+
       // Load all rounds
       loadAllRounds: async () => {
         set({ loading: true, error: null });
-        
+
         try {
           const rounds = await database.collections
             .get<Round>('rounds')
             .query(Q.sortBy('date', Q.desc))
             .fetch();
-          
+
           set({ rounds, loading: false });
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
           set({ error, loading: false });
         }
       },
-      
-      // Set active round
+
+      // Set active round by ID (for navigating to a specific round)
       setActiveRound: async (roundId: string) => {
         try {
           const round = await database.collections.get<Round>('rounds').find(roundId);
-          await AsyncStorage.setItem('active_round_id', roundId);
           set({ activeRound: round });
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
@@ -253,4 +275,3 @@ export const useRoundStore = create<RoundState>()(
     { name: 'RoundStore' }
   )
 );
-

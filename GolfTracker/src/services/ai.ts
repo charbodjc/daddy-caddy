@@ -1,11 +1,25 @@
 import { GolfRound, Statistics } from '../types';
 import Config from 'react-native-config';
+import { isCircuitOpen, recordSuccess, recordFailure, withTimeout } from './aiCircuitBreaker';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI loaded dynamically via require
-type OpenAIClient = any;
+/** Minimal structural type for the subset of the OpenAI SDK we actually use. */
+interface OpenAIClient {
+  chat: {
+    completions: {
+      create: (params: {
+        model: string;
+        messages: Array<{ role: string; content: string }>;
+        max_tokens: number;
+        temperature: number;
+      }) => Promise<{
+        choices: Array<{ message: { content: string | null } }>;
+      }>;
+    };
+  };
+}
 
 class AIService {
-  private openai: OpenAIClient = null;
+  private openai: OpenAIClient | null = null;
   private initialized: boolean = false;
 
   constructor() {
@@ -16,10 +30,8 @@ class AIService {
     if (this.initialized) return;
     this.initialized = true;
 
-    // Initialize with API key from environment (guarded dynamic require)
     try {
       if (Config.OPENAI_API_KEY) {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const OpenAI = require('openai').default;
         this.openai = new OpenAI({ apiKey: Config.OPENAI_API_KEY });
       }
@@ -35,55 +47,69 @@ class AIService {
       return 'AI analysis unavailable. Please configure OpenAI API key.';
     }
 
+    if (isCircuitOpen()) {
+      console.warn('AI circuit breaker open — using fallback');
+      return this.generateBasicAnalysis(round);
+    }
+
     try {
       const roundSummary = this.generateRoundSummary(round);
 
       const prompt = `
         Analyze this golf round and provide insights and recommendations:
-        
+
         Course: ${round.courseName}
         Date: ${round.date.toLocaleDateString()}
         Total Score: ${round.totalScore || 'N/A'}
-        
+
         Hole-by-hole performance:
         ${roundSummary}
-        
+
         Statistics:
         - Total Putts: ${round.totalPutts || 'N/A'}
         - Fairways Hit: ${round.fairwaysHit || 'N/A'}/14
         - Greens in Regulation: ${round.greensInRegulation || 'N/A'}/18
-        
+
         Please provide:
         1. Overall performance assessment
         2. Strengths identified in this round
         3. Areas for improvement
         4. Specific practice recommendations
         5. Mental game insights based on the scoring pattern
-        
+
         Keep the analysis concise but insightful, focusing on actionable feedback.
       `;
 
-      const response = await this.openai.chat.completions.create({
-        model: (Config.OPENAI_MODEL || 'gpt-4-turbo') as 'gpt-4-turbo' | 'gpt-4o' | 'gpt-3.5-turbo',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a professional golf coach providing detailed analysis and recommendations based on round statistics.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        max_tokens: 500,
-        temperature: 0.7,
-      });
+      const response = await withTimeout(
+        this.openai.chat.completions.create({
+          model: (Config.OPENAI_MODEL || 'gpt-4-turbo') as string,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a professional golf coach providing detailed analysis and recommendations based on round statistics.',
+            },
+            { role: 'user', content: prompt },
+          ],
+          max_tokens: 500,
+          temperature: 0.7,
+        }),
+      );
 
-      return response.choices[0].message.content || 'Unable to generate analysis';
+      recordSuccess();
+      return response?.choices?.[0]?.message?.content || 'Unable to generate analysis';
     } catch (error) {
+      recordFailure();
       console.error('AI analysis error:', error);
-      return 'Error generating AI analysis. Please try again later.';
+      return this.generateBasicAnalysis(round);
     }
+  }
+
+  private generateBasicAnalysis(round: GolfRound): string {
+    const totalScore = round.totalScore || 0;
+    const totalPar = round.holes.reduce((sum, h) => sum + h.par, 0);
+    const diff = totalScore - totalPar;
+    const diffStr = diff > 0 ? `+${diff}` : diff === 0 ? 'E' : `${diff}`;
+    return `Round at ${round.courseName}: ${totalScore} (${diffStr}). AI analysis temporarily unavailable.`;
   }
 
   private generateRoundSummary(round: GolfRound): string {
@@ -182,34 +208,36 @@ class AIService {
       return 'Shot recommendations unavailable.';
     }
 
+    if (isCircuitOpen()) {
+      return 'Shot recommendations temporarily unavailable.';
+    }
+
     try {
       const prompt = `
         Provide a brief shot strategy for:
         Hole ${holeNumber}, Par ${par}
         ${distance ? `Distance: ${distance} yards` : ''}
         ${conditions ? `Conditions: ${conditions}` : ''}
-        
+
         Give a concise recommendation (2-3 sentences) for club selection and shot strategy.
       `;
 
-      const response = await this.openai.chat.completions.create({
-        model: (Config.OPENAI_MODEL || 'gpt-4-turbo') as 'gpt-4-turbo' | 'gpt-4o' | 'gpt-3.5-turbo',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a golf caddie providing strategic advice.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        max_tokens: 100,
-        temperature: 0.7,
-      });
+      const response = await withTimeout(
+        this.openai.chat.completions.create({
+          model: (Config.OPENAI_MODEL || 'gpt-4-turbo') as string,
+          messages: [
+            { role: 'system', content: 'You are a golf caddie providing strategic advice.' },
+            { role: 'user', content: prompt },
+          ],
+          max_tokens: 100,
+          temperature: 0.7,
+        }),
+      );
 
-      return response.choices[0].message.content || 'Unable to generate recommendation';
+      recordSuccess();
+      return response?.choices?.[0]?.message?.content || 'Unable to generate recommendation';
     } catch (error) {
+      recordFailure();
       console.error('Shot recommendation error:', error);
       return 'Unable to generate recommendation';
     }

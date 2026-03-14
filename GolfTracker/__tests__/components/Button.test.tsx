@@ -28,9 +28,7 @@ describe('Button Component', () => {
     );
     
     const button = getByText('Primary').parent?.parent;
-    expect(button?.props.style).toContainEqual(
-      expect.objectContaining({ backgroundColor: '#4CAF50' })
-    );
+    expect(button?.props.style).toMatchObject({ backgroundColor: '#4CAF50' });
   });
   
   it('should render secondary variant', () => {
@@ -50,9 +48,7 @@ describe('Button Component', () => {
     );
     
     const button = getByText('Danger').parent?.parent;
-    expect(button?.props.style).toContainEqual(
-      expect.objectContaining({ backgroundColor: '#f44336' })
-    );
+    expect(button?.props.style).toMatchObject({ backgroundColor: '#f44336' });
   });
   
   it('should show loading indicator when loading', () => {
@@ -108,7 +104,7 @@ describe('Button Component', () => {
     );
     
     const button = getByText('Custom').parent?.parent;
-    expect(button?.props.style).toContainEqual(customStyle);
+    expect(button?.props.style).toMatchObject(customStyle);
   });
 });
 

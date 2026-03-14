@@ -1,12 +1,26 @@
 import { GolfHole, ShotData, MediaItem, SHOT_TYPES, SHOT_RESULTS } from '../types';
 import { getResultLabel } from '../utils/shotLabels';
 import Config from 'react-native-config';
+import { isCircuitOpen, recordSuccess, recordFailure, withTimeout } from './aiCircuitBreaker';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI loaded dynamically via require
-type OpenAIClient = any;
+/** Minimal structural type for the subset of the OpenAI SDK we actually use. */
+interface OpenAIClient {
+  chat: {
+    completions: {
+      create: (params: {
+        model: string;
+        messages: Array<{ role: string; content: string }>;
+        max_tokens: number;
+        temperature: number;
+      }) => Promise<{
+        choices: Array<{ message: { content: string | null } }>;
+      }>;
+    };
+  };
+}
 
 class AIHoleAnalysisService {
-  private openai: OpenAIClient = null;
+  private openai: OpenAIClient | null = null;
   private initialized: boolean = false;
 
   constructor() {
@@ -19,7 +33,6 @@ class AIHoleAnalysisService {
 
     try {
       if (Config.OPENAI_API_KEY) {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const OpenAI = require('openai').default;
         this.openai = new OpenAI({ apiKey: Config.OPENAI_API_KEY });
       }
@@ -34,7 +47,7 @@ class AIHoleAnalysisService {
     mediaItems: MediaItem[]
   ): Promise<string> {
     this.initializeOpenAI();
-    if (!this.openai) {
+    if (!this.openai || isCircuitOpen()) {
       return this.generateBasicSummary(hole, mediaItems);
     }
 
@@ -45,21 +58,21 @@ class AIHoleAnalysisService {
 
       const prompt = `
         Analyze this golf hole and create an engaging, conversational summary suitable for sharing with friends via text message.
-        
+
         Hole ${hole.holeNumber} - Par ${hole.par}
         Score: ${hole.strokes} strokes (${this.getScoreName(hole)})
-        
+
         Shot Sequence:
         ${shotNarrative}
-        
+
         Performance Details:
         ${performanceAnalysis}
-        
+
         Media Captured:
         ${mediaDescription}
-        
+
         ${hole.notes ? `Personal Notes: ${hole.notes}` : ''}
-        
+
         Create a brief, engaging summary (2-3 sentences) that:
         1. Tells the story of the hole in a conversational, exciting way
         2. Highlights any notable shots or moments
@@ -67,28 +80,29 @@ class AIHoleAnalysisService {
         4. Includes any drama, success, or learning moments
         5. Uses golf terminology naturally but keeps it accessible
         6. Adds appropriate emojis for social sharing
-        
+
         Keep it under 200 characters for SMS friendliness.
       `;
 
-      const response = await this.openai.chat.completions.create({
-        model: (Config.OPENAI_MODEL || 'gpt-4o') as string,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a golf buddy sharing exciting updates from the course. Be enthusiastic, use golf slang appropriately, and keep messages brief and engaging.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        max_tokens: 150,
-        temperature: 0.8,
-      });
+      const response = await withTimeout(
+        this.openai.chat.completions.create({
+          model: (Config.OPENAI_MODEL || 'gpt-4o') as string,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a golf buddy sharing exciting updates from the course. Be enthusiastic, use golf slang appropriately, and keep messages brief and engaging.',
+            },
+            { role: 'user', content: prompt },
+          ],
+          max_tokens: 150,
+          temperature: 0.8,
+        }),
+      );
 
-      return response.choices[0].message.content || this.generateBasicSummary(hole, mediaItems);
+      recordSuccess();
+      return response?.choices?.[0]?.message?.content || this.generateBasicSummary(hole, mediaItems);
     } catch (error) {
+      recordFailure();
       console.error('AI analysis error:', error);
       return this.generateBasicSummary(hole, mediaItems);
     }
@@ -127,7 +141,6 @@ class AIHoleAnalysisService {
     const analysis: string[] = [];
     const score = hole.strokes - hole.par;
 
-    // Score analysis
     if (score <= -2) {
       analysis.push('Outstanding hole! Eagle or better');
     } else if (score === -1) {
@@ -140,7 +153,6 @@ class AIHoleAnalysisService {
       analysis.push('Challenging hole');
     }
 
-    // Shot analysis
     if (hole.shotData) {
       const data = this.parseShotData(hole.shotData);
       if (data) {
@@ -158,7 +170,6 @@ class AIHoleAnalysisService {
       }
     }
 
-    // Stats
     if (hole.putts) {
       analysis.push(`${hole.putts} putt${hole.putts !== 1 ? 's' : ''}`);
     }
@@ -200,9 +211,9 @@ class AIHoleAnalysisService {
   generateBasicSummary(hole: GolfHole, mediaItems: MediaItem[]): string {
     const score = this.getScoreName(hole);
     const mediaCount = mediaItems.length;
-    
+
     let summary = `Hole ${hole.holeNumber}: ${score} `;
-    
+
     if (hole.shotData) {
       const shotData = this.parseShotData(hole.shotData);
       if (shotData) {
@@ -210,7 +221,6 @@ class AIHoleAnalysisService {
         const putts = shotData.shots.filter(s => s.type === SHOT_TYPES.PUTT);
         const hasSand = shotData.shots.some(s => s.results.includes(SHOT_RESULTS.SAND));
 
-        // Add key shot details
         if (hole.par > 3 && teeShot?.results.includes(SHOT_RESULTS.CENTER)) {
           summary += '⛳ Fairway hit! ';
         } else if (hole.par === 3 && teeShot?.results.includes(SHOT_RESULTS.GREEN)) {
@@ -232,21 +242,20 @@ class AIHoleAnalysisService {
         }
       }
     }
-    
+
     if (mediaCount > 0) {
       summary += `📸 ${mediaCount} ${mediaCount === 1 ? 'shot' : 'shots'} captured`;
     }
-    
+
     return summary.trim();
   }
 
   async generateMediaAnalysisPrompt(mediaItems: MediaItem[]): Promise<string> {
-    // This would be enhanced with actual image analysis if using Vision API
     const photos = mediaItems.filter(m => m.type === 'photo');
     const videos = mediaItems.filter(m => m.type === 'video');
-    
+
     let analysis = '';
-    
+
     if (photos.length > 0) {
       analysis += `📸 ${photos.length} photo${photos.length !== 1 ? 's' : ''} showing`;
       if (photos.some(p => p.description?.includes('swing'))) {
@@ -259,7 +268,7 @@ class AIHoleAnalysisService {
         analysis += ' celebration moment';
       }
     }
-    
+
     if (videos.length > 0) {
       if (analysis) analysis += ' and ';
       analysis += `🎥 ${videos.length} video${videos.length !== 1 ? 's' : ''} capturing`;
@@ -270,9 +279,10 @@ class AIHoleAnalysisService {
         analysis += ' putting stroke';
       }
     }
-    
+
     return analysis || 'Visual moments from the hole';
   }
 }
 
-export default AIHoleAnalysisService;
+// Singleton — shared circuit breaker state requires single instance
+export default new AIHoleAnalysisService();

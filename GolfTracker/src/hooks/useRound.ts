@@ -2,21 +2,24 @@ import { useEffect } from 'react';
 import { useRoundStore } from '../stores/roundStore';
 
 export const useRound = (roundId?: string) => {
-  const { activeRound, loading, error, loadActiveRound, setActiveRound } = useRoundStore();
-  
+  const { activeRound, loading, error } = useRoundStore();
+
   useEffect(() => {
+    // Access actions via getState() to avoid putting unstable Zustand
+    // function references in the dependency array (infinite re-render risk).
+    const { setActiveRound, loadActiveRound } = useRoundStore.getState();
+
     if (roundId) {
       setActiveRound(roundId);
     } else {
       loadActiveRound();
     }
-  }, [roundId, loadActiveRound, setActiveRound]);
-  
-  return { 
-    round: activeRound, 
-    loading, 
+  }, [roundId]);
+
+  return {
+    round: activeRound,
+    loading,
     error,
-    reload: loadActiveRound,
+    reload: () => useRoundStore.getState().loadActiveRound(),
   };
 };
-

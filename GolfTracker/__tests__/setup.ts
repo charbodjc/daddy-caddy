@@ -1,14 +1,12 @@
 import { database } from '../src/database/watermelon/database';
 
-// Setup test database
+// Setup test database — uses LokiJS in-memory adapter (see database.ts)
 export const setupTestDatabase = async () => {
-  // Reset database before each test
   await database.write(async () => {
     await database.unsafeResetDatabase();
   });
 };
 
-// Cleanup after tests
 export const cleanupTestDatabase = async () => {
   await database.write(async () => {
     await database.unsafeResetDatabase();
@@ -23,4 +21,3 @@ beforeEach(async () => {
 afterEach(async () => {
   await cleanupTestDatabase();
 });
-
