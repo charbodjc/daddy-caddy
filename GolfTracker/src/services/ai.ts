@@ -2,11 +2,24 @@ import { GolfRound, Statistics } from '../types';
 import Config from 'react-native-config';
 import { isCircuitOpen, recordSuccess, recordFailure, withTimeout } from './aiCircuitBreaker';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI loaded dynamically via require
-type OpenAIClient = any;
+/** Minimal structural type for the subset of the OpenAI SDK we actually use. */
+interface OpenAIClient {
+  chat: {
+    completions: {
+      create: (params: {
+        model: string;
+        messages: Array<{ role: string; content: string }>;
+        max_tokens: number;
+        temperature: number;
+      }) => Promise<{
+        choices: Array<{ message: { content: string | null } }>;
+      }>;
+    };
+  };
+}
 
 class AIService {
-  private openai: OpenAIClient = null;
+  private openai: OpenAIClient | null = null;
   private initialized: boolean = false;
 
   constructor() {
@@ -68,8 +81,7 @@ class AIService {
         Keep the analysis concise but insightful, focusing on actionable feedback.
       `;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI types not available at runtime
-      const response: any = await withTimeout(
+      const response = await withTimeout(
         this.openai.chat.completions.create({
           model: (Config.OPENAI_MODEL || 'gpt-4-turbo') as string,
           messages: [
@@ -211,8 +223,7 @@ class AIService {
         Give a concise recommendation (2-3 sentences) for club selection and shot strategy.
       `;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI types not available at runtime
-      const response: any = await withTimeout(
+      const response = await withTimeout(
         this.openai.chat.completions.create({
           model: (Config.OPENAI_MODEL || 'gpt-4-turbo') as string,
           messages: [

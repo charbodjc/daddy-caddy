@@ -5,7 +5,7 @@
  * Replaces legacy ShotTrackingScreen with clean architecture.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -97,8 +97,7 @@ const ShotTrackingScreen: React.FC = () => {
   // Penalty stroke selector (1 or 2) — only shown when Penalty type is selected
   const [penaltyCount, setPenaltyCount] = useState<1 | 2>(1);
 
-  // Derived stats
-  const [derivedStats, setDerivedStats] = useState<ReturnType<typeof deriveHoleStats> | null>(null);
+  // Derived stats — computed directly from shots, no extra render cycle
 
   // Load hole data
   useEffect(() => {
@@ -136,14 +135,12 @@ const ShotTrackingScreen: React.FC = () => {
     }
   }, [preselectedShotType, hole]);
 
-  // Re-derive stats when shots change
-  useEffect(() => {
+  const derivedStats = useMemo(() => {
     if (hole && shots.length > 0) {
       const shotData: ShotData = { par: hole.par, shots, currentStroke };
-      setDerivedStats(deriveHoleStats(shotData, hole.par));
-    } else {
-      setDerivedStats(null);
+      return deriveHoleStats(shotData, hole.par);
     }
+    return null;
   }, [shots, currentStroke, hole]);
 
   const addShot = useCallback(
@@ -290,8 +287,10 @@ const ShotTrackingScreen: React.FC = () => {
               value={puttDistance}
               onChangeText={setPuttDistance}
               keyboardType="numeric"
+              returnKeyType="done"
               placeholder="e.g. 25"
               placeholderTextColor="#999"
+              accessibilityLabel="Putt distance in feet"
             />
           </View>
         )}

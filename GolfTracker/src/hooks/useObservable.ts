@@ -6,6 +6,15 @@ import type { Observable } from 'rxjs';
  * the latest emitted value as React state.
  *
  * Returns `undefined` until the first emission.
+ *
+ * **Important:** The `observable` argument is used as a `useEffect` dependency.
+ * Callers **must** memoize it (e.g. via `useMemo`) to avoid tearing down and
+ * re-creating the subscription on every render. Example:
+ *
+ * ```ts
+ * const obs = useMemo(() => round?.holes.observe(), [round?.id]);
+ * const holes = useObservable(obs);
+ * ```
  */
 export function useObservable<T>(
   observable: Observable<T> | undefined,

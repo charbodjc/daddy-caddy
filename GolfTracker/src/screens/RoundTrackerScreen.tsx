@@ -18,6 +18,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  TouchableWithoutFeedback,
+  Keyboard,
   Modal,
   TextInput,
   Alert,
@@ -215,37 +217,42 @@ const RoundTrackerScreen: React.FC = () => {
   // Setup screen for new round
   if (setupVisible || !round) {
     return (
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.setupContainer}>
-          <Text style={styles.setupTitle}>New Round Setup</Text>
-          
-          {params.tournamentName && (
-            <View style={styles.tournamentBadge}>
-              <Icon name="emoji-events" size={20} color="#4CAF50" />
-              <Text style={styles.tournamentText}>{params.tournamentName}</Text>
-            </View>
-          )}
-          
-          <TextInput
-            style={styles.input}
-            placeholder="Course Name"
-            value={courseName}
-            onChangeText={setCourseName}
-            autoCapitalize="words"
-            autoFocus
-          />
-          
-          <Button
-            title="Start Round"
-            onPress={handleStartRound}
-            loading={saving}
-            style={styles.startButton}
-          />
-        </View>
-      </KeyboardAvoidingView>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.setupContainer}>
+            <Text style={styles.setupTitle}>New Round Setup</Text>
+
+            {params.tournamentName && (
+              <View style={styles.tournamentBadge}>
+                <Icon name="emoji-events" size={20} color="#4CAF50" />
+                <Text style={styles.tournamentText}>{params.tournamentName}</Text>
+              </View>
+            )}
+
+            <TextInput
+              style={styles.input}
+              placeholder="Course Name"
+              value={courseName}
+              onChangeText={setCourseName}
+              autoCapitalize="words"
+              autoFocus
+              accessibilityLabel="Course name"
+              returnKeyType="done"
+              onSubmitEditing={handleStartRound}
+            />
+
+            <Button
+              title="Start Round"
+              onPress={handleStartRound}
+              loading={saving}
+              style={styles.startButton}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
     );
   }
   

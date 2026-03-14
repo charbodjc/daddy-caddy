@@ -3,11 +3,24 @@ import { getResultLabel } from '../utils/shotLabels';
 import Config from 'react-native-config';
 import { isCircuitOpen, recordSuccess, recordFailure, withTimeout } from './aiCircuitBreaker';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI loaded dynamically via require
-type OpenAIClient = any;
+/** Minimal structural type for the subset of the OpenAI SDK we actually use. */
+interface OpenAIClient {
+  chat: {
+    completions: {
+      create: (params: {
+        model: string;
+        messages: Array<{ role: string; content: string }>;
+        max_tokens: number;
+        temperature: number;
+      }) => Promise<{
+        choices: Array<{ message: { content: string | null } }>;
+      }>;
+    };
+  };
+}
 
 class AIHoleAnalysisService {
-  private openai: OpenAIClient = null;
+  private openai: OpenAIClient | null = null;
   private initialized: boolean = false;
 
   constructor() {
@@ -72,8 +85,7 @@ class AIHoleAnalysisService {
         Keep it under 200 characters for SMS friendliness.
       `;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI types not available at runtime
-      const response: any = await withTimeout(
+      const response = await withTimeout(
         this.openai.chat.completions.create({
           model: (Config.OPENAI_MODEL || 'gpt-4o') as string,
           messages: [
