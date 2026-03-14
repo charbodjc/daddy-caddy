@@ -5,7 +5,12 @@ import Round from '../database/watermelon/models/Round';
 import Hole from '../database/watermelon/models/Hole';
 import { Q } from '@nozbe/watermelondb';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { HoleData, CreateRoundData } from '../validators/roundValidator';
+import {
+  validateCreateRound,
+  safeValidateHole,
+  type HoleData,
+  type CreateRoundData,
+} from '../validators/roundValidator';
 
 interface RoundState {
   activeRound: Round | null;
@@ -59,8 +64,11 @@ export const useRoundStore = create<RoundState>()(
       // Create a new round
       createRound: async (data: CreateRoundData) => {
         set({ loading: true, error: null });
-        
+
         try {
+          // Validate input before touching the database
+          validateCreateRound(data);
+
           // Create round and all 18 holes in a single write transaction
           const round = await database.write(async () => {
             const newRound = await database.collections.get<Round>('rounds').create((r) => {
@@ -99,7 +107,15 @@ export const useRoundStore = create<RoundState>()(
       // Update a hole (optimistic update + database save)
       updateHole: async (roundId: string, holeData: HoleData) => {
         const { activeRound } = get();
-        
+
+        // Validate hole data before writing
+        const validation = safeValidateHole(holeData);
+        if (!validation.success) {
+          const error = new Error(validation.error || 'Invalid hole data');
+          set({ error });
+          throw error;
+        }
+
         try {
           // Update hole and round statistics in a single write transaction
           await database.write(async () => {
