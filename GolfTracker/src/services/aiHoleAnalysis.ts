@@ -33,7 +33,6 @@ class AIHoleAnalysisService {
 
     try {
       if (Config.OPENAI_API_KEY) {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const OpenAI = require('openai').default;
         this.openai = new OpenAI({ apiKey: Config.OPENAI_API_KEY });
       }

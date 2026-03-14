@@ -10,27 +10,19 @@ import App from '../App';
 
 // Mock the AppNavigator
 jest.mock('../src/navigation/AppNavigator', () => {
-  const React = require('react');
+  const _React = require('react');
   const { View, Text } = require('react-native');
   return function AppNavigator() {
-    return (
-      <View>
-        <Text>App Navigator</Text>
-      </View>
-    );
+    return _React.createElement(View, null, _React.createElement(Text, null, 'App Navigator'));
   };
 });
 
 // Mock OnboardingScreen
 jest.mock('../src/screens/OnboardingScreen', () => {
-  const React = require('react');
+  const _React = require('react');
   const { View, Text } = require('react-native');
   return function OnboardingScreen() {
-    return (
-      <View>
-        <Text>Onboarding Screen</Text>
-      </View>
-    );
+    return _React.createElement(View, null, _React.createElement(Text, null, 'Onboarding Screen'));
   };
 });
 

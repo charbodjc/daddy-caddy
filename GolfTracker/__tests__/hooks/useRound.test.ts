@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react-hooks';
+import { renderHook } from '@testing-library/react-hooks';
 import { useRound } from '../../src/hooks/useRound';
 import { useRoundStore } from '../../src/stores/roundStore';
 import { database } from '../../src/database/watermelon/database';

@@ -98,7 +98,7 @@ const RoundTrackerScreen: React.FC = () => {
       
       setSetupVisible(false);
       setCourseName('');
-    } catch (error) {
+    } catch (_err) {
       Alert.alert('Error', 'Failed to start round');
     } finally {
       setSaving(false);
@@ -155,7 +155,7 @@ const RoundTrackerScreen: React.FC = () => {
               navigation.navigate('RoundSummary', {
                 roundId: round.id,
               } );
-            } catch (error) {
+            } catch (_err) {
               Alert.alert('Error', 'Failed to finish round');
             }
           },
@@ -179,7 +179,7 @@ const RoundTrackerScreen: React.FC = () => {
             try {
               await deleteRound(round.id);
               navigation.goBack();
-            } catch (error) {
+            } catch (_err) {
               Alert.alert('Error', 'Failed to delete round');
             }
           },

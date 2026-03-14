@@ -5,10 +5,10 @@ import Hole from '../../src/database/watermelon/models/Hole';
 describe('Round Model', () => {
   it('should create round with basic properties', async () => {
     const round = await database.write(async () => {
-      return await database.collections.get<Round>('rounds').create((round) => {
-        round.courseName = 'Test Course';
-        round.date = new Date('2025-01-01');
-        round.isFinished = false;
+      return await database.collections.get<Round>('rounds').create((r) => {
+        r.courseName = 'Test Course';
+        r.date = new Date('2025-01-01');
+        r.isFinished = false;
       });
     });
 
