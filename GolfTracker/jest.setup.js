@@ -1,13 +1,4 @@
 // Mock react-native modules
-jest.mock('react-native-sqlite-storage', () => ({
-  enablePromise: jest.fn(),
-  DEBUG: jest.fn(),
-  openDatabase: jest.fn(() => ({
-    transaction: jest.fn(),
-    executeSql: jest.fn(),
-  })),
-}));
-
 jest.mock('react-native-vector-icons/MaterialIcons', () => 'Icon');
 jest.mock('react-native-vector-icons/FontAwesome5', () => 'Icon');
 jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => 'Icon');
@@ -86,4 +77,7 @@ jest.mock('react-native-image-picker', () => ({
 // Mock react-native-video
 jest.mock('react-native-video', () => 'Video');
 
-// Additional mocks if needed
+// Mock AsyncStorage
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);

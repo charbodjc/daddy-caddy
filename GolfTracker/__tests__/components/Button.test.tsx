@@ -23,36 +23,39 @@ describe('Button Component', () => {
   });
   
   it('should render primary variant by default', () => {
-    const { getByText } = render(
-      <Button title="Primary" onPress={() => {}} />
+    const { getByTestId } = render(
+      <Button title="Primary" onPress={() => {}} testID="primary-btn" />
     );
-    
-    const button = getByText('Primary').parent?.parent;
-    expect(button?.props.style).toContainEqual(
-      expect.objectContaining({ backgroundColor: '#4CAF50' })
-    );
+
+    const button = getByTestId('primary-btn');
+    const flatStyle = Array.isArray(button.props.style)
+      ? Object.assign({}, ...button.props.style.filter(Boolean))
+      : button.props.style;
+    expect(flatStyle).toEqual(expect.objectContaining({ backgroundColor: '#4CAF50' }));
   });
-  
+
   it('should render secondary variant', () => {
     const { getByText } = render(
       <Button title="Secondary" onPress={() => {}} variant="secondary" />
     );
-    
+
     const text = getByText('Secondary');
-    expect(text.props.style).toContainEqual(
-      expect.objectContaining({ color: '#4CAF50' })
-    );
+    const flatStyle = Array.isArray(text.props.style)
+      ? Object.assign({}, ...text.props.style.filter(Boolean))
+      : text.props.style;
+    expect(flatStyle).toEqual(expect.objectContaining({ color: '#4CAF50' }));
   });
-  
+
   it('should render danger variant', () => {
-    const { getByText } = render(
-      <Button title="Danger" onPress={() => {}} variant="danger" />
+    const { getByTestId } = render(
+      <Button title="Danger" onPress={() => {}} variant="danger" testID="danger-btn" />
     );
-    
-    const button = getByText('Danger').parent?.parent;
-    expect(button?.props.style).toContainEqual(
-      expect.objectContaining({ backgroundColor: '#f44336' })
-    );
+
+    const button = getByTestId('danger-btn');
+    const flatStyle = Array.isArray(button.props.style)
+      ? Object.assign({}, ...button.props.style.filter(Boolean))
+      : button.props.style;
+    expect(flatStyle).toEqual(expect.objectContaining({ backgroundColor: '#f44336' }));
   });
   
   it('should show loading indicator when loading', () => {
@@ -103,12 +106,15 @@ describe('Button Component', () => {
   
   it('should apply custom style', () => {
     const customStyle = { marginTop: 20 };
-    const { getByText } = render(
-      <Button title="Custom" onPress={() => {}} style={customStyle} />
+    const { getByTestId } = render(
+      <Button title="Custom" onPress={() => {}} style={customStyle} testID="custom-btn" />
     );
-    
-    const button = getByText('Custom').parent?.parent;
-    expect(button?.props.style).toContainEqual(customStyle);
+
+    const button = getByTestId('custom-btn');
+    const flatStyle = Array.isArray(button.props.style)
+      ? Object.assign({}, ...button.props.style.filter(Boolean))
+      : button.props.style;
+    expect(flatStyle).toEqual(expect.objectContaining({ marginTop: 20 }));
   });
 });
 
