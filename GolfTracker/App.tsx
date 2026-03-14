@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppNavigator from './src/navigation/AppNavigator';
-import DatabaseService from './src/services/database';
+// WatermelonDB auto-initializes via its adapter — no manual init needed
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
 
@@ -17,18 +18,14 @@ const App = () => {
 
   const initializeApp = async () => {
     try {
-      // Initialize database
-      await DatabaseService.init();
-      console.log('Database initialized successfully');
-      
       // Check if user has completed onboarding
       const onboardingCompleted = await AsyncStorage.getItem('onboarding_completed');
       setShowOnboarding(onboardingCompleted !== 'true');
-      
+
       setIsInitialized(true);
     } catch (err) {
       console.error('Failed to initialize app:', err);
-      setError('Failed to initialize database');
+      setError('Failed to initialize app');
     }
   };
 
@@ -59,9 +56,11 @@ const App = () => {
   }
 
   return (
-    <ErrorBoundary>
-      <AppNavigator />
-    </ErrorBoundary>
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <AppNavigator />
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 };
 

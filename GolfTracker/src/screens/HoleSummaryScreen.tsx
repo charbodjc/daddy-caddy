@@ -1,4 +1,11 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * HoleSummaryScreen.tsx
+ *
+ * Post-hole summary screen showing score, shot breakdown, AI analysis,
+ * media gallery, and SMS sharing. Uses Zustand + WatermelonDB.
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,618 +14,375 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  Alert,
-  Share,
 } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import DatabaseService from '../services/database';
+import { database } from '../database/watermelon/database';
+import Hole from '../database/watermelon/models/Hole';
+import Round from '../database/watermelon/models/Round';
+import { LoadingScreen } from '../components/common/LoadingScreen';
+import { ErrorScreen } from '../components/common/ErrorScreen';
+import { Button } from '../components/common/Button';
+import { Toast, useToast } from '../components/Toast';
 import AIHoleAnalysisService from '../services/aiHoleAnalysis';
 import SMSService from '../services/sms';
-import { GolfHole, MediaItem, Contact, ShotData, SHOT_TYPES, SHOT_RESULTS } from '../types';
-import { Toast, useToast } from '../components/Toast';
-import { calculateRunningRoundStats, formatRunningStatsForSMS } from '../utils/roundStats';
+import MediaService from '../services/media';
+import { holeToGolfHole } from '../services/adapters';
+import { parseShotData, deriveHoleStats, calculateRunningRoundStats, formatRunningStatsForSMS } from '../utils/roundStats';
 import { getResultLabel } from '../utils/shotLabels';
+import { getScoreColor, getScoreName } from '../utils/scoreColors';
+import { SHOT_TYPES, SHOT_RESULTS } from '../types';
+import type { MediaItem } from '../types';
+import type { ScoringStackParamList } from '../types/navigation';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import type { RouteProp } from '@react-navigation/native';
+
+type NavProp = StackNavigationProp<ScoringStackParamList, 'HoleSummary'>;
+type RoutePropT = RouteProp<ScoringStackParamList, 'HoleSummary'>;
 
 const aiService = new AIHoleAnalysisService();
 
-const HoleSummaryScreen = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { hole, roundId, onNext } = route.params as { 
-    hole: GolfHole; 
-    roundId: string;
-    onNext?: () => void;
-  };
+function getScoreDisplay(strokes: number, par: number) {
+  const diff = strokes - par;
+  const name = getScoreName(diff);
+  const text = diff <= -2 ? `${name}!` : name;
+  return { text, color: getScoreColor(diff) };
+}
+
+function shotColor(shot: { type: string; results: string[] }): string {
+  if (
+    shot.results.includes(SHOT_RESULTS.CENTER) ||
+    shot.results.includes(SHOT_RESULTS.GREEN) ||
+    shot.results.includes(SHOT_RESULTS.MADE)
+  ) return '#4CAF50';
+  if (shot.results.includes(SHOT_RESULTS.OB) || shot.results.includes(SHOT_RESULTS.HAZARD)) return '#F44336';
+  if (shot.results.includes(SHOT_RESULTS.SAND)) return '#F4B400';
+  if (shot.type === SHOT_TYPES.PENALTY) return '#F44336';
+  return '#FF9800';
+}
+
+function shotIcon(type: string): string {
+  if (type === SHOT_TYPES.TEE_SHOT) return 'golf-course';
+  if (type === SHOT_TYPES.PENALTY) return 'warning';
+  return 'flag';
+}
+
+const HoleSummaryScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NavProp>();
+  const route = useRoute<RoutePropT>();
+  const { holeId, roundId } = route.params || {};
   const { toastConfig, showToast, hideToast } = useToast();
 
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [aiSummary, setAiSummary] = useState<string>('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [hole, setHole] = useState<Hole | null>(null);
+  const [_round, setRound] = useState<Round | null>(null);
+  const [totalHoles, setTotalHoles] = useState(18);
   const [loading, setLoading] = useState(true);
-  const [groupName, setGroupName] = useState<string>('your text group');
+  const [error, setError] = useState<Error | null>(null);
 
+  const [aiSummary, setAiSummary] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [sendingSms, setSendingSms] = useState(false);
+
+  // Load data
   useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
-  }, []);
+    let mounted = true;
 
-  const loadData = async () => {
-    try {
-      // Load media for this hole
-      const allMedia = await DatabaseService.getMediaForRound(roundId);
-      const holeMedia = allMedia.filter(m => m.holeNumber === hole.holeNumber);
-      setMediaItems(holeMedia);
+    const load = async () => {
+      try {
+        const h = await database.collections.get<Hole>('holes').find(holeId);
+        if (!mounted) return;
+        setHole(h);
+        const r = await database.collections.get<Round>('rounds').find(roundId);
+        if (!mounted) return;
+        setRound(r);
 
-      // Load group name and contacts
-      const savedGroupName = await DatabaseService.getPreference('default_sms_group_name');
-      setGroupName(savedGroupName || 'your text group');
-      
-      // Load contacts to get count
-      const raw = await DatabaseService.getPreference('default_sms_group');
-      if (raw) {
+        const allHoles: Hole[] = await r.holes.fetch();
+        if (!mounted) return;
+        setTotalHoles(allHoles.length);
+
+        // Load media
+        const media = await MediaService.getMediaForHole(roundId, h.holeNumber);
+        if (!mounted) return;
+        setMediaItems(media);
+
+        // AI analysis
+        const golfHole = holeToGolfHole(h);
+        setIsAnalyzing(true);
         try {
-          // Try to parse as JSON first (new format)
-          const parsedContacts = JSON.parse(raw);
-          if (Array.isArray(parsedContacts)) {
-            setContacts(parsedContacts);
-          }
+          const summary = await aiService.analyzeHoleWithMedia(golfHole, media);
+          if (!mounted) return;
+          setAiSummary(summary);
         } catch {
-          // Fallback: Parse old format
-          const phoneNumbers = raw.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
-          const contactsList = phoneNumbers.map((phone, index) => ({
-            id: `saved-${index}`,
-            name: phone,
-            phoneNumber: phone,
-            isActive: true
-          }));
-          setContacts(contactsList);
+          if (!mounted) return;
+          setAiSummary(aiService.generateBasicSummary(golfHole, media));
+        } finally {
+          if (mounted) setIsAnalyzing(false);
         }
+      } catch (err) {
+        if (!mounted) return;
+        setError(err as Error);
+      } finally {
+        if (mounted) setLoading(false);
       }
+    };
+    load();
 
-      // Generate AI summary
-      await generateAISummary(holeMedia);
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => { mounted = false; };
+  }, [holeId, roundId]);
 
-  const generateAISummary = async (media: MediaItem[]) => {
+  const regenerateAI = useCallback(async () => {
+    if (!hole) return;
     setIsAnalyzing(true);
+    const golfHole = holeToGolfHole(hole);
     try {
-      const summary = await aiService.analyzeHoleWithMedia(hole, media);
+      const summary = await aiService.analyzeHoleWithMedia(golfHole, mediaItems);
       setAiSummary(summary);
-    } catch (error) {
-      console.error('Error generating AI summary:', error);
-      setAiSummary(aiService.generateBasicSummary(hole, media));
+    } catch {
+      setAiSummary(aiService.generateBasicSummary(golfHole, mediaItems));
     } finally {
       setIsAnalyzing(false);
     }
-  };
+  }, [hole, mediaItems]);
 
-  const regenerateSummary = async () => {
-    await generateAISummary(mediaItems);
-  };
-
-  const getScoreDisplay = () => {
-    const diff = hole.strokes - hole.par;
-    if (diff === 0) return { text: 'Par', color: '#2196F3' };
-    if (diff === -3) return { text: 'Albatross!', color: '#FFD700' };
-    if (diff === -2) return { text: 'Eagle!', color: '#FFD700' };
-    if (diff === -1) return { text: 'Birdie', color: '#4CAF50' };
-    if (diff === 1) return { text: 'Bogey', color: '#FF9800' };
-    if (diff === 2) return { text: 'Double Bogey', color: '#F44336' };
-    if (diff === 3) return { text: 'Triple Bogey', color: '#F44336' };
-    return { text: diff > 0 ? `+${diff}` : diff.toString(), color: '#F44336' };
-  };
-
-  const formatShotData = () => {
-    if (!hole.shotData) return [];
-
-    // Parse shot data (DB layer may return object or JSON string)
-    let data: ShotData | null = null;
+  const handleSendSMS = useCallback(async () => {
+    if (!hole) return;
+    setSendingSms(true);
     try {
-      data = typeof hole.shotData === 'string'
-        ? JSON.parse(hole.shotData)
-        : hole.shotData;
-    } catch { /* ignore */ }
-
-    if (!data?.shots || !Array.isArray(data.shots)) return [];
-
-
-    const shotColor = (shot: { type: string; results: string[] }): string => {
-      if (shot.results.includes(SHOT_RESULTS.CENTER) || shot.results.includes(SHOT_RESULTS.GREEN) || shot.results.includes(SHOT_RESULTS.MADE)) {
-        return '#4CAF50';
-      }
-      if (shot.results.includes(SHOT_RESULTS.OB) || shot.results.includes(SHOT_RESULTS.HAZARD)) {
-        return '#F44336';
-      }
-      if (shot.results.includes(SHOT_RESULTS.SAND)) {
-        return '#F4B400';
-      }
-      if (shot.type === SHOT_TYPES.PENALTY) {
-        return '#F44336';
-      }
-      return '#FF9800';
-    };
-
-    const shotIcon = (type: string): string => {
-      if (type === SHOT_TYPES.TEE_SHOT) return 'golf-course';
-      if (type === SHOT_TYPES.APPROACH) return 'flag';
-      if (type === SHOT_TYPES.PUTT) return 'flag';
-      if (type === SHOT_TYPES.PENALTY) return 'warning';
-      return 'sports-golf';
-    };
-
-    return data.shots.map(shot => {
-      const result = shot.results.map(getResultLabel).join(', ');
-      const dist = shot.puttDistance ? ` (${shot.puttDistance})` : '';
-      return {
-        type: shot.type,
-        result: `${result}${dist}`,
-        icon: shotIcon(shot.type),
-        color: shotColor(shot),
-      };
-    });
-  };
-
-  const sendSMSUpdate = async () => {
-    if (contacts.length === 0) {
-      showToast('Please add contacts in Settings first', 'error');
-      return;
-    }
-
-    // Calculate media counts
-    const photos = mediaItems.filter(m => m.type === 'photo').length;
-    const videos = mediaItems.filter(m => m.type === 'video').length;
-
-    // Calculate running round stats
-    let runningStatsText = '';
-    if (roundId) {
+      const golfHole = holeToGolfHole(hole);
+      const mediaCounts = await MediaService.getMediaCount(roundId, hole.holeNumber);
       const runningStats = await calculateRunningRoundStats(roundId);
-      runningStatsText = formatRunningStatsForSMS(runningStats);
-    }
+      const runningText = formatRunningStatsForSMS(runningStats);
 
-    // Use SMS service to send the hole summary as a group text to all contacts
-    const result = await SMSService.sendHoleSummary(
-      hole,
-      aiSummary,
-      { photos, videos },
-      contacts,
-      runningStatsText
-    );
-    
-    if (result.success) {
-      if (result.sent) {
-        const mediaNote = mediaItems.length > 0 ? ' (Note: photos/videos sent separately)' : '';
-        showToast(`Message opened for ${groupName}${mediaNote}`, 'success');
+      const result = await SMSService.sendHoleSummary(
+        golfHole,
+        aiSummary,
+        mediaCounts,
+        undefined,
+        runningText,
+      );
+
+      if (result.success && result.sent) {
+        showToast('Message opened', 'success');
+      } else if (!result.success) {
+        showToast(result.errors.join(', ') || 'Failed to send', 'error');
       }
-    } else {
-      showToast(result.errors.join(', '), 'error');
+    } catch {
+      showToast('Failed to send SMS', 'error');
+    } finally {
+      setSendingSms(false);
     }
-  };
+  }, [hole, roundId, aiSummary, showToast]);
 
-  const shareUpdate = async () => {
-    try {
-      const result = await Share.share({
-        message: aiSummary,
-        title: `Hole ${hole.holeNumber} Update`,
-      });
+  const handleNextHole = useCallback(() => {
+    navigation.navigate('RoundTracker', { roundId });
+  }, [navigation, roundId]);
 
-      if (result.action === Share.sharedAction) {
-        console.log('Shared successfully');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to share update');
-    }
-  };
+  const handleFinishRound = useCallback(() => {
+    navigation.navigate('RoundSummary', { roundId });
+  }, [navigation, roundId]);
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-      </View>
-    );
+  if (loading) return <LoadingScreen message="Loading hole summary..." />;
+  if (error || !hole) {
+    return <ErrorScreen error={error || new Error('Hole not found')} onRetry={() => navigation.goBack()} />;
   }
 
-  const scoreInfo = getScoreDisplay();
-  const shots = formatShotData();
+  const scoreInfo = getScoreDisplay(hole.strokes, hole.par);
+  const shotData = parseShotData(hole.shotData);
+  const stats = shotData ? deriveHoleStats(shotData, hole.par) : null;
+  const isLastHole = hole.holeNumber >= totalHoles;
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: scoreInfo.color }]}>
-        <Text style={styles.holeNumber}>Hole {hole.holeNumber}</Text>
-        <Text style={styles.parText}>Par {hole.par}</Text>
-        <View style={styles.scoreContainer}>
+    <View style={styles.container}>
+      <ScrollView style={styles.scroll}>
+        {/* Score header */}
+        <View style={[styles.header, { backgroundColor: scoreInfo.color, paddingTop: insets.top + 10 }]}>
+          <Text style={styles.holeNum}>Hole {hole.holeNumber}</Text>
+          <Text style={styles.parText}>Par {hole.par}</Text>
           <Text style={styles.scoreValue}>{hole.strokes}</Text>
           <Text style={styles.scoreLabel}>{scoreInfo.text}</Text>
         </View>
-      </View>
 
-      {/* AI Summary */}
-      <View style={styles.aiSection}>
-        <View style={styles.sectionHeader}>
-          <FontAwesome5 name="robot" size={24} color="#4CAF50" />
-          <Text style={styles.sectionTitle}>AI Summary</Text>
-          <TouchableOpacity onPress={regenerateSummary} style={styles.refreshButton}>
-            <Ionicons name="refresh" size={20} color="#666" />
-          </TouchableOpacity>
-        </View>
-        
-        {isAnalyzing ? (
-          <ActivityIndicator size="small" color="#4CAF50" />
-        ) : (
-          <Text style={styles.aiSummaryText}>{aiSummary}</Text>
+        {/* Stats row */}
+        {stats && (
+          <View style={styles.statsRow}>
+            {stats.fairwayHit !== undefined && (
+              <View style={styles.statChip}>
+                <Icon name="golf-course" size={16} color={stats.fairwayHit ? '#4CAF50' : '#F44336'} />
+                <Text style={styles.statChipText}>FW {stats.fairwayHit ? 'Hit' : 'Miss'}</Text>
+              </View>
+            )}
+            <View style={styles.statChip}>
+              <Icon name="flag" size={16} color={stats.greenInRegulation ? '#4CAF50' : '#F44336'} />
+              <Text style={styles.statChipText}>GIR {stats.greenInRegulation ? 'Yes' : 'No'}</Text>
+            </View>
+            <View style={styles.statChip}>
+              <FontAwesome5 name="golf-ball" size={14} color="#333" />
+              <Text style={styles.statChipText}>{stats.puttsCount} Putts</Text>
+            </View>
+            {stats.firstPuttDistanceFeet !== undefined && (
+              <View style={styles.statChip}>
+                <Text style={styles.statChipText}>{stats.firstPuttDistanceFeet} ft 1st</Text>
+              </View>
+            )}
+          </View>
         )}
-      </View>
 
-      {/* Shot Breakdown */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Shot Breakdown</Text>
-        <View style={styles.shotsContainer}>
-          {shots.map((shot, index) => (
-            <View key={index} style={styles.shotItem}>
-              <Icon name={shot.icon} size={20} color={shot.color} />
-              <View style={styles.shotDetails}>
-                <Text style={styles.shotType}>{shot.type}</Text>
-                <Text style={styles.shotResult}>{shot.result}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      {/* Media Preview */}
-      {mediaItems.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Captured Media</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.mediaContainer}>
-              {mediaItems.map((media, index) => (
-                <View key={media.id} style={styles.mediaThumbnail}>
-                  {media.type === 'photo' ? (
-                    <Image source={{ uri: media.uri }} style={styles.mediaImage} />
-                  ) : (
-                    <View style={styles.videoPlaceholder}>
-                      <Icon name="play-circle-outline" size={40} color="#fff" />
-                      <Text style={styles.videoText}>Video {index + 1}</Text>
-                    </View>
-                  )}
+        {/* Shot breakdown */}
+        {shotData && shotData.shots.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Shot Breakdown</Text>
+            {shotData.shots.map((shot, i) => (
+              <View key={i} style={styles.shotRow}>
+                <Icon name={shotIcon(shot.type)} size={20} color={shotColor(shot)} />
+                <View style={styles.shotInfo}>
+                  <Text style={styles.shotType}>{shot.type}</Text>
+                  <Text style={styles.shotResult}>
+                    {shot.results.map(getResultLabel).join(', ')}
+                    {shot.puttDistance ? ` (${shot.puttDistance})` : ''}
+                  </Text>
                 </View>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-      )}
-
-      {/* SMS Group Info */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Share With</Text>
-        {contacts.length > 0 ? (
-          <View style={styles.groupInfo}>
-            <View style={styles.groupInfoRow}>
-              <Icon name="group" size={24} color="#4CAF50" />
-              <View style={styles.groupDetails}>
-                <Text style={styles.groupNameText}>{groupName}</Text>
-                <Text style={styles.groupCountText}>
-                  {contacts.length} recipient{contacts.length !== 1 ? 's' : ''}
-                </Text>
               </View>
-            </View>
+            ))}
+          </View>
+        )}
+
+        {/* AI Summary */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <FontAwesome5 name="robot" size={18} color="#4CAF50" />
+            <Text style={styles.cardTitle}>AI Summary</Text>
             <TouchableOpacity
-              style={styles.editGroupButton}
-              onPress={() => navigation.navigate('Contacts' as never)}
+              onPress={regenerateAI}
+              style={styles.refreshBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Regenerate AI summary"
+              accessibilityRole="button"
             >
-              <Icon name="edit" size={18} color="#4CAF50" />
+              <Ionicons name="refresh" size={18} color="#666" />
             </TouchableOpacity>
           </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.addContactsButton}
-            onPress={() => navigation.navigate('Contacts' as never)}
-          >
-            <Icon name="person-add" size={20} color="#4CAF50" />
-            <Text style={styles.addContactsText}>Add Contacts</Text>
-          </TouchableOpacity>
+          {isAnalyzing ? (
+            <ActivityIndicator size="small" color="#4CAF50" />
+          ) : (
+            <Text style={styles.aiText}>{aiSummary}</Text>
+          )}
+        </View>
+
+        {/* Media gallery */}
+        {mediaItems.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Captured Media</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.mediaRow}>
+                {mediaItems.map((m) => (
+                  <View key={m.id} style={styles.thumb}>
+                    {m.type === 'photo' ? (
+                      <Image source={{ uri: m.uri }} style={styles.thumbImg} />
+                    ) : (
+                      <View style={styles.videoThumb}>
+                        <Icon name="play-circle-outline" size={32} color="#fff" />
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
         )}
-      </View>
 
-      {/* Action Buttons */}
-      <View style={styles.actions}>
-        <TouchableOpacity style={styles.smsButton} onPress={sendSMSUpdate}>
-          <FontAwesome5 name="sms" size={20} color="#fff" />
-          <Text style={styles.smsButtonText}>Send SMS Update</Text>
-        </TouchableOpacity>
+        {/* Actions */}
+        <View style={styles.actions}>
+          <Button
+            title="Send SMS Update"
+            onPress={handleSendSMS}
+            loading={sendingSms}
+            style={styles.smsBtn}
+          />
+          <View style={styles.navRow}>
+            <Button
+              title="Back"
+              variant="secondary"
+              onPress={() => navigation.goBack()}
+              style={styles.navBtn}
+            />
+            {isLastHole ? (
+              <Button title="Finish Round" onPress={handleFinishRound} style={styles.navBtn} />
+            ) : (
+              <Button title="Next Hole" onPress={handleNextHole} style={styles.navBtn} />
+            )}
+          </View>
+        </View>
+      </ScrollView>
 
-        <TouchableOpacity style={styles.shareButton} onPress={shareUpdate}>
-          <Ionicons name="share-social" size={20} color="#4CAF50" />
-          <Text style={styles.shareButtonText}>Share</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Navigation */}
-      <View style={styles.navigation}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backButtonText}>Back to Hole</Text>
-        </TouchableOpacity>
-
-        {onNext && (
-          <TouchableOpacity
-            style={styles.nextButton}
-            onPress={onNext}
-          >
-            <Text style={styles.nextButtonText}>Next Hole</Text>
-            <FontAwesome5 name="arrow-right" size={20} color="#fff" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Toast Notification */}
       <Toast
         visible={toastConfig.visible}
         message={toastConfig.message}
         type={toastConfig.type}
         onHide={hideToast}
       />
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  scroll: { flex: 1 },
+  header: { padding: 24, alignItems: 'center' },
+  holeNum: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
+  parText: { fontSize: 14, color: 'rgba(255,255,255,0.85)', marginTop: 4 },
+  scoreValue: { fontSize: 48, fontWeight: 'bold', color: '#fff', marginTop: 8 },
+  scoreLabel: { fontSize: 18, fontWeight: '600', color: '#fff', marginTop: 2 },
+  statsRow: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 },
+  statChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  header: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  holeNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  parText: {
-    fontSize: 16,
-    color: '#fff',
-    opacity: 0.9,
-    marginTop: 5,
-  },
-  scoreContainer: {
-    marginTop: 15,
-    alignItems: 'center',
-  },
-  scoreValue: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  scoreLabel: {
-    fontSize: 18,
-    color: '#fff',
-    fontWeight: '600',
-  },
-  aiSection: {
+    gap: 4,
     backgroundColor: '#fff',
-    margin: 15,
-    padding: 15,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
-  section: {
+  statChipText: { fontSize: 13, fontWeight: '600', color: '#333' },
+  card: {
     backgroundColor: '#fff',
-    margin: 15,
-    marginTop: 0,
-    padding: 15,
+    marginHorizontal: 14,
+    marginBottom: 12,
+    padding: 14,
     borderRadius: 10,
   },
-  sectionHeader: {
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', flex: 1, marginLeft: 8, marginBottom: 8 },
+  refreshBtn: { padding: 4 },
+  shotRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    flex: 1,
-    marginLeft: 8,
-  },
-  refreshButton: {
-    padding: 5,
-  },
-  aiSummaryText: {
-    fontSize: 16,
-    color: '#333',
-    lineHeight: 24,
-  },
-  shotsContainer: {
-    marginTop: 10,
-  },
-  shotItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  shotDetails: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  shotType: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-  },
-  shotResult: {
-    fontSize: 16,
-    color: '#333',
-    marginTop: 2,
-  },
-  mediaContainer: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  mediaThumbnail: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  mediaImage: {
-    width: '100%',
-    height: '100%',
-  },
-  videoPlaceholder: {
+  shotInfo: { marginLeft: 12, flex: 1 },
+  shotType: { fontSize: 13, fontWeight: '600', color: '#666' },
+  shotResult: { fontSize: 15, color: '#333', marginTop: 1 },
+  aiText: { fontSize: 15, color: '#333', lineHeight: 22 },
+  mediaRow: { flexDirection: 'row', gap: 10 },
+  thumb: { width: 90, height: 90, borderRadius: 8, overflow: 'hidden' },
+  thumbImg: { width: '100%', height: '100%' },
+  videoThumb: {
     width: '100%',
     height: '100%',
     backgroundColor: '#333',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  videoText: {
-    color: '#fff',
-    fontSize: 12,
-    marginTop: 5,
-  },
-  groupInfo: {
-    marginTop: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 15,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  groupInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  groupDetails: {
-    flex: 1,
-  },
-  groupNameText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  groupCountText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  editGroupButton: {
-    padding: 8,
-  },
-  addContactsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 15,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-  },
-  addContactsText: {
-    fontSize: 16,
-    color: '#4CAF50',
-    fontWeight: '600',
-  },
-  actions: {
-    padding: 15,
-    gap: 10,
-  },
-  smsButton: {
-    backgroundColor: '#4CAF50',
-    padding: 15,
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  smsButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  shareButton: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#4CAF50',
-  },
-  shareButtonText: {
-    color: '#4CAF50',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  navigation: {
-    flexDirection: 'row',
-    padding: 15,
-    gap: 10,
-  },
-  backButton: {
-    flex: 1,
-    padding: 15,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '600',
-  },
-  nextButton: {
-    flex: 1,
-    padding: 15,
-    backgroundColor: '#4CAF50',
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  nextButtonText: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: '600',
-  },
+  actions: { padding: 16, gap: 10 },
+  smsBtn: { borderRadius: 10 },
+  navRow: { flexDirection: 'row', gap: 10 },
+  navBtn: { flex: 1, borderRadius: 10 },
 });
 
 export default HoleSummaryScreen;

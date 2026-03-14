@@ -7,9 +7,11 @@ import {
   PhotoQuality,
 } from 'react-native-image-picker';
 import { Platform, PermissionsAndroid } from 'react-native';
-import DatabaseService from './database';
 import RNFS from 'react-native-fs';
 import { MediaItem } from '../types';
+import { database } from '../database/watermelon/database';
+import MediaModel from '../database/watermelon/models/Media';
+import { Q } from '@nozbe/watermelondb';
 
 class MediaService {
   // Use getter to avoid accessing native module at class initialization time
@@ -38,7 +40,7 @@ class MediaService {
     }
   }
 
-  private async copyToPermamentStorage(tempUri: string, mediaType: 'photo' | 'video'): Promise<string> {
+  private async copyToPermanentStorage(tempUri: string, mediaType: 'photo' | 'video'): Promise<string> {
     try {
       const timestamp = Date.now();
       const extension = mediaType === 'photo' ? '.jpg' : '.mp4';
@@ -52,9 +54,8 @@ class MediaService {
       // Return the new permanent path
       return destPath;
     } catch (error) {
-      console.error('Error copying media to permanent storage:', error);
-      // Fall back to original URI if copy fails
-      return tempUri;
+      console.warn('Failed to copy media to permanent storage — temp file may be cleaned up by iOS:', error);
+      throw error;
     }
   }
 
@@ -137,15 +138,42 @@ class MediaService {
             description: holeNumber ? `Hole ${holeNumber}` : `Round ${roundId}`,
           };
 
-          // Save to database
-          await DatabaseService.saveMedia(mediaItem);
-          
+          // Save to database and sync the ID
+          const record = await this.saveMediaToDb(mediaItem);
+          mediaItem.id = record.id;
+
           resolve(mediaItem);
         } else {
           resolve(null);
         }
       });
     });
+  }
+
+  private async saveMediaToDb(item: MediaItem): Promise<MediaModel> {
+    return await database.write(async () => {
+      const record = await database.get<MediaModel>('media').create((m) => {
+        m.uri = item.uri;
+        m.type = item.type as 'photo' | 'video';
+        if (item.roundId) m.roundId = item.roundId;
+        if (item.holeNumber !== undefined) m.holeNumber = item.holeNumber;
+        m.timestamp = item.timestamp;
+        if (item.description) m.description = item.description;
+      });
+      return record;
+    });
+  }
+
+  private mediaModelToItem(m: MediaModel): MediaItem {
+    return {
+      id: m.id,
+      uri: m.uri,
+      type: m.type,
+      roundId: m.roundId || '',
+      holeNumber: m.holeNumber,
+      timestamp: m.timestamp,
+      description: m.description,
+    };
   }
 
   async captureVideo(roundId: string, holeNumber?: number): Promise<MediaItem | null> {
@@ -191,9 +219,10 @@ class MediaService {
             description: holeNumber ? `Hole ${holeNumber}` : `Round ${roundId}`,
           };
 
-          // Save to database
-          await DatabaseService.saveMedia(mediaItem);
-          
+          // Save to database and sync the ID
+          const record = await this.saveMediaToDb(mediaItem);
+          mediaItem.id = record.id;
+
           resolve(mediaItem);
         } else {
           resolve(null);
@@ -203,11 +232,17 @@ class MediaService {
   }
 
   async getMediaForRound(roundId: string): Promise<MediaItem[]> {
-    return DatabaseService.getMediaForRound(roundId);
+    const records = await database.get<MediaModel>('media')
+      .query(Q.where('round_id', roundId))
+      .fetch();
+    return records.map(m => this.mediaModelToItem(m));
   }
 
   async getMediaForHole(roundId: string, holeNumber: number): Promise<MediaItem[]> {
-    return DatabaseService.getMediaForHole(roundId, holeNumber);
+    const records = await database.get<MediaModel>('media')
+      .query(Q.where('round_id', roundId), Q.where('hole_number', holeNumber))
+      .fetch();
+    return records.map(m => this.mediaModelToItem(m));
   }
 
   async captureMedia(type: 'photo' | 'video'): Promise<MediaItem | null> {
@@ -260,7 +295,7 @@ class MediaService {
           
           try {
             // Copy to permanent storage
-            const permanentUri = await this.copyToPermamentStorage(asset.uri!, type);
+            const permanentUri = await this.copyToPermanentStorage(asset.uri!, type);
             
             const mediaItem: MediaItem = {
               id: Date.now().toString(),
@@ -292,7 +327,7 @@ class MediaService {
       holeNumber,
       description: holeNumber ? `Hole ${holeNumber}` : `Round ${roundId}`,
     };
-    await DatabaseService.saveMedia(updatedMedia);
+    await this.saveMediaToDb(updatedMedia);
   }
 
   async getMediaCount(roundId: string, holeNumber: number): Promise<{ photos: number; videos: number }> {
@@ -342,7 +377,7 @@ class MediaService {
           
           try {
             // Copy to permanent storage
-            const permanentUri = await this.copyToPermamentStorage(asset.uri!, mediaType);
+            const permanentUri = await this.copyToPermanentStorage(asset.uri!, mediaType);
             
             const mediaItem: MediaItem = {
               id: Date.now().toString(),

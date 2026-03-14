@@ -61,27 +61,27 @@ export const useRoundStore = create<RoundState>()(
         set({ loading: true, error: null });
         
         try {
+          // Create round and all 18 holes in a single write transaction
           const round = await database.write(async () => {
-            return await database.collections.get<Round>('rounds').create((r) => {
+            const newRound = await database.collections.get<Round>('rounds').create((r) => {
               r.courseName = data.courseName;
               r.date = data.date || new Date();
               r.isFinished = false;
               if (data.tournamentId) r.tournamentId = data.tournamentId;
               if (data.tournamentName) r.tournamentName = data.tournamentName;
             });
-          });
-          
-          // Create 18 holes for the round
-          await database.write(async () => {
+
             const standardPars = [4, 4, 3, 5, 4, 4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 5];
             for (let i = 1; i <= 18; i++) {
               await database.collections.get<Hole>('holes').create((h) => {
-                h.roundId = round.id;
+                h.roundId = newRound.id;
                 h.holeNumber = i;
                 h.par = standardPars[i - 1];
                 h.strokes = 0;
               });
             }
+
+            return newRound;
           });
           
           // Set as active round
@@ -101,7 +101,7 @@ export const useRoundStore = create<RoundState>()(
         const { activeRound } = get();
         
         try {
-          // Find and update the hole in database
+          // Update hole and round statistics in a single write transaction
           await database.write(async () => {
             const holes = await database.collections
               .get<Hole>('holes')
@@ -110,7 +110,7 @@ export const useRoundStore = create<RoundState>()(
                 Q.where('hole_number', holeData.holeNumber)
               )
               .fetch();
-            
+
             if (holes.length > 0) {
               const hole = holes[0];
               await hole.update((h) => {
@@ -123,19 +123,17 @@ export const useRoundStore = create<RoundState>()(
                 if (holeData.shotData !== undefined) h.shotData = holeData.shotData;
               });
             }
-          });
-          
-          // Update round statistics
-          await database.write(async () => {
-            const round = await database.collections.get<Round>('rounds').find(roundId);
-            const holes: Hole[] = await round.holes.fetch();
 
-            const completedHoles = holes.filter((h: Hole) => h.strokes > 0);
+            // Recalculate round statistics
+            const round = await database.collections.get<Round>('rounds').find(roundId);
+            const allHoles: Hole[] = await round.holes.fetch();
+
+            const completedHoles = allHoles.filter((h: Hole) => h.strokes > 0);
             const totalScore = completedHoles.reduce((sum: number, h: Hole) => sum + h.strokes, 0);
             const totalPutts = completedHoles.reduce((sum: number, h: Hole) => sum + (h.putts || 0), 0);
-            const fairwaysHit = holes.filter((h: Hole) => h.fairwayHit === true).length;
-            const greensInRegulation = holes.filter((h: Hole) => h.greenInRegulation === true).length;
-            
+            const fairwaysHit = allHoles.filter((h: Hole) => h.fairwayHit === true).length;
+            const greensInRegulation = allHoles.filter((h: Hole) => h.greenInRegulation === true).length;
+
             await round.update((r) => {
               r.totalScore = totalScore;
               r.totalPutts = totalPutts;

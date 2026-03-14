@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, FlatList, ActivityIndicator, TextInput } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome5';
 import * as Contacts from 'expo-contacts';
-import DatabaseService from '../services/database';
+import { getPreference, setPreference } from '../services/preferenceService';
 
 interface Contact {
   id: string;
@@ -12,6 +13,7 @@ interface Contact {
 }
 
 const ContactsScreen = ({ navigation }: { navigation: { goBack: () => void } }) => {
+  const insets = useSafeAreaInsets();
   const [phoneContacts, setPhoneContacts] = useState<Contact[]>([]);
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [groupName, setGroupName] = useState<string>('');
@@ -19,13 +21,7 @@ const ContactsScreen = ({ navigation }: { navigation: { goBack: () => void } }) 
   const [searchQuery, setSearchQuery] = useState('');
   const [hasPermission, setHasPermission] = useState(false);
 
-  // Load saved group and contacts on mount
-  useEffect(() => {
-    loadSavedGroup();
-    loadPhoneContacts();
-  }, []);
-
-  // Refresh when screen gains focus
+  // Load saved group and contacts when screen gains focus (including first mount)
   useFocusEffect(
     useCallback(() => {
       loadSavedGroup();
@@ -36,13 +32,13 @@ const ContactsScreen = ({ navigation }: { navigation: { goBack: () => void } }) 
   const loadSavedGroup = async () => {
     try {
       // Load group name
-      const savedName = await DatabaseService.getPreference('default_sms_group_name');
+      const savedName = await getPreference('default_sms_group_name');
       if (savedName) {
         setGroupName(savedName);
       }
-      
+
       // Load which contacts are in the group
-      const raw = await DatabaseService.getPreference('default_sms_group');
+      const raw = await getPreference('default_sms_group');
       if (raw) {
         try {
           // Parse JSON format
@@ -159,8 +155,8 @@ const ContactsScreen = ({ navigation }: { navigation: { goBack: () => void } }) 
       // Save contacts as JSON array with names and phone numbers
       const contactsJson = JSON.stringify(selectedContacts);
       
-      await DatabaseService.setPreference('default_sms_group', contactsJson);
-      await DatabaseService.setPreference('default_sms_group_name', groupName.trim() || 'your text group');
+      await setPreference('default_sms_group', contactsJson);
+      await setPreference('default_sms_group_name', groupName.trim() || 'your text group');
       
       const groupLabel = groupName.trim() || 'your text group';
       const contactNames = selectedContacts.map(c => c.name).join(', ');
@@ -187,7 +183,7 @@ const ContactsScreen = ({ navigation }: { navigation: { goBack: () => void } }) 
   };
 
   const headerWithBack = (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => navigation.goBack()}
@@ -265,8 +261,13 @@ const ContactsScreen = ({ navigation }: { navigation: { goBack: () => void } }) 
           autoCorrect={false}
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Icon name="times-circle" size={16} color="#999" />
+          <TouchableOpacity
+            onPress={() => setSearchQuery('')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Clear search"
+            accessibilityRole="button"
+          >
+            <Icon name="times-circle" size={16} color="#767676" />
           </TouchableOpacity>
         )}
       </View>
@@ -402,7 +403,6 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#4CAF50',
     padding: 20,
-    paddingTop: 60,
   },
   headerText: {
     fontSize: 24,
@@ -466,6 +466,8 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     padding: 4,
+    minHeight: 44,
+    justifyContent: 'center' as const,
   },
   actionButtonText: {
     fontSize: 14,
@@ -526,7 +528,7 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#999',
+    color: '#767676',
     marginTop: 16,
   },
   emptyStateSubtext: {

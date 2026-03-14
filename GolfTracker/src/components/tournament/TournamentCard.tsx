@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Tournament from '../../database/watermelon/models/Tournament';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { format } from 'date-fns';
+import { formatDateRange } from '../../utils/dateFormatting';
 
 interface TournamentCardProps {
   tournament: Tournament;
@@ -15,10 +15,16 @@ export const TournamentCard: React.FC<TournamentCardProps> = React.memo(({
   onPress,
   roundCount = 0,
 }) => {
-  const dateRange = `${format(tournament.startDate, 'MMM d')} - ${format(tournament.endDate, 'MMM d, yyyy')}`;
+  const dateRange = formatDateRange(tournament.startDate, tournament.endDate);
   
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${tournament.name} at ${tournament.courseName}, ${roundCount} ${roundCount === 1 ? 'round' : 'rounds'}`}
+    >
       <View style={styles.header}>
         <View style={styles.iconContainer}>
           <Icon name="emoji-events" size={28} color="#4CAF50" />

@@ -5,6 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import {
+  HomeStackParamList,
   ScoringStackParamList,
   TournamentStackParamList,
   SettingsStackParamList,
@@ -13,22 +14,45 @@ import {
 
 // Import screens
 import HomeScreen from '../screens/HomeScreen';
+import StatsScreen from '../screens/StatsScreen';
 import RoundTrackerScreen from '../screens/RoundTrackerScreen';
 import HoleDetailsScreen from '../screens/HoleDetailsScreen';
 import ShotTrackingScreen from '../screens/ShotTrackingScreen';
 import HoleSummaryScreen from '../screens/HoleSummaryScreen';
+import RoundSummaryScreen from '../screens/RoundSummaryScreen';
 import TournamentsScreen from '../screens/TournamentsScreen';
 import TournamentRoundsScreen from '../screens/TournamentRoundsScreen';
-import RoundSummaryScreen from '../screens/RoundSummaryScreen';
 import CameraScreen from '../screens/CameraScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import DatabaseDiagnosticScreen from '../screens/DatabaseDiagnosticScreen';
 import ContactsScreen from '../screens/ContactsScreen';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
+const HomeStackNav = createStackNavigator<HomeStackParamList>();
 const ScoringStackNav = createStackNavigator<ScoringStackParamList>();
 const TournamentStackNav = createStackNavigator<TournamentStackParamList>();
 const SettingsStackNav = createStackNavigator<SettingsStackParamList>();
+
+// Home stack with HomeMain and Stats
+const HomeStack = () => {
+  return (
+    <HomeStackNav.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <HomeStackNav.Screen
+        name="HomeMain"
+        component={HomeScreen}
+      />
+      <HomeStackNav.Screen
+        name="Stats"
+        component={StatsScreen}
+        options={{ headerShown: true, title: 'Statistics' }}
+      />
+    </HomeStackNav.Navigator>
+  );
+};
 
 // Stack navigator for Scoring/Round tracking flow
 const ScoringStack = () => {
@@ -141,7 +165,7 @@ const AppNavigator = () => {
           headerShown: false,
         })}
       >
-        <Tab.Screen name="Home" component={HomeScreen} />
+        <Tab.Screen name="Home" component={HomeStack} />
         <Tab.Screen name="Scoring" component={ScoringStack} />
         <Tab.Screen name="Tournaments" component={TournamentStack} />
         <Tab.Screen name="Settings" component={SettingsStack} />

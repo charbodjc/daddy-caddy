@@ -2,7 +2,10 @@ import { Platform, Linking } from 'react-native';
 import * as SMS from 'expo-sms';
 import { GolfRound, GolfHole, MediaItem, Contact, SHOT_TYPES } from '../types';
 import AIService from './ai';
-import DatabaseService from './database';
+import { getPreference } from './preferenceService';
+import { getScoreName } from '../utils/scoreColors';
+import { formatScoreVsPar, calculateScoreBreakdown } from '../utils/scoreCalculations';
+import { formatDateShort } from '../utils/dateFormatting';
 
 interface RoundStats {
   totalScore: number;
@@ -42,7 +45,7 @@ class SMSService {
 
       // Load default recipients list from settings (comma or newline separated)
       const recipients = await this.getDefaultRecipients();
-      const groupName = await DatabaseService.getPreference('default_sms_group_name') || 'your text group';
+      const groupName = await getPreference('default_sms_group_name') || 'your text group';
 
       // Open Messages app with pre-filled message
       const result = await this.openSMS(recipients, message);
@@ -120,7 +123,7 @@ class SMSService {
   private calculateRoundStats(round: GolfRound) {
     // Only calculate stats for holes that have been played (strokes > 0)
     const playedHoles = round.holes.filter(hole => hole.strokes > 0);
-    
+
     if (playedHoles.length === 0) {
       return {
         totalScore: 0,
@@ -139,30 +142,16 @@ class SMSService {
     const totalPar = playedHoles.reduce((sum, hole) => sum + hole.par, 0);
     const totalStrokes = playedHoles.reduce((sum, hole) => sum + hole.strokes, 0);
     const score = totalStrokes - totalPar;
-
-    let eagles = 0;
-    let birdies = 0;
-    let pars = 0;
-    let bogeys = 0;
-    let doubleBogeys = 0;
-
-    playedHoles.forEach(hole => {
-      const holeScore = hole.strokes - hole.par;
-      if (holeScore <= -2) eagles++;
-      else if (holeScore === -1) birdies++;
-      else if (holeScore === 0) pars++;
-      else if (holeScore === 1) bogeys++;
-      else if (holeScore >= 2) doubleBogeys++;
-    });
+    const breakdown = calculateScoreBreakdown(playedHoles);
 
     return {
       totalScore: totalStrokes,
-      scoreVsPar: score > 0 ? `+${score}` : score === 0 ? 'E' : score.toString(),
-      eagles,
-      birdies,
-      pars,
-      bogeys,
-      doubleBogeys,
+      scoreVsPar: formatScoreVsPar(score),
+      eagles: breakdown.eagles,
+      birdies: breakdown.birdies,
+      pars: breakdown.pars,
+      bogeys: breakdown.bogeys,
+      doubleBogeys: breakdown.doublePlus,
       fairwaysHit: round.fairwaysHit || 0,
       greensInRegulation: round.greensInRegulation || 0,
       totalPutts: round.totalPutts || 0,
@@ -176,7 +165,7 @@ class SMSService {
     aiAnalysis: string,
     mediaItems: MediaItem[]
   ): string {
-    const date = round.date.toLocaleDateString();
+    const date = formatDateShort(round.date);
     const mediaCount = mediaItems.length;
 
     let message = `Golf Round Update - ${date}\n`;
@@ -240,23 +229,14 @@ class SMSService {
       });
 
       message += `\n`;
-      message += `🌟 Best Hole: #${bestHole.holeNumber} (${this.getScoreName(bestHole.strokes - bestHole.par)})\n`;
-      message += `😅 Tough Hole: #${worstHole.holeNumber} (${this.getScoreName(worstHole.strokes - worstHole.par)})\n`;
+      message += `🌟 Best Hole: #${bestHole.holeNumber} (${getScoreName(bestHole.strokes - bestHole.par)})\n`;
+      message += `😅 Tough Hole: #${worstHole.holeNumber} (${getScoreName(worstHole.strokes - worstHole.par)})\n`;
     }
 
     return message;
   }
 
-  private getScoreName(score: number): string {
-    if (score <= -3) return 'Albatross';
-    if (score === -2) return 'Eagle';
-    if (score === -1) return 'Birdie';
-    if (score === 0) return 'Par';
-    if (score === 1) return 'Bogey';
-    if (score === 2) return 'Double Bogey';
-    if (score === 3) return 'Triple Bogey';
-    return `+${score}`;
-  }
+  // Score naming delegated to shared utility getScoreName()
 
   async sendQuickUpdate(
     message: string
@@ -265,7 +245,7 @@ class SMSService {
 
     try {
       const recipients = await this.getDefaultRecipients();
-      const groupName = await DatabaseService.getPreference('default_sms_group_name') || 'your text group';
+      const groupName = await getPreference('default_sms_group_name') || 'your text group';
 
       // Open Messages app with pre-filled message
       const result = await this.openSMS(recipients, message);
@@ -311,15 +291,7 @@ class SMSService {
 
     // Add stats
     const diff = hole.strokes - hole.par;
-    let scoreText = '';
-    if (diff === 0) scoreText = 'Par';
-    else if (diff === -3) scoreText = 'Albatross!';
-    else if (diff === -2) scoreText = 'Eagle!';
-    else if (diff === -1) scoreText = 'Birdie';
-    else if (diff === 1) scoreText = 'Bogey';
-    else if (diff === 2) scoreText = 'Double Bogey';
-    else if (diff === 3) scoreText = 'Triple Bogey';
-    else scoreText = diff > 0 ? `+${diff}` : diff.toString();
+    const scoreText = getScoreName(diff);
 
     message += `Score: ${hole.strokes} (${scoreText})\n`;
 
@@ -371,7 +343,7 @@ class SMSService {
   }
 
   private async getDefaultRecipients(): Promise<string> {
-    const raw = await DatabaseService.getPreference('default_sms_group');
+    const raw = await getPreference('default_sms_group');
     if (!raw) return '';
     
     try {

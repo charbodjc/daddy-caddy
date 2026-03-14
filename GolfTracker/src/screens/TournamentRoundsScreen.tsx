@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,294 +7,207 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppNavigationProp } from '../types/navigation';
-import DatabaseService from '../services/database';
-import RoundDeletionManager from '../utils/RoundDeletionManager';
-import { GolfRound, GolfHole } from '../types';
+import { useTournamentStore } from '../stores/tournamentStore';
+import { useRoundStore } from '../stores/roundStore';
+import { LoadingScreen } from '../components/common/LoadingScreen';
+import { ErrorScreen } from '../components/common/ErrorScreen';
+import { Button } from '../components/common/Button';
+import Tournament from '../database/watermelon/models/Tournament';
+import Round from '../database/watermelon/models/Round';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { format } from 'date-fns';
+import { database } from '../database/watermelon/database';
+import { formatScoreVsPar } from '../utils/scoreCalculations';
+import { formatDateRange } from '../utils/dateFormatting';
 
-const TournamentRoundsScreen = () => {
+interface RouteParams {
+  tournamentId: string;
+  tournamentName?: string;
+}
+
+const TournamentRoundsScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<AppNavigationProp>();
   const route = useRoute();
-  const { tournament } = route.params as { tournament: any };
-  const [rounds, setRounds] = useState<GolfRound[]>([]);
+  const { tournamentId, tournamentName: _tournamentName } = (route.params as RouteParams) || {};
 
-  useEffect(() => {
-    loadRounds();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
-  }, []);
+  const { getTournamentRounds } = useTournamentStore();
+  const { createRound } = useRoundStore();
 
-  // Reload rounds when screen is focused (e.g., after deletion)
-  useFocusEffect(
-    React.useCallback(() => {
-      loadRounds();
+  const [tournament, setTournament] = React.useState<Tournament | null>(null);
+  const [rounds, setRounds] = React.useState<Round[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [creating, setCreating] = React.useState(false);
+  const [loadError, setLoadError] = React.useState<Error | null>(null);
 
-      // Also listen for round deletions
-      const cleanup = RoundDeletionManager.addListener((_deletedRoundId) => {
-        console.log('Round deleted, refreshing TournamentRoundsScreen for tournament:', tournament.id);
-        // Reload rounds after a brief delay to ensure database has completed the delete
-        setTimeout(() => {
-          loadRounds();
-        }, 100);
-      });
+  React.useEffect(() => {
+    loadTournamentAndRounds();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- depends on tournamentId
+  }, [tournamentId]);
 
-      return cleanup;
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- loadRounds is stable
-    }, [tournament.id])
-  );
+  const loadTournamentAndRounds = async () => {
+    if (!tournamentId) return;
 
-  const loadRounds = async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
-      const allRounds = await DatabaseService.getRounds();
-      // Show all rounds for this tournament
-      const tournamentRounds = allRounds.filter(r => 
-        r.tournamentId === tournament.id
-      );
-      
-      // Debug logging
-      console.log('Loaded tournament rounds:', tournamentRounds.map(r => ({
-        id: r.id,
-        name: r.name,
-        holesCount: r.holes?.length,
-        totalScore: r.totalScore,
-        holesWithStrokes: r.holes?.filter(h => h.strokes > 0).length,
-        firstHole: r.holes?.[0],
-        holesData: r.holes?.slice(0, 3).map(h => ({ num: h.holeNumber, strokes: h.strokes, par: h.par }))
-      })));
-      
-      // Sort by creation date (oldest first) or by round name
-      tournamentRounds.sort((a, b) => {
-        // First try to sort by round number if names are like "Round 1", "Round 2"
-        const aNum = parseInt(a.name?.replace('Round ', '') || '0');
-        const bNum = parseInt(b.name?.replace('Round ', '') || '0');
-        if (aNum && bNum) {
-          return aNum - bNum;
-        }
-        // Otherwise sort by creation date
-        return a.createdAt.getTime() - b.createdAt.getTime();
-      });
+      const t = await database.collections.get<Tournament>('tournaments').find(tournamentId);
+      setTournament(t);
+      const tournamentRounds = await getTournamentRounds(tournamentId);
       setRounds(tournamentRounds);
     } catch (error) {
-      console.error('Error loading rounds:', error);
+      console.error('Failed to load tournament/rounds:', error);
+      setLoadError(error as Error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const selectRound = (round: GolfRound) => {
-    // Set as active round and navigate to scoring tab
-    DatabaseService.setPreference('active_round_id', round.id);
-    navigation.getParent()?.navigate('Scoring', {
-      screen: 'RoundTracker',
-      params: {
-        roundId: round.id,
-        tournamentId: tournament.id,
-        tournamentName: tournament.name,
-      }
-    } );
-  };
+  const handleStartNewRound = async () => {
+    if (!tournament) return;
+    setCreating(true);
 
-  const deleteRound = (round: GolfRound) => {
-    Alert.alert(
-      'Delete Round?',
-      `Delete ${round.name || `Round at ${round.courseName}`}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log(`🗑️ Starting deletion of round ${round.id} from tournament screen`);
-              
-              // If this round is the active round, clear it first
-              const activeRoundId = await DatabaseService.getPreference('active_round_id');
-              if (activeRoundId === round.id) {
-                await DatabaseService.setPreference('active_round_id', '');
-                console.log('✅ Cleared active round preference');
-              }
-              
-              // Delete the round from database
-              await DatabaseService.deleteRound(round.id);
-              console.log(`✅ Database deleteRound completed for ${round.id}`);
-              
-              // Wait for deletion to propagate
-              await new Promise<void>(resolve => setTimeout(resolve, 100));
-              
-              // Force reload the rounds list
-              await loadRounds();
-              console.log('✅ Tournament rounds list reloaded');
-            } catch (e) {
-              console.error('❌ Failed to delete round from tournament:', e);
-              Alert.alert('Error', 'Failed to delete round');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  const createNewRound = async () => {
     try {
-      // Determine the round number based on existing rounds
-      const roundNumber = rounds.length + 1;
-      const roundName = `Round ${roundNumber}`;
-      
-      // Create the new round with proper initial holes structure
-      const initialHoles: GolfHole[] = Array.from({ length: 18 }, (_, i) => ({
-        holeNumber: i + 1,
-        par: 4, // Default par, will be set when playing
-        strokes: 0,
-        fairwayHit: false,
-        greenInRegulation: false,
-        putts: 0,
-      }));
-      
-      // Create the new round
-      const newRound: GolfRound = {
-        id: `round_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        name: roundName,
+      const round = await createRound({
+        courseName: tournament.courseName,
         tournamentId: tournament.id,
         tournamentName: tournament.name,
-        courseName: tournament.courseName,
-        date: new Date(),
-        holes: initialHoles,
-        totalScore: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      });
       
-      // Save the round
-      await DatabaseService.saveRound(newRound);
-      
-      // Set as active round and navigate to scoring tab
-      await DatabaseService.setPreference('active_round_id', newRound.id);
-      navigation.getParent()?.navigate('Scoring', {
+      // Navigate to round tracker
+      navigation.navigate('Scoring', {
         screen: 'RoundTracker',
-        params: {
-          roundId: newRound.id,
-          tournamentId: tournament.id,
-          tournamentName: tournament.name,
-        }
+        params: { roundId: round.id }
       } );
     } catch (error) {
-      console.error('Error creating round:', error);
-      Alert.alert('Error', 'Failed to create round');
+      Alert.alert('Error', 'Failed to start round');
+    } finally {
+      setCreating(false);
     }
   };
+  
+  const handleRoundPress = useCallback((round: Round) => {
+    navigation.navigate('RoundSummary', {
+      roundId: round.id,
+    } );
+  }, [navigation]);
 
-  const renderRound = ({ item }: { item: GolfRound }) => {
-    // Ensure holes array exists and calculate completed holes
-    const holesArray = item.holes || [];
-    const completedHoles = holesArray.filter(h => h && typeof h.strokes === 'number' && h.strokes > 0).length;
-    const totalStrokes = item.totalScore || holesArray.reduce((sum, h) => sum + (h?.strokes || 0), 0) || 0;
-    const isInProgress = completedHoles > 0 && completedHoles < 18;
-    const isCompleted = completedHoles === 18;
-    const notStarted = completedHoles === 0;
-    
-    return (
-      <TouchableOpacity
-        style={styles.roundCard}
-        onPress={() => selectRound(item)}
-      >
-        <View style={styles.roundHeader}>
-          <View style={styles.roundInfo}>
-            <Text style={styles.roundName}>{item.name || 'Unnamed Round'}</Text>
-            <Text style={styles.roundDate}>{formatDate(item.date)}</Text>
-            {notStarted && (
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusText}>Not Started</Text>
-              </View>
-            )}
-            {isInProgress && (
-              <View style={[styles.statusBadge, styles.inProgressBadge]}>
-                <Text style={styles.statusText}>In Progress</Text>
-              </View>
-            )}
-            {isCompleted && (
-              <View style={[styles.statusBadge, styles.completedBadge]}>
-                <Text style={styles.statusText}>Completed</Text>
-              </View>
-            )}
-          </View>
-          <TouchableOpacity 
-            onPress={() => deleteRound(item)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Icon name="delete" size={24} color="#F44336" />
-          </TouchableOpacity>
-        </View>
-        
-        <View style={styles.roundStats}>
-          <View style={styles.statItem}>
-            <FontAwesome5 name="flag" size={16} color="#666" />
-            <Text style={styles.statText}>Holes: {completedHoles}/18</Text>
-          </View>
-          {totalStrokes > 0 && (
-            <View style={styles.statItem}>
-              <FontAwesome5 name="golf-ball" size={16} color="#666" />
-              <Text style={styles.statText}>Score: {totalStrokes}</Text>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const renderRoundItem = useCallback(({ item }: { item: Round }) => (
+    <RoundCard round={item} onPress={() => handleRoundPress(item)} />
+  ), [handleRoundPress]);
 
+  const keyExtractor = useCallback((item: Round) => item.id, []);
+
+  if (loading) {
+    return <LoadingScreen message="Loading rounds..." />;
+  }
+
+  if (loadError || !tournament) {
+    return <ErrorScreen error={loadError || new Error('Tournament not found')} onRetry={loadTournamentAndRounds} />;
+  }
+  
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity 
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
         >
           <Icon name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.title}>{tournament.name}</Text>
-          <Text style={styles.subtitle}>{tournament.courseName}</Text>
+
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerTitle}>{tournament.name}</Text>
+          <Text style={styles.headerSubtitle}>{tournament.courseName}</Text>
+          <Text style={styles.headerDates}>
+            {formatDateRange(tournament.startDate, tournament.endDate)}
+          </Text>
         </View>
       </View>
-
+      
+      {/* Round Count Summary */}
+      <View style={styles.summary}>
+        <Text style={styles.summaryText}>
+          {rounds.length} {rounds.length === 1 ? 'Round' : 'Rounds'}
+        </Text>
+        <Button
+          title="Start New Round"
+          onPress={handleStartNewRound}
+          loading={creating}
+          style={styles.newRoundButton}
+        />
+      </View>
+      
+      {/* Rounds List */}
       {rounds.length === 0 ? (
         <View style={styles.emptyState}>
-          <FontAwesome5 name="golf-ball" size={64} color="#ccc" />
-          <Text style={styles.emptyStateText}>No rounds yet</Text>
-          <Text style={styles.emptyStateSubtext}>
-            Start tracking your first round
+          <Icon name="golf-course" size={80} color="#ddd" />
+          <Text style={styles.emptyTitle}>No Rounds Yet</Text>
+          <Text style={styles.emptyText}>
+            Start your first round for this tournament
           </Text>
-          <TouchableOpacity style={styles.addFirstButton} onPress={createNewRound}>
-            <Icon name="play-arrow" size={24} color="#fff" />
-            <Text style={styles.addFirstButtonText}>Start Round 1</Text>
-          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
           data={rounds}
-          renderItem={renderRound}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContainer}
-          ListFooterComponent={() => <View style={{ height: 100 }} />}
+          renderItem={renderRoundItem}
+          keyExtractor={keyExtractor}
+          contentContainerStyle={styles.list}
         />
-      )}
-
-      {rounds.length > 0 && rounds.length < 4 && (
-        <TouchableOpacity style={styles.fab} onPress={createNewRound}>
-          <Icon name="add" size={28} color="#fff" />
-          <Text style={styles.fabText}>Start Round {rounds.length + 1}</Text>
-        </TouchableOpacity>
       )}
     </View>
   );
 };
+
+// Round Card Component
+const RoundCard: React.FC<{
+  round: Round;
+  onPress: () => void;
+}> = React.memo(({ round, onPress }) => {
+  const getScoreDisplay = () => {
+    if (!round.totalScore) return '--';
+
+    const par = 72; // Standard par, should calculate from holes
+    const toPar = round.totalScore - par;
+    return formatScoreVsPar(toPar);
+  };
+  
+  return (
+    <TouchableOpacity style={styles.roundCard} onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.roundHeader}>
+        <View>
+          <Text style={styles.roundCourse}>{round.courseName}</Text>
+          <Text style={styles.roundDate}>
+            {format(round.date, 'EEEE, MMM d, yyyy')}
+          </Text>
+        </View>
+        
+        {round.totalScore && (
+          <View style={styles.roundScore}>
+            <Text style={styles.scoreValue}>{round.totalScore}</Text>
+            <Text style={styles.scoreToPar}>{getScoreDisplay()}</Text>
+          </View>
+        )}
+      </View>
+      
+      {round.isFinished && (
+        <View style={styles.statusBadge}>
+          <Icon name="check-circle" size={16} color="#4CAF50" />
+          <Text style={styles.statusText}>Completed</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
+
+RoundCard.displayName = 'RoundCard';
 
 const styles = StyleSheet.create({
   container: {
@@ -303,37 +216,83 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#4CAF50',
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
   },
   backButton: {
     marginRight: 15,
+    padding: 5,
   },
-  headerContent: {
+  headerInfo: {
     flex: 1,
   },
-  title: {
+  headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
+    marginBottom: 4,
   },
-  subtitle: {
+  headerSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 2,
+  },
+  headerDates: {
     fontSize: 14,
-    color: '#fff',
-    opacity: 0.9,
-    marginTop: 5,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
-  listContainer: {
+  summary: {
+    backgroundColor: '#fff',
     padding: 15,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  summaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  newRoundButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minHeight: 40,
+  },
+  list: {
+    padding: 15,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#f44336',
+    textAlign: 'center',
+    padding: 20,
   },
   roundCard: {
     backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -343,110 +302,51 @@ const styles = StyleSheet.create({
   roundHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 10,
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  roundInfo: {
-    flex: 1,
-  },
-  roundName: {
-    fontSize: 18,
+  roundCourse: {
+    fontSize: 16,
     fontWeight: '600',
     color: '#333',
+    marginBottom: 4,
   },
   roundDate: {
     fontSize: 14,
     color: '#666',
+  },
+  roundScore: {
+    alignItems: 'center',
+    backgroundColor: '#f0f9f0',
+    padding: 12,
+    borderRadius: 8,
+    minWidth: 70,
+  },
+  scoreValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  scoreToPar: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4CAF50',
     marginTop: 2,
   },
   statusBadge: {
-    backgroundColor: '#e0e0e0',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginTop: 5,
-  },
-  inProgressBadge: {
-    backgroundColor: '#fff3cd',
-  },
-  completedBadge: {
-    backgroundColor: '#d4edda',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 13,
+    color: '#4CAF50',
     fontWeight: '500',
-    color: '#666',
-  },
-  roundStats: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  statText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  emptyStateText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#666',
-    marginTop: 20,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  addFirstButton: {
-    flexDirection: 'row',
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 25,
-    marginTop: 20,
-    alignItems: 'center',
-    gap: 10,
-  },
-  addFirstButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderRadius: 30,
-    backgroundColor: '#4CAF50',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  fabText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
 
 export default TournamentRoundsScreen;
+

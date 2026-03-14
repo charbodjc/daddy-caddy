@@ -1,1640 +1,405 @@
-import React, { useState, useEffect, useRef } from 'react';
+/**
+ * ShotTrackingScreen.tsx
+ *
+ * Shot-by-shot tracking for a hole using Zustand + WatermelonDB.
+ * Replaces legacy ShotTrackingScreen with clean architecture.
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
-  Image,
-  ActivityIndicator,
-  Platform,
-  Modal,
   TextInput,
-  KeyboardAvoidingView,
+  Alert,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import MediaService from '../services/media';
-import SMSService from '../services/sms';
-import Share from 'react-native-share';
-// AIHoleAnalysisService imported in HoleSummaryScreen instead
-import DatabaseService from '../services/database';
-import { GolfHole, MediaItem, TrackedShot, ShotData, SHOT_TYPES, SHOT_RESULTS } from '../types';
-import { Toast, useToast } from '../components/Toast';
-import { calculateRunningRoundStats, formatRunningStatsForSMS } from '../utils/roundStats';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useRoundStore } from '../stores/roundStore';
+import { LoadingScreen } from '../components/common/LoadingScreen';
+import { ErrorScreen } from '../components/common/ErrorScreen';
+import { Button } from '../components/common/Button';
+import { database } from '../database/watermelon/database';
+import Hole from '../database/watermelon/models/Hole';
+import {
+  TrackedShot,
+  ShotData,
+  SHOT_TYPES,
+  SHOT_RESULTS,
+} from '../types';
+import { parseShotData, deriveHoleStats } from '../utils/roundStats';
 import { getResultLabel } from '../utils/shotLabels';
-
-type Shot = TrackedShot;
-
-// Flow phases for the streamlined tracking
-type FlowPhase = 'direction' | 'classification' | 'putting_distance' | 'putting_mode';
-
-const ShotTrackingScreen = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const scrollViewRef = useRef<ScrollView>(null);
-  const { hole, onSave, roundId, roundName, tournamentName, preselectedShotType: _preselectedShotType } = route.params as { hole: GolfHole; onSave: (hole: GolfHole) => Promise<void>; roundId?: string; roundName?: string; tournamentName?: string; preselectedShotType?: string };
-  const { toastConfig, showToast, hideToast } = useToast();
-
-  // Initialize state from saved data if available
-  const loadSavedShotData = () => {
-    if (hole.shotData) {
-      try {
-        // DB layer may return parsed object or raw JSON string
-        const savedData: ShotData = typeof hole.shotData === 'string'
-          ? JSON.parse(hole.shotData)
-          : hole.shotData;
-        return {
-          par: savedData.par || hole.par || 4,
-          shots: savedData.shots || [],
-          currentStroke: savedData.shots ? savedData.shots.length + 1 : 1,
-        };
-      } catch (error) {
-        console.error('Error parsing saved shot data:', error);
-      }
-    }
-    return {
-      par: hole.par || 4,
-      shots: [] as Shot[],
-      currentStroke: 1,
-    };
-  };
-
-  const initialData = loadSavedShotData();
-
-  const [par, setPar] = useState<3 | 4 | 5>(initialData.par as 3 | 4 | 5);
-  const [shots, setShots] = useState<Shot[]>(initialData.shots);
-  const [currentStroke, setCurrentStroke] = useState(initialData.currentStroke);
-  const [showParSelector, setShowParSelector] = useState(false);
-  const [mediaCount, setMediaCount] = useState({ photos: 0, videos: 0 });
-  const [capturedMedia, setCapturedMedia] = useState<MediaItem[]>([]);
-  const [isCapturing, setIsCapturing] = useState(false);
-
-  // Streamlined flow state
-  const [flowPhase, setFlowPhase] = useState<FlowPhase>('direction');
-  const [pendingDirection, setPendingDirection] = useState<string>(''); // 'left' or 'right'
-
-  // Putting state
-  const [isPuttingMode, setIsPuttingMode] = useState(false);
-  const [puttingStrokes, setPuttingStrokes] = useState(0);
-  const [currentPuttDistance, setCurrentPuttDistance] = useState<string>('');
-  const [distanceToHole, setDistanceToHole] = useState<string>('');
-  const [showDistanceModal, setShowDistanceModal] = useState(false);
-
-  // Auto-append 'ft' to distance input
-  const handleDistanceChange = (text: string) => {
-    const cleanedText = text.replace(/\s*(ft|feet)\s*$/i, '');
-    setDistanceToHole(cleanedText);
-  };
-
-  const getFormattedDistance = () => {
-    if (!distanceToHole) return '';
-    const trimmed = distanceToHole.trim();
-    if (/^\d+$/.test(trimmed)) {
-      return `${trimmed} ft`;
-    }
-    return distanceToHole;
-  };
-
-  // Infer shot type based on stroke number and par
-  const inferShotType = (strokeNum: number): string => {
-    if (strokeNum === 1) {
-      return par === 3 ? SHOT_TYPES.APPROACH : SHOT_TYPES.TEE_SHOT;
-    }
-    return SHOT_TYPES.APPROACH;
-  };
-
-  // Get the score name for a given number of strokes vs par
-  const getScoreName = (strokes: number, holePar: number): string => {
-    const diff = strokes - holePar;
-    if (diff <= -3) return 'Albatross';
-    if (diff === -2) return 'Eagle';
-    if (diff === -1) return 'Birdie';
-    if (diff === 0) return 'Par';
-    if (diff === 1) return 'Bogey';
-    if (diff === 2) return 'Double Bogey';
-    if (diff === 3) return 'Triple Bogey';
-    return `+${diff}`;
-  };
-
-  const autoSave = async (currentShots: Shot[], currentPar: number = par) => {
-    const totalStrokes = currentShots.length > 0 ? currentShots.length : (hole.strokes || 0);
-
-    const shotData = {
-      par: currentPar,
-      shots: currentShots.map(s => ({
-        stroke: s.stroke,
-        type: s.type,
-        results: s.results,
-        ...(s.puttDistance ? { puttDistance: s.puttDistance } : {}),
-      })),
-      currentStroke: currentShots.length + 1,
-    };
-
-    // Derive stats from shot data
-    const puttShots = currentShots.filter(s => s.type === SHOT_TYPES.PUTT);
-    const puttsCount = puttShots.length;
-
-    let fairwayHit: boolean | undefined = undefined;
-    if (currentPar > 3) {
-      const teeShot = currentShots.find(s => s.type === SHOT_TYPES.TEE_SHOT);
-      if (teeShot) {
-        fairwayHit = teeShot.results.includes(SHOT_RESULTS.CENTER);
-      }
-    }
-
-    let greenInRegulation = false;
-    if (puttShots.length > 0) {
-      greenInRegulation = puttShots[0].stroke <= currentPar - 1;
-    }
-
-    const updatedHole: GolfHole = {
-      ...hole,
-      par: currentPar,
-      strokes: totalStrokes,
-      putts: puttsCount > 0 ? puttsCount : undefined,
-      fairwayHit,
-      greenInRegulation: puttShots.length > 0 ? greenInRegulation : undefined,
-      shotData,
-    };
-
-    await onSave(updatedHole);
-  };
-
-  const calculateRunningScore = async (): Promise<number | undefined> => {
-    if (!roundId) return undefined;
-
-    try {
-      const round = await DatabaseService.getRound(roundId);
-      if (round) {
-        let totalStrokes = 0;
-        let totalPar = 0;
-        round.holes.forEach(h => {
-          if (h.strokes > 0 && h.holeNumber !== hole.holeNumber) {
-            totalStrokes += h.strokes;
-            totalPar += h.par || 4;
-          }
-        });
-        return totalStrokes - totalPar;
-      }
-    } catch (error) {
-      console.error('Error calculating running score:', error);
-    }
-    return undefined;
-  };
-
-  // Record a shot and advance to the next
-  const recordShot = (results: string[], addPenalty: boolean = false) => {
-    const shotType = inferShotType(currentStroke);
-    const newShot: Shot = {
-      stroke: currentStroke,
-      type: shotType,
-      results: results,
-    };
-
-    let newShots = [...shots, newShot];
-    let nextStroke = currentStroke + 1;
-
-    // If penalty (hazard/OB), add a penalty stroke
-    if (addPenalty) {
-      const penaltyShot: Shot = {
-        stroke: nextStroke,
-        type: SHOT_TYPES.PENALTY,
-        results: results.includes(SHOT_RESULTS.HAZARD) ? [SHOT_RESULTS.HAZARD] : [SHOT_RESULTS.OB],
-      };
-      newShots = [...newShots, penaltyShot];
-      nextStroke += 1;
-    }
-
-    setShots(newShots);
-    setCurrentStroke(nextStroke);
-    setPendingDirection('');
-    setFlowPhase('direction');
-
-    // Auto-save after each shot
-    autoSave(newShots, par);
-
-    // Scroll to top
-    setTimeout(() => {
-      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-    }, 100);
-  };
-
-  // Handle direction selection (Left / Center / Right)
-  const handleDirectionSelect = (direction: string) => {
-    if (direction === SHOT_RESULTS.CENTER) {
-      // Center = fairway/on target, shot complete
-      recordShot([SHOT_RESULTS.CENTER]);
-    } else {
-      // Left or Right - need further classification
-      setPendingDirection(direction);
-      setFlowPhase('classification');
-    }
-  };
-
-  // Handle classification selection (Rough / Sand / Hazard / OB)
-  const handleClassificationSelect = (classification: string) => {
-    const results = [pendingDirection, classification];
-    const addPenalty = classification === SHOT_RESULTS.HAZARD || classification === SHOT_RESULTS.OB;
-    recordShot(results, addPenalty);
-  };
-
-  // Handle On Green selection
-  const handleOnGreen = () => {
-    // Record the approach shot as on green
-    const shotType = inferShotType(currentStroke);
-    const newShot: Shot = {
-      stroke: currentStroke,
-      type: shotType,
-      results: [SHOT_RESULTS.GREEN],
-    };
-    const newShots = [...shots, newShot];
-    setShots(newShots);
-    setCurrentStroke(currentStroke + 1);
-
-    // Auto-save
-    autoSave(newShots, par);
-
-    // Open distance modal for putt
-    setShowDistanceModal(true);
-  };
-
-  // Send putt update SMS and enter putting mode
-  const sendPuttUpdate = async () => {
-    setShowDistanceModal(false);
-
-    const runningScore = await calculateRunningScore();
-    const currentHoleScore = shots.length - par;
-    const _totalRunningScore = (runningScore || 0) + currentHoleScore;
-
-    // Calculate what the putt is for based on current stroke count
-    // shots already includes the "on green" shot, so currentStroke is the putt stroke
-    const puttForStrokes = currentStroke; // this putt, if made, would be this many total strokes
-    const puttForName = getScoreName(puttForStrokes, par);
-
-    const formattedDistance = getFormattedDistance();
-    const distanceMessage = formattedDistance ? `${formattedDistance} for ${puttForName.toLowerCase()}` : `Putting for ${puttForName.toLowerCase()}`;
-
-    const defaultGroup = await DatabaseService.getPreference('default_sms_group');
-
-    try {
-      let message = `Hole ${hole.holeNumber} - Par ${par}\n`;
-      message += `${distanceMessage}\n`;
-
-      if (shots.length > 0) {
-        message += `\nShots to green:\n`;
-        shots.forEach((shot, index) => {
-          const shotNum = index + 1;
-          message += `${shotNum}. ${shot.type}`;
-
-          if (shot.results && shot.results.length > 0) {
-            const resultDescriptions = shot.results.map(r => {
-              return getResultLabel(r);
-            });
-            message += ` - ${resultDescriptions.join(', ')}`;
-          }
-          message += '\n';
-        });
-      }
-
-      const result = await SMSService.sendQuickUpdate(message);
-      if (!result.success) {
-        console.error('SMS error:', result.errors);
-        showToast('Failed to open Messages', 'error');
-      } else if (!defaultGroup || defaultGroup.trim() === '') {
-        showToast('Add recipients in settings for automatic text group', 'info');
-      } else if (result.sent) {
-        showToast(`Message opened for ${result.groupName}`, 'success');
-      }
-    } catch (error: any) {
-      console.error('Error sending SMS:', error);
-      showToast('Error sending message', 'error');
-    }
-
-    const puttDistanceValue = distanceToHole || '0';
-    setCurrentPuttDistance(`${puttDistanceValue} ft`);
-    setDistanceToHole('');
-
-    setIsPuttingMode(true);
-    setFlowPhase('putting_mode');
-    setPuttingStrokes(0);
-  };
-
-  // Get emoji for a result
-  const _getResultEmoji = (resultId: string): string => {
-    switch (resultId) {
-      case 'left': return '\u2B05\uFE0F';
-      case 'right': return '\u27A1\uFE0F';
-      case 'center': return '\u2705';
-      case 'rough': return '\uD83C\uDF3F';
-      case 'sand': return '\uD83C\uDFD6\uFE0F';
-      case 'hazard': return '\uD83D\uDCA7';
-      case 'ob': return '\u274C';
-      case 'green': return '\u26F3';
-      case 'missed': return '\u274C';
-      case 'made': return '\u2705';
-      default: return '';
-    }
-  };
-
-  // Handler for "Missed It" button in putting mode
-  const handlePuttMissed = () => {
-    const missedPutt: Shot = {
-      stroke: currentStroke,
-      type: SHOT_TYPES.PUTT,
-      results: [SHOT_RESULTS.MISSED],
-      puttDistance: currentPuttDistance,
-    };
-
-    const newShots = [...shots, missedPutt];
-    setShots(newShots);
-    setCurrentStroke(currentStroke + 1);
-    setPuttingStrokes(puttingStrokes + 1);
-
-    autoSave(newShots, par);
-  };
-
-  // Handler for "Made It" button in putting mode
-  const handlePuttMade = async () => {
-    const madePutt: Shot = {
-      stroke: currentStroke,
-      type: SHOT_TYPES.PUTT,
-      results: [SHOT_RESULTS.MADE],
-      puttDistance: currentPuttDistance,
-    };
-
-    const newShots = [...shots, madePutt];
-    setShots(newShots);
-
-    setIsPuttingMode(false);
-    const totalPutts = puttingStrokes + 1;
-    setPuttingStrokes(0);
-    setCurrentPuttDistance('');
-    setCurrentStroke(currentStroke + 1);
-    setFlowPhase('direction');
-
-    await autoSave(newShots, par);
-
-    // Check if SMS recipients are configured
-    const defaultGroup = await DatabaseService.getPreference('default_sms_group');
-    if (!defaultGroup || defaultGroup.trim() === '') {
-      // No recipients configured — just finish the hole
-      navigation.goBack();
-      return;
-    }
-
-    // Ask user if they want to send an update
-    Alert.alert(
-      'Send Hole Update?',
-      'Send SMS update to your group?',
-      [
-        {
-          text: 'Skip',
-          style: 'cancel',
-          onPress: () => navigation.goBack(),
-        },
-        {
-          text: 'Send',
-          onPress: () => sendHoleCompletionSMS(newShots, totalPutts),
-        },
-      ],
-      { cancelable: false }
-    );
-  };
-
-  // Compose and send SMS after hole completion
-  const sendHoleCompletionSMS = async (completedShots: Shot[], totalPutts: number) => {
-    const runningScore = await calculateRunningScore();
-    const currentHoleScore = completedShots.length - par;
-    const totalRunningScore = (runningScore || 0) + currentHoleScore;
-
-    const scoreName = getScoreName(completedShots.length, par);
-    const scoreEmoji = (() => {
-      const diff = completedShots.length - par;
-      if (diff <= -2) return ' \uD83E\uDD85';
-      if (diff === -1) return ' \uD83D\uDC26';
-      if (diff === 0) return ' \u2705';
-      return '';
-    })();
-
-    try {
-      let message = `Hole ${hole.holeNumber} - Par ${par}\n`;
-      message += `Score: ${completedShots.length} (${scoreName}${scoreEmoji})\n`;
-
-      if (totalRunningScore !== undefined) {
-        const scoreText = totalRunningScore === 0 ? 'E' : totalRunningScore > 0 ? `+${totalRunningScore}` : `${totalRunningScore}`;
-        message += `Running Total: ${scoreText}\n`;
-      }
-
-      message += `\nPutting: `;
-      if (totalPutts === 1) {
-        message += `Made it! \u26F3`;
-      } else if (totalPutts === 2) {
-        message += `2-putt`;
-      } else if (totalPutts === 3) {
-        message += `3-putt \uD83D\uDE24`;
-      } else {
-        message += `${totalPutts}-putt \uD83D\uDE31`;
-      }
-
-      if (completedShots.length <= par - 1) {
-        message += '\n\n\uD83C\uDF89 Outstanding play!';
-      } else if (completedShots.length === par) {
-        message += '\n\n\u26F3 Solid par!';
-      }
-
-      if (roundId) {
-        const media = await DatabaseService.getMediaForHole(roundId, hole.holeNumber);
-        if (media.length > 0) {
-          message += `\n\n\uD83D\uDCF8 ${media.length} photo${media.length !== 1 ? 's' : ''} captured`;
-        }
-      }
-
-      // Append running round stats
-      if (roundId) {
-        const runningStats = await calculateRunningRoundStats(roundId);
-        message += formatRunningStatsForSMS(runningStats);
-      }
-
-      const result = await SMSService.sendQuickUpdate(message);
-      if (!result.success) {
-        console.error('SMS error:', result.errors);
-      }
-
-      navigation.goBack();
-    } catch (error: unknown) {
-      console.error('Error sending SMS:', error);
-      navigation.goBack();
-    }
-  };
-
-  // Handler for "Cancel" button in putting mode
-  const handlePuttCancel = () => {
-    setIsPuttingMode(false);
-    setPuttingStrokes(0);
-    setCurrentPuttDistance('');
-    setFlowPhase('direction');
-  };
-
-  const handleSave = async () => {
-    await autoSave(shots, par);
-
-    const runningScore = await calculateRunningScore();
-    const currentHoleScore = shots.length - par;
-    const _totalRunningScore = (runningScore || 0) + currentHoleScore;
-
-    Alert.alert(
-      'Share Hole Summary?',
-      'Would you like to share this hole summary?',
-      [
-        {
-          text: 'No',
-          style: 'cancel',
-          onPress: () => navigation.goBack(),
-        },
-        {
-          text: 'Yes',
-          onPress: async () => {
-            try {
-              const scoreName = getScoreName(shots.length, par);
-              let description = `Hole ${hole.holeNumber} - Par ${par}\n`;
-              description += `Score: ${shots.length} strokes (${scoreName})\n\n`;
-              description += `Shot by shot:\n`;
-
-              shots.forEach((shot, index) => {
-                description += `${index + 1}. ${shot.type}`;
-                if (shot.results && shot.results.length > 0) {
-                  const resultDescriptions = shot.results.map(r => getResultLabel(r));
-                  description += ` - ${resultDescriptions.join(', ')}`;
-                }
-                if (shot.puttDistance) {
-                  description += ` (${shot.puttDistance})`;
-                }
-                description += '\n';
-              });
-
-              if (shots.length <= par - 1) {
-                description += '\n\uD83C\uDF89 Outstanding play!';
-              } else if (shots.length === par) {
-                description += '\n\u26F3 Solid par!';
-              }
-
-              const media = roundId ? await DatabaseService.getMediaForHole(roundId, hole.holeNumber) : [];
-              const mediaUrls = media.map(m => m.uri).filter(uri => uri);
-
-              await Share.open({
-                title: `Hole ${hole.holeNumber} - Shot Details`,
-                message: description,
-                urls: mediaUrls,
-              });
-
-              navigation.goBack();
-            } catch (error: any) {
-              if (error?.message !== 'User did not share') {
-                console.error('Share error:', error);
-              }
-              navigation.goBack();
-            }
-          },
-        },
-      ]
-    );
-  };
-
+import { formatScoreVsPar } from '../utils/scoreCalculations';
+import type { ScoringStackParamList } from '../types/navigation';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import type { RouteProp } from '@react-navigation/native';
+
+type NavProp = StackNavigationProp<ScoringStackParamList, 'ShotTracking'>;
+type RoutePropT = RouteProp<ScoringStackParamList, 'ShotTracking'>;
+
+// Result options per shot type
+const RESULT_OPTIONS: Record<string, { label: string; value: string }[]> = {
+  [SHOT_TYPES.TEE_SHOT]: [
+    { label: 'Left', value: SHOT_RESULTS.LEFT },
+    { label: 'Right', value: SHOT_RESULTS.RIGHT },
+    { label: 'Fairway', value: SHOT_RESULTS.CENTER },
+    { label: 'Rough', value: SHOT_RESULTS.ROUGH },
+    { label: 'Sand', value: SHOT_RESULTS.SAND },
+    { label: 'OB', value: SHOT_RESULTS.OB },
+  ],
+  [SHOT_TYPES.APPROACH]: [
+    { label: 'On Green', value: SHOT_RESULTS.GREEN },
+    { label: 'Left', value: SHOT_RESULTS.LEFT },
+    { label: 'Right', value: SHOT_RESULTS.RIGHT },
+    { label: 'Rough', value: SHOT_RESULTS.ROUGH },
+    { label: 'Sand', value: SHOT_RESULTS.SAND },
+    { label: 'Hazard', value: SHOT_RESULTS.HAZARD },
+  ],
+  [SHOT_TYPES.PUTT]: [
+    { label: 'Made', value: SHOT_RESULTS.MADE },
+    { label: 'Missed', value: SHOT_RESULTS.MISSED },
+  ],
+  [SHOT_TYPES.PENALTY]: [
+    { label: 'OB', value: SHOT_RESULTS.OB },
+    { label: 'Hazard', value: SHOT_RESULTS.HAZARD },
+    { label: 'Lost Ball', value: SHOT_RESULTS.OB },
+  ],
+};
+
+const SHOT_TYPE_LIST = [
+  SHOT_TYPES.TEE_SHOT,
+  SHOT_TYPES.APPROACH,
+  SHOT_TYPES.PUTT,
+  SHOT_TYPES.PENALTY,
+];
+
+const ShotTrackingScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NavProp>();
+  const route = useRoute<RoutePropT>();
+  const { holeId, roundId, preselectedShotType } = route.params || {};
+  const { updateHole } = useRoundStore();
+
+  const [hole, setHole] = useState<Hole | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Shot tracking state
+  const [shots, setShots] = useState<TrackedShot[]>([]);
+  const [currentStroke, setCurrentStroke] = useState(1);
+  const [selectedType, setSelectedType] = useState<string>(SHOT_TYPES.TEE_SHOT);
+  const [puttDistance, setPuttDistance] = useState('');
+
+  // Derived stats
+  const [derivedStats, setDerivedStats] = useState<ReturnType<typeof deriveHoleStats> | null>(null);
+
+  // Load hole data
   useEffect(() => {
-    loadMediaCount();
-    loadExistingMedia();
-    if (hole.strokes && hole.strokes > 0 && shots.length === 0 && hole.shotData) {
-      setCurrentStroke(hole.strokes + 1);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
-  }, []);
-
-  const loadMediaCount = async () => {
-    if (roundId && hole.holeNumber) {
-      const count = await MediaService.getMediaCount(roundId, hole.holeNumber);
-      setMediaCount(count);
-    }
-  };
-
-  const loadExistingMedia = async () => {
-    if (roundId && hole.holeNumber) {
+    const loadHole = async () => {
+      if (!holeId) {
+        setError(new Error('No hole ID provided'));
+        setLoading(false);
+        return;
+      }
       try {
-        const media = await MediaService.getMediaForHole(roundId, hole.holeNumber);
-        setCapturedMedia(media);
-      } catch (error) {
-        console.error('Error loading media:', error);
+        const h = await database.collections.get<Hole>('holes').find(holeId);
+        setHole(h);
+
+        // Restore existing shot data if present
+        const existing = parseShotData(h.shotData);
+        if (existing && existing.shots.length > 0) {
+          setShots(existing.shots);
+          setCurrentStroke(existing.currentStroke || existing.shots.length + 1);
+        }
+      } catch (err) {
+        setError(err as Error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadHole();
+  }, [holeId]);
+
+  // Apply preselected shot type
+  useEffect(() => {
+    if (preselectedShotType && hole) {
+      if (Object.values(SHOT_TYPES).includes(preselectedShotType as typeof SHOT_TYPES[keyof typeof SHOT_TYPES])) {
+        setSelectedType(preselectedShotType);
       }
     }
-  };
+  }, [preselectedShotType, hole]);
 
-  const handleMediaFromLibrary = async () => {
-    if (!roundId) {
-      Alert.alert('Error', 'Please save the round first before adding media');
-      return;
+  // Re-derive stats when shots change
+  useEffect(() => {
+    if (hole && shots.length > 0) {
+      const shotData: ShotData = { par: hole.par, shots, currentStroke };
+      setDerivedStats(deriveHoleStats(shotData, hole.par));
+    } else {
+      setDerivedStats(null);
     }
-    if (isCapturing) return;
+  }, [shots, currentStroke, hole]);
 
-    setIsCapturing(true);
+  const addShot = useCallback(
+    (result: string) => {
+      const newShot: TrackedShot = {
+        stroke: currentStroke,
+        type: selectedType,
+        results: [result],
+        ...(selectedType === SHOT_TYPES.PUTT && puttDistance
+          ? { puttDistance: `${puttDistance} ft` }
+          : {}),
+      };
+
+      const updated = [...shots, newShot];
+      setShots(updated);
+      setCurrentStroke(currentStroke + 1);
+      setPuttDistance('');
+
+      // Auto-advance shot type
+      if (selectedType === SHOT_TYPES.TEE_SHOT) {
+        if (result === SHOT_RESULTS.GREEN) {
+          setSelectedType(SHOT_TYPES.PUTT);
+        } else {
+          setSelectedType(SHOT_TYPES.APPROACH);
+        }
+      } else if (selectedType === SHOT_TYPES.APPROACH) {
+        if (result === SHOT_RESULTS.GREEN) {
+          setSelectedType(SHOT_TYPES.PUTT);
+        }
+        // Stay on approach if not on green
+      } else if (selectedType === SHOT_TYPES.PENALTY) {
+        // After penalty, go back to approach
+        setSelectedType(SHOT_TYPES.APPROACH);
+      }
+      // Putt stays on putt
+    },
+    [currentStroke, selectedType, shots, puttDistance],
+  );
+
+  const undoLastShot = useCallback(() => {
+    if (shots.length === 0) return;
+    const updated = shots.slice(0, -1);
+    setShots(updated);
+    setCurrentStroke(currentStroke - 1);
+  }, [shots, currentStroke]);
+
+  const handleSave = useCallback(async () => {
+    if (!hole || !roundId) return;
+    setSaving(true);
+
     try {
-      const media = await MediaService.selectFromLibrary('mixed');
-      if (media) {
-        await MediaService.saveMedia(media, roundId, hole.holeNumber);
-        setCapturedMedia([...capturedMedia, media]);
-        await loadMediaCount();
-        Alert.alert('Success', 'Media added from library');
-      }
-    } catch (error: any) {
-      console.error('Error selecting from library:', error);
-      Alert.alert('Error', error.message || 'Failed to select media from library');
+      const shotData: ShotData = { par: hole.par, shots, currentStroke };
+      const stats = shots.length > 0 ? deriveHoleStats(shotData, hole.par) : null;
+      const totalStrokes = shots.length;
+
+      await updateHole(roundId, {
+        holeNumber: hole.holeNumber,
+        par: hole.par,
+        strokes: totalStrokes,
+        fairwayHit: stats?.fairwayHit,
+        greenInRegulation: stats?.greenInRegulation,
+        putts: stats?.puttsCount,
+        shotData: JSON.stringify(shotData),
+      });
+
+      navigation.navigate('HoleSummary', { holeId, roundId });
+    } catch (err) {
+      Alert.alert('Error', 'Failed to save hole data');
     } finally {
-      setIsCapturing(false);
+      setSaving(false);
     }
-  };
+  }, [hole, roundId, shots, currentStroke, holeId, navigation, updateHole]);
 
-  const handleMediaCapture = async (type: 'photo' | 'video') => {
-    if (!roundId) {
-      Alert.alert('Error', 'Please save the round first before adding media');
-      return;
-    }
-    if (isCapturing) return;
-
-    setIsCapturing(true);
-    try {
-      const captured = await MediaService.captureMedia(type);
-      if (captured) {
-        await MediaService.saveMedia(captured, roundId, hole.holeNumber);
-        await loadMediaCount();
-        await loadExistingMedia();
-      }
-    } catch (error) {
-      console.error('Error capturing media:', error);
-      Alert.alert(
-        'Media Capture Error',
-        `Failed to capture ${type}. Please check app permissions in Settings.`
-      );
-    } finally {
-      setIsCapturing(false);
-    }
-  };
-
-  const removeMedia = async (mediaId: string) => {
-    Alert.alert(
-      'Remove Media',
-      'Are you sure you want to remove this media?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setCapturedMedia(capturedMedia.filter(m => m.id !== mediaId));
-              await loadMediaCount();
-            } catch (error) {
-              console.error('Error removing media:', error);
-            }
-          },
-        },
-      ]
+  if (loading) {
+    return <LoadingScreen message="Loading hole data..." />;
+  }
+  if (error || !hole) {
+    return (
+      <ErrorScreen
+        error={error || new Error('Hole not found')}
+        onRetry={() => navigation.goBack()}
+      />
     );
-  };
+  }
 
-  const removeShot = (index: number) => {
-    const newShots = shots.filter((_, i) => i !== index);
-    const renumberedShots = newShots.map((shot, i) => ({
-      ...shot,
-      stroke: i + 1,
-    }));
-    setShots(renumberedShots);
-    setCurrentStroke(renumberedShots.length + 1);
-  };
-
-  // Whether to show the On Green option (available after first shot)
-  const showOnGreen = shots.length > 0 && !isPuttingMode;
-
-  // Build the shot history display label
-  const getShotHistoryLabel = (shot: Shot): string => {
-    let label = `${shot.stroke}. ${shot.type}`;
-    if (shot.results && shot.results.length > 0) {
-      const resultLabels = shot.results.map(r => getResultLabel(r));
-      label += `: ${resultLabels.join(', ')}`;
-    }
-    if (shot.puttDistance) {
-      label += ` (${shot.puttDistance})`;
-    }
-    return label;
-  };
+  const scoreVsPar = shots.length - hole.par;
+  const scoreLabel = formatScoreVsPar(scoreVsPar);
 
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          {/* Empty space for balance */}
-        </View>
-
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+        >
+          <Icon name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <TouchableOpacity onPress={() => setShowParSelector(true)} style={styles.parTouchable}>
-            <Text style={styles.holeLabel}>Hole {hole.holeNumber} \u2022 Par {par}</Text>
-            <Icon name="edit" size={14} color="rgba(255,255,255,0.8)" style={{ marginLeft: 4 }} />
-          </TouchableOpacity>
-          {(roundName || tournamentName) && (
-            <Text style={styles.roundInfo}>
-              {roundName && <Text style={styles.roundName}>{roundName}</Text>}
-              {roundName && tournamentName && <Text style={styles.roundSeparator}> \u2022 </Text>}
-              {tournamentName && <Text style={styles.tournamentName}>{tournamentName}</Text>}
-            </Text>
-          )}
-          {shots.length > 0 && (
-            <Text style={styles.scoreLabel}>
-              Score: {shots.length} {shots.length === par ? '(E)' : shots.length < par ? `(${shots.length - par})` : `(+${shots.length - par})`}
-            </Text>
-          )}
+          <Text style={styles.headerTitle}>Hole {hole.holeNumber}</Text>
+          <Text style={styles.headerSub}>Par {hole.par}</Text>
         </View>
-
-        <View style={styles.mediaButtons}>
-          <TouchableOpacity
-            onPress={() => handleMediaCapture('photo')}
-            style={styles.mediaButtonCompact}
-            disabled={isCapturing}
-          >
-            {isCapturing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="camera" size={26} color="#fff" />
-                {mediaCount.photos > 0 && (
-                  <View style={styles.mediaBadgeCompact}>
-                    <Text style={styles.mediaBadgeTextCompact}>{mediaCount.photos}</Text>
-                  </View>
-                )}
-              </>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => handleMediaCapture('video')}
-            style={styles.mediaButtonCompact}
-            disabled={isCapturing}
-          >
-            {isCapturing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="videocam" size={26} color="#fff" />
-                {mediaCount.videos > 0 && (
-                  <View style={styles.mediaBadgeCompact}>
-                    <Text style={styles.mediaBadgeTextCompact}>{mediaCount.videos}</Text>
-                  </View>
-                )}
-              </>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleMediaFromLibrary}
-            style={styles.mediaButtonCompact}
-            disabled={isCapturing}
-          >
-            {isCapturing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Ionicons name="images" size={26} color="#fff" />
-            )}
-          </TouchableOpacity>
+        <View style={styles.strokeBadge}>
+          <Text style={styles.strokeNum}>{shots.length}</Text>
+          <Text style={styles.strokeLabel}>{scoreLabel}</Text>
         </View>
       </View>
 
-      <ScrollView ref={scrollViewRef} style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Saved Data Indicator */}
-        {hole.shotData && shots.length > 0 && (
-          <View style={styles.savedDataIndicator}>
-            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-            <Text style={styles.savedDataText}>Viewing saved shot data</Text>
-          </View>
-        )}
-
-        {/* Shot History */}
-        {shots.length > 0 && (
-          <View style={styles.shotHistory}>
-            {shots.map((shot, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.shotHistoryItem}
-                onPress={() => removeShot(index)}
-                onLongPress={() => removeShot(index)}
-              >
-                <Text style={styles.shotHistoryText}>
-                  {getShotHistoryLabel(shot)}
-                </Text>
-                <Ionicons name="close-circle" size={18} color="#ff6b6b" />
-              </TouchableOpacity>
-            ))}
-            {shots.length > 1 && (
-              <TouchableOpacity
-                style={styles.clearAllButton}
-                onPress={() => {
-                  Alert.alert(
-                    'Clear All Shots',
-                    'Are you sure you want to clear all shot data and start over?',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Clear All',
-                        style: 'destructive',
-                        onPress: () => {
-                          setShots([]);
-                          setCurrentStroke(1);
-                          setFlowPhase('direction');
-                          setPendingDirection('');
-                        },
-                      },
-                    ]
-                  );
-                }}
-              >
-                <Ionicons name="trash-outline" size={16} color="#ff6b6b" />
-                <Text style={styles.clearAllText}>Clear All</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* Current Shot Header */}
-        {shots.length > 0 && !isPuttingMode && (
-          <View style={styles.currentShotHeader}>
-            <Text style={styles.currentShotText}>
-              Stroke {currentStroke}: {inferShotType(currentStroke)}
-            </Text>
-          </View>
-        )}
-
-        {/* PUTTING MODE */}
-        {isPuttingMode ? (
-          <View style={styles.buttonSection}>
-            {currentPuttDistance && (
-              <View style={styles.puttingDistanceDisplay}>
-                <Text style={styles.puttingDistanceLabel}>Putt Distance</Text>
-                <Text style={styles.puttingDistanceValue}>{currentPuttDistance}</Text>
-                {puttingStrokes > 0 && (
-                  <Text style={styles.puttingStrokesCount}>
-                    {puttingStrokes} {puttingStrokes === 1 ? 'putt' : 'putts'} so far
-                  </Text>
-                )}
-              </View>
-            )}
-
-            <View style={styles.puttingButtonContainer}>
-              <TouchableOpacity
-                style={[styles.puttingButton, styles.puttingButtonMade]}
-                onPress={handlePuttMade}
-              >
-                <Icon name="check-circle" size={32} color="#fff" />
-                <Text style={styles.puttingButtonText}>Made It!</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.puttingButton, styles.puttingButtonMissed]}
-                onPress={handlePuttMissed}
-              >
-                <Icon name="close" size={32} color="#fff" />
-                <Text style={styles.puttingButtonText}>Missed It</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.puttingButton, styles.puttingButtonCancel]}
-                onPress={handlePuttCancel}
-              >
-                <Icon name="undo" size={32} color="#fff" />
-                <Text style={styles.puttingButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : flowPhase === 'classification' ? (
-          /* CLASSIFICATION PHASE: Rough / Sand / Hazard / OB */
-          <View style={styles.buttonSection}>
-            <Text style={styles.classificationTitle}>
-              {pendingDirection === 'left' ? 'Left' : 'Right'} - Where did it end up?
-            </Text>
-            <View style={styles.classificationRow}>
-              {/* Rough */}
-              <TouchableOpacity
-                style={styles.classificationButton}
-                onPress={() => handleClassificationSelect('rough')}
-              >
-                <MaterialCommunityIcons name="grass" size={36} color="#4CAF50" />
-                <Text style={styles.classificationLabel}>Rough</Text>
-              </TouchableOpacity>
-
-              {/* Sand */}
-              <TouchableOpacity
-                style={styles.classificationButton}
-                onPress={() => handleClassificationSelect('sand')}
-              >
-                <MaterialCommunityIcons name="waves" size={36} color="#F9A825" />
-                <Text style={styles.classificationLabel}>Sand</Text>
-              </TouchableOpacity>
-
-              {/* Hazard */}
-              <TouchableOpacity
-                style={[styles.classificationButton, styles.classificationButtonDanger]}
-                onPress={() => handleClassificationSelect('hazard')}
-              >
-                <FontAwesome5 name="water" size={30} color="#2196F3" />
-                <Text style={styles.classificationLabel}>Hazard</Text>
-                <Text style={styles.penaltyBadge}>+1</Text>
-              </TouchableOpacity>
-
-              {/* OB */}
-              <TouchableOpacity
-                style={[styles.classificationButton, styles.classificationButtonDanger]}
-                onPress={() => handleClassificationSelect('ob')}
-              >
-                <Icon name="block" size={36} color="#f44336" />
-                <Text style={styles.classificationLabel}>OB</Text>
-                <Text style={styles.penaltyBadge}>+1</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Back button */}
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        {/* Shot type selector */}
+        <View style={styles.typeRow}>
+          {SHOT_TYPE_LIST.map((t) => (
             <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => {
-                setPendingDirection('');
-                setFlowPhase('direction');
-              }}
+              key={t}
+              style={[styles.typeBtn, selectedType === t && styles.typeBtnActive]}
+              onPress={() => setSelectedType(t)}
             >
-              <Icon name="arrow-back" size={20} color="#666" />
-              <Text style={styles.backButtonText}>Back</Text>
+              <Text
+                style={[styles.typeBtnText, selectedType === t && styles.typeBtnTextActive]}
+              >
+                {t}
+              </Text>
             </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Putt distance input */}
+        {selectedType === SHOT_TYPES.PUTT && (
+          <View style={styles.puttRow}>
+            <Text style={styles.puttLabel}>Distance (ft):</Text>
+            <TextInput
+              style={styles.puttInput}
+              value={puttDistance}
+              onChangeText={setPuttDistance}
+              keyboardType="numeric"
+              placeholder="e.g. 25"
+              placeholderTextColor="#999"
+            />
           </View>
-        ) : (
-          /* DIRECTION PHASE: Left / Center / Right (+ On Green after first shot) */
-          <View style={styles.buttonSection}>
-            {shots.length === 0 && (
-              <Text style={styles.directionTitle}>
-                Stroke {currentStroke}: {inferShotType(currentStroke)}
+        )}
+
+        {/* Result buttons */}
+        <Text style={styles.sectionTitle}>Shot {currentStroke} Result</Text>
+        <View style={styles.resultGrid}>
+          {(RESULT_OPTIONS[selectedType] || []).map((opt) => (
+            <TouchableOpacity
+              key={opt.value + opt.label}
+              style={styles.resultBtn}
+              onPress={() => addShot(opt.value)}
+            >
+              <Text style={styles.resultBtnText}>{opt.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Shot log */}
+        {shots.length > 0 && (
+          <View style={styles.logSection}>
+            <View style={styles.logHeader}>
+              <Text style={styles.sectionTitle}>Shot Log</Text>
+              <TouchableOpacity
+                onPress={undoLastShot}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityLabel="Undo last shot"
+                accessibilityRole="button"
+              >
+                <Icon name="undo" size={22} color="#F44336" />
+              </TouchableOpacity>
+            </View>
+            {shots.map((s, i) => (
+              <View key={i} style={styles.logItem}>
+                <View style={styles.logBullet}>
+                  <Text style={styles.logBulletText}>{s.stroke}</Text>
+                </View>
+                <Text style={styles.logType}>{s.type}</Text>
+                <Text style={styles.logResult}>
+                  {s.results.map(getResultLabel).join(', ')}
+                  {s.puttDistance ? ` (${s.puttDistance})` : ''}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Derived stats */}
+        {derivedStats && (
+          <View style={styles.statsCard}>
+            <Text style={styles.sectionTitle}>Derived Stats</Text>
+            <Text style={styles.statLine}>Putts: {derivedStats.puttsCount}</Text>
+            {derivedStats.fairwayHit !== undefined && (
+              <Text style={styles.statLine}>
+                Fairway: {derivedStats.fairwayHit ? 'Hit' : 'Missed'}
               </Text>
             )}
-
-            <View style={styles.directionRow}>
-              {/* Left */}
-              <TouchableOpacity
-                style={[styles.directionButton, styles.directionButtonLeft]}
-                onPress={() => handleDirectionSelect('left')}
-              >
-                <Icon name="arrow-back" size={48} color="#fff" />
-              </TouchableOpacity>
-
-              {/* Center */}
-              <TouchableOpacity
-                style={[styles.directionButton, styles.directionButtonCenter]}
-                onPress={() => handleDirectionSelect('center')}
-              >
-                <Icon name="arrow-upward" size={48} color="#fff" />
-              </TouchableOpacity>
-
-              {/* Right */}
-              <TouchableOpacity
-                style={[styles.directionButton, styles.directionButtonRight]}
-                onPress={() => handleDirectionSelect('right')}
-              >
-                <Icon name="arrow-forward" size={48} color="#fff" />
-              </TouchableOpacity>
-            </View>
-
-            {/* On Green button - shown after first shot */}
-            {showOnGreen && (
-              <TouchableOpacity
-                style={styles.onGreenButton}
-                onPress={handleOnGreen}
-              >
-                <MaterialCommunityIcons name="flag-variant" size={32} color="#fff" />
-                <Text style={styles.onGreenButtonText}>On Green</Text>
-              </TouchableOpacity>
+            <Text style={styles.statLine}>
+              GIR: {derivedStats.greenInRegulation ? 'Yes' : 'No'}
+            </Text>
+            {derivedStats.firstPuttDistanceFeet !== undefined && (
+              <Text style={styles.statLine}>
+                1st Putt Dist: {derivedStats.firstPuttDistanceFeet} ft
+              </Text>
             )}
-
-            {/* Back / Go Back button */}
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-            >
-              <Icon name="arrow-back" size={20} color="#666" />
-              <Text style={styles.backButtonText}>Back</Text>
-            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
 
-      {/* Media Thumbnails */}
-      {capturedMedia.length > 0 && (
-        <View style={styles.mediaThumbnailContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.mediaThumbnailList}>
-              {capturedMedia.map((media) => (
-                <TouchableOpacity
-                  key={media.id}
-                  style={styles.mediaThumbnail}
-                  onPress={() => removeMedia(media.id)}
-                  onLongPress={() => removeMedia(media.id)}
-                >
-                  {media.type === 'photo' ? (
-                    <Image source={{ uri: media.uri }} style={styles.thumbnailImage} />
-                  ) : (
-                    <View style={styles.videoThumbnail}>
-                      <Ionicons name="play-circle" size={20} color="#fff" />
-                    </View>
-                  )}
-                  <View style={styles.thumbnailBadge}>
-                    <Ionicons
-                      name={media.type === 'photo' ? 'image' : 'videocam'}
-                      size={10}
-                      color="#fff"
-                    />
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Par Selector Modal */}
-      <Modal
-        visible={showParSelector}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowParSelector(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowParSelector(false)}
-        >
-          <View style={styles.parSelectorModal}>
-            <Text style={styles.parSelectorTitle}>Select Par for Hole {hole.holeNumber}</Text>
-            <View style={styles.parSelectorButtons}>
-              <TouchableOpacity
-                style={[styles.parSelectButton, par === 3 && styles.parSelectButtonActive]}
-                onPress={() => {
-                  setPar(3);
-                  autoSave(shots, 3);
-                  setShowParSelector(false);
-                }}
-              >
-                <Text style={[styles.parSelectButtonText, par === 3 && styles.parSelectButtonTextActive]}>Par 3</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.parSelectButton, par === 4 && styles.parSelectButtonActive]}
-                onPress={() => {
-                  setPar(4);
-                  autoSave(shots, 4);
-                  setShowParSelector(false);
-                }}
-              >
-                <Text style={[styles.parSelectButtonText, par === 4 && styles.parSelectButtonTextActive]}>Par 4</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.parSelectButton, par === 5 && styles.parSelectButtonActive]}
-                onPress={() => {
-                  setPar(5);
-                  autoSave(shots, 5);
-                  setShowParSelector(false);
-                }}
-              >
-                <Text style={[styles.parSelectButtonText, par === 5 && styles.parSelectButtonTextActive]}>Par 5</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Distance to Hole Modal (for On Green) */}
-      <Modal
-        visible={showDistanceModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => {
-          setShowDistanceModal(false);
-          setDistanceToHole('');
-        }}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => {
-              setShowDistanceModal(false);
-              setDistanceToHole('');
-            }}
-          >
-            <View style={[styles.parSelectorModal, { marginBottom: 100 }]}>
-              <Text style={styles.parSelectorTitle}>
-                Putt Distance
-              </Text>
-              <View style={styles.distanceInputContainer}>
-                <TextInput
-                  style={styles.distanceInput}
-                  placeholder="Enter distance (e.g., 15)"
-                  value={distanceToHole}
-                  onChangeText={handleDistanceChange}
-                  keyboardType="numeric"
-                  autoFocus={true}
-                />
-                <Text style={styles.distanceUnit}>ft</Text>
-              </View>
-              <View style={styles.modalButtonRow}>
-                <TouchableOpacity
-                  style={[styles.modalIconButton, styles.modalButtonCancel]}
-                  onPress={() => {
-                    setShowDistanceModal(false);
-                    setDistanceToHole('');
-                  }}
-                >
-                  <Icon name="close" size={32} color="#666" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalIconButton, styles.modalButtonSend]}
-                  onPress={sendPuttUpdate}
-                >
-                  <Icon name="check" size={32} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* FAB save button - hidden during putting mode */}
-      {!isPuttingMode && (
-        <TouchableOpacity
-          style={styles.fab}
+      {/* Footer actions */}
+      <View style={styles.footer}>
+        <Button
+          title="Done"
           onPress={handleSave}
-          activeOpacity={0.8}
-        >
-          <Icon name="save" size={28} color="#fff" />
-        </TouchableOpacity>
-      )}
-
-      {/* Toast Notification */}
-      <Toast
-        visible={toastConfig.visible}
-        message={toastConfig.message}
-        type={toastConfig.type}
-        onHide={hideToast}
-      />
+          loading={saving}
+          disabled={shots.length === 0}
+          style={styles.doneBtn}
+        />
+      </View>
     </View>
   );
 };
 
+const S = { green: '#4CAF50', white: '#fff', bg: '#f5f5f5', border: '#e0e0e0' } as const;
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    paddingTop: 40,
-    paddingBottom: 8,
-    paddingHorizontal: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 5,
-  },
-  headerLeft: {
-    width: 40,
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-    marginHorizontal: 10,
-  },
-  holeLabel: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  scoreLabel: {
-    color: '#fff',
-    fontSize: 12,
-    marginTop: 2,
-    opacity: 0.9,
-  },
-  roundInfo: {
-    flexDirection: 'row',
-    marginTop: 2,
-  },
-  roundName: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  roundSeparator: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 12,
-  },
-  tournamentName: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 12,
-  },
-  parTouchable: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  mediaButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  mediaButtonCompact: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 12,
-    borderRadius: 20,
-    position: 'relative',
-    minWidth: 44,
-    minHeight: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mediaBadgeCompact: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#ff6b6b',
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mediaBadgeTextCompact: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: 'bold',
-  },
-  content: {
-    flex: 1,
-    padding: 10,
-  },
-  savedDataIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E9',
-    padding: 8,
-    borderRadius: 8,
-    marginBottom: 10,
-    gap: 6,
-  },
-  savedDataText: {
-    color: '#4CAF50',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  shotHistory: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 10,
-  },
-  shotHistoryItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  shotHistoryText: {
-    fontSize: 14,
-    color: '#333',
-    flex: 1,
-  },
-  clearAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    marginTop: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: '#ffebee',
-    borderRadius: 6,
-  },
-  clearAllText: {
-    color: '#ff6b6b',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  currentShotHeader: {
-    backgroundColor: '#fff',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  currentShotText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-  },
-  buttonSection: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-  },
-
-  // Direction Phase Styles
-  directionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  directionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 15,
-  },
-  directionButton: {
-    flex: 1,
-    aspectRatio: 1,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    minHeight: 100,
-  },
-  directionButtonLeft: {
-    backgroundColor: '#FF9800',
-  },
-  directionButtonCenter: {
-    backgroundColor: '#4CAF50',
-  },
-  directionButtonRight: {
-    backgroundColor: '#2196F3',
-  },
-  onGreenButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#4CAF50',
-    padding: 18,
-    borderRadius: 16,
-    marginBottom: 15,
-    gap: 10,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
-  onGreenButtonText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    borderRadius: 10,
-    backgroundColor: '#f0f0f0',
-    gap: 6,
-  },
-  backButtonText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-
-  // Classification Phase Styles
-  classificationTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  classificationRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 15,
-  },
-  classificationButton: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 90,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    position: 'relative',
-  },
-  classificationButtonDanger: {
-    backgroundColor: '#FFF3E0',
-  },
-  classificationLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
-    marginTop: 6,
-    textAlign: 'center',
-  },
-  penaltyBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: '#f44336',
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-
-  // Putting Mode Styles
-  puttingDistanceDisplay: {
-    alignItems: 'center',
-    marginBottom: 20,
-    padding: 15,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 10,
-  },
-  puttingDistanceLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 5,
-  },
-  puttingDistanceValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  puttingStrokesCount: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 5,
-    fontStyle: 'italic',
-  },
-  puttingButtonContainer: {
-    flexDirection: 'column',
-    gap: 12,
-  },
-  puttingButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    borderRadius: 12,
-    gap: 10,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  puttingButtonMade: {
-    backgroundColor: '#4CAF50',
-  },
-  puttingButtonMissed: {
-    backgroundColor: '#FF9800',
-  },
-  puttingButtonCancel: {
-    backgroundColor: '#757575',
-  },
-  puttingButtonText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  parSelectorModal: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 20,
-    width: '90%',
-    maxWidth: 400,
-  },
-  parSelectorTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  parSelectorButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    gap: 10,
-  },
-  parSelectButton: {
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  parSelectButtonActive: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
-  },
-  parSelectButtonText: {
-    color: '#333',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  parSelectButtonTextActive: {
-    color: '#fff',
-  },
-  distanceInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 10,
-    marginVertical: 15,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  distanceInput: {
-    flex: 1,
-    padding: 12,
-    fontSize: 18,
-    color: '#333',
-  },
-  distanceUnit: {
-    fontSize: 16,
-    color: '#666',
-    paddingRight: 15,
-    fontWeight: '600',
-  },
-  modalButtonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    width: '100%',
-    gap: 15,
-    marginTop: 10,
-  },
-  modalIconButton: {
-    flex: 1,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  modalButtonCancel: {
-    backgroundColor: '#f0f0f0',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  modalButtonSend: {
-    backgroundColor: '#4CAF50',
-  },
-
-  // Media Thumbnails
-  mediaThumbnailContainer: {
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-  },
-  mediaThumbnailList: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  mediaThumbnail: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    overflow: 'hidden',
-    position: 'relative',
-    backgroundColor: '#f0f0f0',
-  },
-  thumbnailImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  videoThumbnail: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#333',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  thumbnailBadge: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 10,
-    padding: 2,
-  },
-
-  // FAB
-  fab: {
-    position: 'absolute',
-    bottom: 30,
-    right: 20,
-    backgroundColor: '#4CAF50',
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-  },
+  container: { flex: 1, backgroundColor: S.bg },
+  header: { backgroundColor: S.green, paddingBottom: 16, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' },
+  backBtn: { padding: 4, marginRight: 12 },
+  headerCenter: { flex: 1 },
+  headerTitle: { fontSize: 22, fontWeight: 'bold', color: S.white },
+  headerSub: { fontSize: 14, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
+  strokeBadge: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 6, alignItems: 'center' },
+  strokeNum: { fontSize: 22, fontWeight: 'bold', color: S.white },
+  strokeLabel: { fontSize: 12, color: 'rgba(255,255,255,0.9)' },
+  body: { flex: 1 },
+  bodyContent: { padding: 16, paddingBottom: 32 },
+  typeRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  typeBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#e8e8e8', alignItems: 'center', minHeight: 44 },
+  typeBtnActive: { backgroundColor: S.green },
+  typeBtnText: { fontSize: 12, fontWeight: '600', color: '#555' },
+  typeBtnTextActive: { color: S.white },
+  puttRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
+  puttLabel: { fontSize: 14, fontWeight: '600', color: '#333' },
+  puttInput: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 16, backgroundColor: S.white, color: '#333' },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 10 },
+  resultGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
+  resultBtn: { paddingVertical: 14, paddingHorizontal: 18, backgroundColor: S.green, borderRadius: 10, minWidth: '30%', alignItems: 'center' },
+  resultBtnText: { fontSize: 15, fontWeight: '600', color: S.white },
+  logSection: { backgroundColor: S.white, borderRadius: 12, padding: 14, marginBottom: 16 },
+  logHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  logItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, gap: 10 },
+  logBullet: { width: 26, height: 26, borderRadius: 13, backgroundColor: S.green, alignItems: 'center', justifyContent: 'center' },
+  logBulletText: { color: S.white, fontWeight: 'bold', fontSize: 13 },
+  logType: { fontSize: 14, fontWeight: '600', color: '#555', width: 80 },
+  logResult: { fontSize: 14, color: '#333', flex: 1 },
+  statsCard: { backgroundColor: S.white, borderRadius: 12, padding: 14, marginBottom: 16 },
+  statLine: { fontSize: 14, color: '#555', marginBottom: 4 },
+  footer: { padding: 16, borderTopWidth: 1, borderTopColor: S.border, backgroundColor: S.white },
+  doneBtn: { borderRadius: 10 },
 });
 
 export default ShotTrackingScreen;
