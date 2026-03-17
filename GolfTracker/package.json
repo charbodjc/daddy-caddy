@@ -26,6 +26,7 @@
     "expo-contacts": "~15.0.10",
     "expo-dev-client": "^6.0.17",
     "expo-sms": "~14.0.7",
+    "expo-speech-recognition": "^3.1.1",
     "immer": "^10.2.0",
     "openai": "^5.22.0",
     "react": "19.1.0",
