@@ -17,7 +17,9 @@
       "bundleIdentifier": "com.daddycaddy.golf",
       "buildNumber": "2",
       "infoPlist": {
-        "NSContactsUsageDescription": "Daddy Caddy needs access to your contacts to select recipients for golf score updates and messages."
+        "NSContactsUsageDescription": "Daddy Caddy needs access to your contacts to select recipients for golf score updates and messages.",
+        "NSMicrophoneUsageDescription": "Daddy Caddy uses the microphone for voice shot tracking.",
+        "NSSpeechRecognitionUsageDescription": "Daddy Caddy uses speech recognition to convert voice commands to golf scores."
       },
       "config": {
         "usesNonExemptEncryption": false
@@ -31,14 +33,16 @@
       "package": "com.daddycaddy.golf",
       "versionCode": 1,
       "permissions": [
-        "READ_CONTACTS"
+        "READ_CONTACTS",
+        "RECORD_AUDIO"
       ]
     },
     "web": {
       "favicon": "./assets/daddy_caddy_logo.png"
     },
     "plugins": [
-      "expo-dev-client"
+      "expo-dev-client",
+      "expo-speech-recognition"
     ],
     "extra": {
       "eas": {

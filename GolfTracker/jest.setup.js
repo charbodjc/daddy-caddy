@@ -105,3 +105,16 @@ jest.mock('expo-contacts', () => ({
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
   getContactsAsync: jest.fn(() => Promise.resolve({ data: [] })),
 }));
+
+// Mock expo-speech-recognition
+jest.mock('expo-speech-recognition', () => ({
+  ExpoSpeechRecognitionModule: {
+    start: jest.fn(),
+    stop: jest.fn(),
+    abort: jest.fn(),
+    isRecognitionAvailable: jest.fn().mockReturnValue(true),
+    requestPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
+    getPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
+  },
+  useSpeechRecognitionEvent: jest.fn(),
+}));

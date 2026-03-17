@@ -28,11 +28,12 @@ import {
   TrackedShot,
   ShotData,
   SHOT_TYPES,
-  SHOT_RESULTS,
 } from '../types';
 import { parseShotData, deriveHoleStats, calculateTotalStrokes } from '../utils/roundStats';
 import { getResultLabel } from '../utils/shotLabels';
 import { formatScoreVsPar } from '../utils/scoreCalculations';
+import { getNextShotOptions, getResultsForType } from '../utils/shotStateMachine';
+import { FloatingMicButton } from '../components/voice/FloatingMicButton';
 import type { ScoringStackParamList } from '../types/navigation';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RouteProp } from '@react-navigation/native';
@@ -40,41 +41,7 @@ import type { RouteProp } from '@react-navigation/native';
 type NavProp = StackNavigationProp<ScoringStackParamList, 'ShotTracking'>;
 type RoutePropT = RouteProp<ScoringStackParamList, 'ShotTracking'>;
 
-// Result options per shot type
-const RESULT_OPTIONS: Record<string, { label: string; value: string }[]> = {
-  [SHOT_TYPES.TEE_SHOT]: [
-    { label: 'Left', value: SHOT_RESULTS.LEFT },
-    { label: 'Right', value: SHOT_RESULTS.RIGHT },
-    { label: 'Fairway', value: SHOT_RESULTS.CENTER },
-    { label: 'Rough', value: SHOT_RESULTS.ROUGH },
-    { label: 'Sand', value: SHOT_RESULTS.SAND },
-    { label: 'OB', value: SHOT_RESULTS.OB },
-  ],
-  [SHOT_TYPES.APPROACH]: [
-    { label: 'On Green', value: SHOT_RESULTS.GREEN },
-    { label: 'Left', value: SHOT_RESULTS.LEFT },
-    { label: 'Right', value: SHOT_RESULTS.RIGHT },
-    { label: 'Rough', value: SHOT_RESULTS.ROUGH },
-    { label: 'Sand', value: SHOT_RESULTS.SAND },
-    { label: 'Hazard', value: SHOT_RESULTS.HAZARD },
-  ],
-  [SHOT_TYPES.PUTT]: [
-    { label: 'Made', value: SHOT_RESULTS.MADE },
-    { label: 'Missed', value: SHOT_RESULTS.MISSED },
-  ],
-  [SHOT_TYPES.PENALTY]: [
-    { label: 'OB', value: SHOT_RESULTS.OB },
-    { label: 'Hazard', value: SHOT_RESULTS.HAZARD },
-    { label: 'Lost Ball', value: SHOT_RESULTS.OB },
-  ],
-};
-
-const SHOT_TYPE_LIST = [
-  SHOT_TYPES.TEE_SHOT,
-  SHOT_TYPES.APPROACH,
-  SHOT_TYPES.PUTT,
-  SHOT_TYPES.PENALTY,
-];
+// No more static RESULT_OPTIONS — context-aware options come from shotStateMachine
 
 const ShotTrackingScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -97,7 +64,25 @@ const ShotTrackingScreen: React.FC = () => {
   // Penalty stroke selector (1 or 2) — only shown when Penalty type is selected
   const [penaltyCount, setPenaltyCount] = useState<1 | 2>(1);
 
-  // Derived stats — computed directly from shots, no extra render cycle
+  // Context-aware shot options from state machine
+  const shotContext = useMemo(() => ({
+    par: hole?.par ?? 4,
+    shotNumber: currentStroke,
+    previousShots: shots,
+  }), [hole, currentStroke, shots]);
+
+  const shotOptions = useMemo(
+    () => getNextShotOptions(shotContext),
+    [shotContext],
+  );
+
+  // Current result options — either from recommended type or manual override
+  const currentResultOptions = useMemo(
+    () => selectedType === shotOptions.recommendedType
+      ? shotOptions.resultOptions
+      : getResultsForType(shotContext, selectedType),
+    [selectedType, shotOptions, shotContext],
+  );
 
   // Load hole data
   useEffect(() => {
@@ -126,14 +111,14 @@ const ShotTrackingScreen: React.FC = () => {
     loadHole();
   }, [holeId]);
 
-  // Apply preselected shot type
+  // Apply preselected shot type (validated against available types)
   useEffect(() => {
     if (preselectedShotType && hole) {
-      if (Object.values(SHOT_TYPES).includes(preselectedShotType as typeof SHOT_TYPES[keyof typeof SHOT_TYPES])) {
+      if (shotOptions.availableTypes.includes(preselectedShotType)) {
         setSelectedType(preselectedShotType);
       }
     }
-  }, [preselectedShotType, hole]);
+  }, [preselectedShotType, hole, shotOptions.availableTypes]);
 
   const derivedStats = useMemo(() => {
     if (hole && shots.length > 0) {
@@ -158,30 +143,18 @@ const ShotTrackingScreen: React.FC = () => {
 
       const updated = [...shots, newShot];
       setShots(updated);
-      // Penalty adds 1 (for the entry) + penaltyCount extra strokes to the total,
-      // but currentStroke tracks the *next shot number* which always increments by 1.
       setCurrentStroke(currentStroke + 1);
       setPuttDistance('');
 
-      // Auto-advance shot type
-      if (selectedType === SHOT_TYPES.TEE_SHOT) {
-        if (result === SHOT_RESULTS.GREEN) {
-          setSelectedType(SHOT_TYPES.PUTT);
-        } else {
-          setSelectedType(SHOT_TYPES.APPROACH);
-        }
-      } else if (selectedType === SHOT_TYPES.APPROACH) {
-        if (result === SHOT_RESULTS.GREEN) {
-          setSelectedType(SHOT_TYPES.PUTT);
-        }
-        // Stay on approach if not on green
-      } else if (selectedType === SHOT_TYPES.PENALTY) {
-        // After penalty, go back to approach
-        setSelectedType(SHOT_TYPES.APPROACH);
-      }
-      // Putt stays on putt
+      // Auto-advance: let the state machine determine the next shot type
+      const nextOptions = getNextShotOptions({
+        par: hole?.par ?? 4,
+        shotNumber: currentStroke + 1,
+        previousShots: updated,
+      });
+      setSelectedType(nextOptions.recommendedType);
     },
-    [currentStroke, selectedType, shots, puttDistance, penaltyCount],
+    [currentStroke, selectedType, shots, puttDistance, penaltyCount, hole],
   );
 
   const undoLastShot = useCallback(() => {
@@ -190,6 +163,32 @@ const ShotTrackingScreen: React.FC = () => {
     setShots(updated);
     setCurrentStroke(currentStroke - 1);
   }, [shots, currentStroke]);
+
+  // Voice input: same logic path as addShot, just a different input method
+  const handleVoiceShotRecorded = useCallback(
+    (voiceShot: TrackedShot) => {
+      const shotWithStroke: TrackedShot = {
+        ...voiceShot,
+        stroke: currentStroke,
+      };
+      const updated = [...shots, shotWithStroke];
+      setShots(updated);
+      setCurrentStroke(currentStroke + 1);
+      setPuttDistance('');
+
+      const nextOptions = getNextShotOptions({
+        par: hole?.par ?? 4,
+        shotNumber: currentStroke + 1,
+        previousShots: updated,
+      });
+      setSelectedType(nextOptions.recommendedType);
+    },
+    [currentStroke, shots, hole],
+  );
+
+  const handleVoiceError = useCallback((message: string) => {
+    Alert.alert('Voice Input', message);
+  }, []);
 
   const handleSave = useCallback(async () => {
     if (!hole || !roundId) return;
@@ -258,9 +257,9 @@ const ShotTrackingScreen: React.FC = () => {
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-        {/* Shot type selector */}
+        {/* Shot type selector — shows available types from state machine */}
         <View style={styles.typeRow}>
-          {SHOT_TYPE_LIST.map((t) => (
+          {shotOptions.availableTypes.map((t) => (
             <TouchableOpacity
               key={t}
               style={[styles.typeBtn, selectedType === t && styles.typeBtnActive]}
@@ -327,7 +326,7 @@ const ShotTrackingScreen: React.FC = () => {
         {/* Result buttons */}
         <Text style={styles.sectionTitle}>Shot {currentStroke} Result</Text>
         <View style={styles.resultGrid}>
-          {(RESULT_OPTIONS[selectedType] || []).map((opt) => (
+          {currentResultOptions.map((opt) => (
             <TouchableOpacity
               key={opt.value + opt.label}
               style={styles.resultBtn}
@@ -392,6 +391,14 @@ const ShotTrackingScreen: React.FC = () => {
         )}
       </ScrollView>
 
+      {/* Voice input FAB — hidden when unavailable */}
+      <FloatingMicButton
+        onShotRecorded={handleVoiceShotRecorded}
+        shotContext={shotContext}
+        disabled={saving}
+        onError={handleVoiceError}
+      />
+
       {/* Footer actions */}
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <Button
@@ -418,7 +425,7 @@ const styles = StyleSheet.create({
   strokeNum: { fontSize: 22, fontWeight: 'bold', color: S.white },
   strokeLabel: { fontSize: 12, color: 'rgba(255,255,255,0.9)' },
   body: { flex: 1 },
-  bodyContent: { padding: 16, paddingBottom: 32 },
+  bodyContent: { padding: 16, paddingBottom: 72 },
   typeRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   typeBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#e8e8e8', alignItems: 'center', minHeight: 44 },
   typeBtnActive: { backgroundColor: S.green },

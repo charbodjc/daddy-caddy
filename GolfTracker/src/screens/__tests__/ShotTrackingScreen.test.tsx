@@ -67,23 +67,25 @@ describe('ShotTrackingScreen', () => {
     });
   });
 
-  it('should display shot type buttons', async () => {
-    const { getByText } = render(<ShotTrackingScreen />);
+  it('should display context-aware shot type buttons', async () => {
+    const { getByText, queryByText } = render(<ShotTrackingScreen />);
 
     await waitFor(() => {
+      // For shot 1, only Tee Shot and Penalty are available
       expect(getByText('Tee Shot')).toBeTruthy();
-      expect(getByText('Approach')).toBeTruthy();
-      expect(getByText('Putt')).toBeTruthy();
       expect(getByText('Penalty')).toBeTruthy();
+      // Approach and Putt not shown until after tee shot
+      expect(queryByText('Approach')).toBeNull();
     });
   });
 
-  it('should display result options for selected shot type', async () => {
+  it('should display context-aware result options for tee shot', async () => {
     const { getByText } = render(<ShotTrackingScreen />);
 
     await waitFor(() => {
-      // Default is Tee Shot, which shows these results
+      // Par 4 tee shot includes Fairway, On Green (driveable), and others
       expect(getByText('Fairway')).toBeTruthy();
+      expect(getByText('On Green')).toBeTruthy();
       expect(getByText('Left')).toBeTruthy();
       expect(getByText('Right')).toBeTruthy();
       expect(getByText('OB')).toBeTruthy();
