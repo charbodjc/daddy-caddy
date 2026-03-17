@@ -40,6 +40,8 @@
     </array>
     <key>CFBundleVersion</key>
     <string>2</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -51,12 +53,16 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
-    <key>NSCameraUsageDescription</key>
-    <string>Daddy Caddy needs access to your camera to take photos of your golf rounds and tournaments.</string>
     <key>NSContactsUsageDescription</key>
     <string>Daddy Caddy needs access to your contacts to select recipients for golf score updates and messages.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Daddy Caddy needs access to your camera to take photos of your golf rounds and tournaments.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Daddy Caddy uses the microphone for voice shot tracking.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Daddy Caddy needs access to your photo library to attach photos to your golf rounds and tournaments.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Daddy Caddy uses speech recognition to convert voice commands to golf scores.</string>
     <key>RCTNewArchEnabled</key>
     <true/>
     <key>UILaunchStoryboardName</key>
@@ -84,8 +90,6 @@
     <key>UIUserInterfaceStyle</key>
     <string>Light</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
-    <false/>
-    <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
   </dict>
 </plist>
