@@ -39,6 +39,8 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import Hole from '../database/watermelon/models/Hole';
 import { useObservable } from '../hooks/useObservable';
 import { HoleCard } from '../components/round/HoleCard';
+import { GolferPicker } from '../components/golfer/GolferPicker';
+import { useGolfers } from '../hooks/useGolfers';
 
 interface RouteParams {
   roundId?: string;
@@ -54,7 +56,16 @@ const RoundTrackerScreen: React.FC = () => {
   
   const { round, loading, error } = useRound(params.roundId);
   const { createRound, updateHole, finishRound, deleteRound } = useRoundStore();
-  
+  const { golfers, activeGolferId, loading: golfersLoading, createGolfer } = useGolfers();
+  const [selectedGolferId, setSelectedGolferId] = useState<string | null>(null);
+
+  // Initialize selected golfer to active golfer
+  useEffect(() => {
+    if (!selectedGolferId && activeGolferId) {
+      setSelectedGolferId(activeGolferId);
+    }
+  }, [activeGolferId, selectedGolferId]);
+
   // Observe holes reactively — UI updates automatically on DB changes.
   // Depend on round?.id (not round) to avoid creating a new Observable
   // when loadActiveRound() returns a new Round object with the same ID.
@@ -92,6 +103,7 @@ const RoundTrackerScreen: React.FC = () => {
     try {
       await createRound({
         courseName: courseName.trim(),
+        golferId: selectedGolferId || undefined,
         tournamentId: params.tournamentId,
         tournamentName: params.tournamentName,
       });
@@ -232,6 +244,16 @@ const RoundTrackerScreen: React.FC = () => {
               </View>
             )}
 
+            <Text style={styles.fieldLabel}>Golfer</Text>
+            <GolferPicker
+              golfers={golfers}
+              selectedGolferId={selectedGolferId}
+              onSelectGolfer={setSelectedGolferId}
+              onCreateGolfer={async (name) => { await createGolfer({ name }); }}
+              loading={golfersLoading}
+            />
+
+            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Course</Text>
             <TextInput
               style={styles.input}
               placeholder="Course Name"
@@ -260,7 +282,12 @@ const RoundTrackerScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* Header with score */}
-      <RoundHeader round={round} totalPar={totalPar} />
+      <RoundHeader
+        round={round}
+        totalPar={totalPar}
+        golferName={golfers.find((g) => g.id === round.golferId)?.name}
+        golferColor={golfers.find((g) => g.id === round.golferId)?.color}
+      />
       
       {/* Action Bar */}
       <View style={styles.actionBar}>
@@ -380,6 +407,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#4CAF50',
     fontWeight: '600',
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    textTransform: 'uppercase' as const,
+    marginBottom: 8,
   },
   input: {
     backgroundColor: '#fff',

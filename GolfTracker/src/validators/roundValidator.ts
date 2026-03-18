@@ -27,6 +27,7 @@ export const roundSchema = z.object({
 export const createRoundSchema = z.object({
   courseName: z.string().min(1).max(100),
   date: z.date().optional(),
+  golferId: z.string().optional(),
   tournamentId: z.string().optional(),
   tournamentName: z.string().optional(),
 });

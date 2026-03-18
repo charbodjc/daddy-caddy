@@ -3,8 +3,8 @@ import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppNavigator from './src/navigation/AppNavigator';
-// WatermelonDB auto-initializes via its adapter — no manual init needed
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import { useGolferStore } from './src/stores/golferStore';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
 
 const App = () => {
@@ -21,6 +21,11 @@ const App = () => {
       // Check if user has completed onboarding
       const onboardingCompleted = await AsyncStorage.getItem('onboarding_completed');
       setShowOnboarding(onboardingCompleted !== 'true');
+
+      // Bootstrap golfer data BEFORE rendering — prevents race condition
+      // where loadActiveRound fires before activeGolferId is set
+      await useGolferStore.getState().ensureDefaultGolfer();
+      await useGolferStore.getState().loadGolfers();
 
       setIsInitialized(true);
     } catch (err) {

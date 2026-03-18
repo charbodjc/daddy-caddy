@@ -58,9 +58,20 @@ export interface GolfHole {
   shotData?: ShotData;
 }
 
+export interface Golfer {
+  id: string;
+  name: string;
+  handicap?: number;
+  color: string;
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface GolfRound {
   id: string;
   name?: string;
+  golferId?: string;
   tournamentId?: string;
   tournamentName?: string;
   courseName: string;

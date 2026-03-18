@@ -30,6 +30,7 @@ export type TournamentStackParamList = {
 // Settings stack
 export type SettingsStackParamList = {
   SettingsList: undefined;
+  Golfers: undefined;
   Contacts: undefined;
   DatabaseDiagnostic: undefined;
 };

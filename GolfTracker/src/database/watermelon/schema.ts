@@ -1,14 +1,26 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 1,
+  version: 2,
   tables: [
+    tableSchema({
+      name: 'golfers',
+      columns: [
+        { name: 'name', type: 'string' },
+        { name: 'handicap', type: 'number', isOptional: true },
+        { name: 'color', type: 'string' },
+        { name: 'is_default', type: 'boolean' },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
     tableSchema({
       name: 'rounds',
       columns: [
         { name: 'course_name', type: 'string' },
         { name: 'tournament_id', type: 'string', isOptional: true },
         { name: 'tournament_name', type: 'string', isOptional: true },
+        { name: 'golfer_id', type: 'string', isOptional: true, isIndexed: true },
         { name: 'date', type: 'number' },
         { name: 'total_score', type: 'number', isOptional: true },
         { name: 'total_putts', type: 'number', isOptional: true },

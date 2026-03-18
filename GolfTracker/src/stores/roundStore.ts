@@ -10,6 +10,7 @@ import {
   type HoleData,
   type CreateRoundData,
 } from '../validators/roundValidator';
+import { useGolferStore } from './golferStore';
 
 interface RoundState {
   activeRound: Round | null;
@@ -24,7 +25,7 @@ interface RoundState {
   finishRound: (roundId: string) => Promise<void>;
   deleteRound: (roundId: string) => Promise<void>;
   clearActiveRound: () => Promise<void>;
-  loadAllRounds: () => Promise<void>;
+  loadAllRounds: (golferId?: string) => Promise<void>;
   setActiveRound: (roundId: string) => Promise<void>;
 }
 
@@ -36,18 +37,23 @@ export const useRoundStore = create<RoundState>()(
       loading: false,
       error: null,
 
-      // Load active round by querying WatermelonDB for unfinished rounds
+      // Load active round by querying WatermelonDB for unfinished rounds, filtered by golfer
       loadActiveRound: async () => {
         set({ loading: true, error: null });
 
         try {
+          const activeGolferId = useGolferStore.getState().getActiveGolferId();
+          const clauses = [
+            Q.where('is_finished', false),
+            // Null guard: if golfer store not yet initialized, fall back to unfiltered
+            ...(activeGolferId ? [Q.where('golfer_id', activeGolferId)] : []),
+            Q.sortBy('created_at', Q.desc),
+            Q.take(1),
+          ];
+
           const unfinished = await database.collections
             .get<Round>('rounds')
-            .query(
-              Q.where('is_finished', false),
-              Q.sortBy('created_at', Q.desc),
-              Q.take(1),
-            )
+            .query(...clauses)
             .fetch();
 
           set({ activeRound: unfinished[0] ?? null, loading: false });
@@ -68,10 +74,12 @@ export const useRoundStore = create<RoundState>()(
 
           // Create round and all 18 holes in a single write transaction
           const round = await database.write(async () => {
+            const golferId = data.golferId || useGolferStore.getState().getActiveGolferId();
             const newRound = await database.collections.get<Round>('rounds').create((r) => {
               r.courseName = data.courseName;
               r.date = data.date || new Date();
               r.isFinished = false;
+              if (golferId) r.golferId = golferId;
               if (data.tournamentId) r.tournamentId = data.tournamentId;
               if (data.tournamentName) r.tournamentName = data.tournamentName;
             });
@@ -226,31 +234,26 @@ export const useRoundStore = create<RoundState>()(
         }
       },
 
-      // Clear active round (mark it finished so it won't be picked up again)
+      // Clear active round from in-memory state only.
+      // Does NOT mark the round as finished — the round remains unfinished in the DB.
+      // This is critical for golfer switching: hiding a round is not finishing it.
       clearActiveRound: async () => {
-        const { activeRound } = get();
-        if (activeRound) {
-          try {
-            await database.write(async () => {
-              await activeRound.update((r) => {
-                r.isFinished = true;
-              });
-            });
-          } catch (err) {
-            console.error('Failed to mark active round as finished:', err);
-          }
-        }
         set({ activeRound: null });
       },
 
-      // Load all rounds
-      loadAllRounds: async () => {
+      // Load all rounds, optionally filtered by golfer
+      loadAllRounds: async (golferId?: string) => {
         set({ loading: true, error: null });
 
         try {
+          const clauses = [
+            ...(golferId ? [Q.where('golfer_id', golferId)] : []),
+            Q.sortBy('date', Q.desc),
+          ];
+
           const rounds = await database.collections
             .get<Round>('rounds')
-            .query(Q.sortBy('date', Q.desc))
+            .query(...clauses)
             .fetch();
 
           set({ rounds, loading: false });

@@ -5,6 +5,7 @@ import Hole from '../../database/watermelon/models/Hole';
 import Tournament from '../../database/watermelon/models/Tournament';
 import Media from '../../database/watermelon/models/Media';
 import Contact from '../../database/watermelon/models/Contact';
+import { useGolferStore } from '../../stores/golferStore';
 
 // Matches the format originally defined in exportData.ts
 interface ExportedData {
@@ -90,6 +91,9 @@ export const importLegacyData = async (
       throw new Error(`Unsupported export version: ${data.version}`);
     }
     
+    // Assign imported rounds to the active golfer
+    const activeGolferId = useGolferStore.getState().getActiveGolferId();
+
     // Import in a single transaction for consistency
     await database.write(async () => {
       // Import tournaments first (referenced by rounds)
@@ -132,7 +136,8 @@ export const importLegacyData = async (
           round.courseName = roundData.courseName;
           round.date = new Date(roundData.date);
           round.isFinished = roundData.isFinished ?? false;
-          
+          if (activeGolferId) round.golferId = activeGolferId;
+
           if (roundData.tournamentId) round.tournamentId = roundData.tournamentId;
           if (roundData.tournamentName) round.tournamentName = roundData.tournamentName;
           if (roundData.totalScore) round.totalScore = roundData.totalScore;

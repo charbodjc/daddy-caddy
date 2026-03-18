@@ -14,6 +14,8 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { database } from '../database/watermelon/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { resetOnboarding } from '../utils/onboarding';
+import { useGolferStore } from '../stores/golferStore';
+import { removePreference } from '../services/preferenceService';
 
 const SettingsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -45,9 +47,15 @@ const SettingsScreen: React.FC = () => {
               await database.write(async () => {
                 await database.unsafeResetDatabase();
               });
-              
+
+              // Clean up AsyncStorage keys
               await AsyncStorage.removeItem('active_round_id');
-              
+              await removePreference('active_golfer_id');
+
+              // Re-bootstrap default golfer immediately
+              await useGolferStore.getState().ensureDefaultGolfer();
+              await useGolferStore.getState().loadGolfers();
+
               Alert.alert('Success', 'All data has been cleared');
             } catch (error) {
               Alert.alert('Error', 'Failed to clear data');
@@ -139,12 +147,33 @@ const SettingsScreen: React.FC = () => {
             onValueChange={setNotifications}
             trackColor={{ false: '#ccc', true: '#4CAF50' }}
             thumbColor="#fff"
+            accessibilityLabel="Notifications"
           />
         </View>
         
         <TouchableOpacity
           style={styles.settingItem}
+          onPress={() => (navigation as any).navigate('Golfers')}
+          accessibilityRole="button"
+          accessibilityLabel="Manage Golfers"
+        >
+          <View style={styles.settingInfo}>
+            <Icon name="people" size={24} color="#4CAF50" />
+            <View style={styles.settingText}>
+              <Text style={styles.settingLabel}>Manage Golfers</Text>
+              <Text style={styles.settingDescription}>
+                Add and manage golfer profiles
+              </Text>
+            </View>
+          </View>
+          <Icon name="chevron-right" size={24} color="#ccc" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.settingItem}
           onPress={handleReplayOnboarding}
+          accessibilityRole="button"
+          accessibilityLabel="Replay tutorial"
         >
           <View style={styles.settingInfo}>
             <Icon name="help-outline" size={24} color="#4CAF50" />
@@ -167,6 +196,8 @@ const SettingsScreen: React.FC = () => {
           style={styles.settingItem}
           onPress={handleExportData}
           disabled={exporting}
+          accessibilityRole="button"
+          accessibilityLabel="Export data"
         >
           <View style={styles.settingInfo}>
             <Icon name="cloud-upload" size={24} color="#4CAF50" />
@@ -186,6 +217,8 @@ const SettingsScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.settingItem}
           onPress={handleClearAllData}
+          accessibilityRole="button"
+          accessibilityLabel="Clear all data"
         >
           <View style={styles.settingInfo}>
             <Icon name="delete-forever" size={24} color="#f44336" />
@@ -209,6 +242,8 @@ const SettingsScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.settingItem}
           onPress={handleDatabaseDiagnostics}
+          accessibilityRole="button"
+          accessibilityLabel="Database diagnostics"
         >
           <View style={styles.settingInfo}>
             <Icon name="bug-report" size={24} color="#666" />

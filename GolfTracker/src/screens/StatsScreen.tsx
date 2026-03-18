@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStats } from '../hooks/useStats';
@@ -6,15 +6,33 @@ import { LoadingScreen } from '../components/common/LoadingScreen';
 import { ErrorScreen } from '../components/common/ErrorScreen';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import { GolferPicker } from '../components/golfer/GolferPicker';
+import { useGolfers } from '../hooks/useGolfers';
+import { useStatsStore } from '../stores/statsStore';
 
 const StatsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { stats, loading, error, refresh } = useStats();
+  const { golfers, activeGolferId, activeGolfer, loading: golfersLoading, createGolfer } = useGolfers();
+  const { calculateStats } = useStatsStore();
+  const [selectedGolferId, setSelectedGolferId] = React.useState<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
-  
+
+  // Init selected golfer from active
+  React.useEffect(() => {
+    if (!selectedGolferId && activeGolferId) {
+      setSelectedGolferId(activeGolferId);
+    }
+  }, [activeGolferId, selectedGolferId]);
+
+  const handleGolferSelect = useCallback(async (id: string) => {
+    setSelectedGolferId(id);
+    await calculateStats(id);
+  }, [calculateStats]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
-    await refresh();
+    await calculateStats(selectedGolferId || undefined);
     setRefreshing(false);
   };
   
@@ -47,9 +65,26 @@ const StatsScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <Text style={styles.headerTitle}>Statistics</Text>
+        <Text style={styles.headerTitle}>
+          {activeGolfer && selectedGolferId === activeGolferId
+            ? `${activeGolfer.name}'s Statistics`
+            : 'Statistics'}
+        </Text>
         <Text style={styles.headerSubtitle}>{stats.totalRounds} Rounds Played</Text>
       </View>
+
+      {/* Golfer filter */}
+      {golfers.length > 1 && (
+        <View style={styles.golferFilter}>
+          <GolferPicker
+            golfers={golfers}
+            selectedGolferId={selectedGolferId}
+            onSelectGolfer={handleGolferSelect}
+            onCreateGolfer={async (name) => { await createGolfer({ name }); }}
+            loading={golfersLoading}
+          />
+        </View>
+      )}
       
       <ScrollView
         style={styles.content}
@@ -196,6 +231,13 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
+  },
+  golferFilter: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   content: {
     flex: 1,

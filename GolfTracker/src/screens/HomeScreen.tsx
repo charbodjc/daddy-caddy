@@ -7,18 +7,23 @@ import { useRound } from '../hooks/useRound';
 import { useRoundStore } from '../stores/roundStore';
 import { useStats } from '../hooks/useStats';
 import { LoadingScreen } from '../components/common/LoadingScreen';
-// ErrorScreen available for future use
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { formatDate } from '../utils/dateFormatting';
+import { GolferAvatar } from '../components/golfer/GolferAvatar';
+import { GolferPicker } from '../components/golfer/GolferPicker';
+import { useGolfers } from '../hooks/useGolfers';
+import { useStatsStore } from '../stores/statsStore';
 
 const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<AppNavigationProp>();
   const { round: activeRound, loading: roundLoading, reload: reloadRound } = useRound();
   const { stats, loading: statsLoading, refresh: refreshStats } = useStats();
-  const { loadAllRounds } = useRoundStore();
+  const { loadAllRounds, loadActiveRound } = useRoundStore();
+  const { golfers, activeGolfer, activeGolferId, loading: golfersLoading, setActiveGolfer, createGolfer } = useGolfers();
+  const { calculateStats } = useStatsStore();
   
   const [refreshing, setRefreshing] = React.useState(false);
   
@@ -33,6 +38,12 @@ const HomeScreen: React.FC = () => {
     ]);
     setRefreshing(false);
   }, [reloadRound, refreshStats, loadAllRounds]);
+
+  const handleSwitchGolfer = useCallback(async (id: string) => {
+    await setActiveGolfer(id);
+    await loadActiveRound();
+    await calculateStats(id);
+  }, [setActiveGolfer, loadActiveRound, calculateStats]);
 
   const handleStartQuickRound = useCallback(() => {
     navigation.navigate('Scoring', {
@@ -79,6 +90,19 @@ const HomeScreen: React.FC = () => {
         </View>
       </View>
       
+      {/* Golfer Switcher */}
+      {golfers.length > 1 && (
+        <View style={styles.golferSwitcher}>
+          <GolferPicker
+            golfers={golfers}
+            selectedGolferId={activeGolferId}
+            onSelectGolfer={handleSwitchGolfer}
+            onCreateGolfer={async (name) => { await createGolfer({ name }); }}
+            loading={golfersLoading}
+          />
+        </View>
+      )}
+
       {/* Active Round Card */}
       {activeRound ? (
         <View style={styles.card}>
@@ -86,6 +110,12 @@ const HomeScreen: React.FC = () => {
             <Icon name="golf-course" size={24} color="#4CAF50" />
             <Text style={styles.cardTitle}>Active Round</Text>
           </View>
+          {activeGolfer && (
+            <View style={styles.golferRow}>
+              <GolferAvatar name={activeGolfer.name} color={activeGolfer.color} size={24} />
+              <Text style={styles.golferName}>{activeGolfer.name}</Text>
+            </View>
+          )}
           <Text style={styles.courseName}>{activeRound.courseName}</Text>
           {activeRound.tournamentName && (
             <Text style={styles.tournamentName}>🏆 {activeRound.tournamentName}</Text>
@@ -121,7 +151,7 @@ const HomeScreen: React.FC = () => {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Icon name="bar-chart" size={24} color="#4CAF50" />
-            <Text style={styles.cardTitle}>Your Statistics</Text>
+            <Text style={styles.cardTitle}>{activeGolfer ? `${activeGolfer.name}'s Statistics` : 'Your Statistics'}</Text>
           </View>
           
           <View style={styles.statsGrid}>
@@ -238,6 +268,21 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
+  },
+  golferSwitcher: {
+    paddingHorizontal: 15,
+    paddingTop: 12,
+  },
+  golferRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  golferName: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
   card: {
     backgroundColor: '#fff',
