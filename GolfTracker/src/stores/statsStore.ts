@@ -5,6 +5,7 @@ import Round from '../database/watermelon/models/Round';
 import { Q } from '@nozbe/watermelondb';
 import type { Statistics } from '../types';
 import { calculateScoreBreakdown } from '../utils/scoreCalculations';
+import { useGolferStore } from './golferStore';
 
 interface StatsState {
   stats: Statistics | null;
@@ -12,7 +13,7 @@ interface StatsState {
   error: Error | null;
   
   // Actions
-  calculateStats: () => Promise<void>;
+  calculateStats: (golferId?: string) => Promise<void>;
   calculateStatsForRounds: (rounds: Round[]) => Promise<Statistics>;
   clearStats: () => void;
 }
@@ -39,14 +40,20 @@ export const useStatsStore = create<StatsState>()(
       loading: false,
       error: null,
       
-      // Calculate statistics from all rounds
-      calculateStats: async () => {
+      // Calculate statistics for a specific golfer (defaults to active golfer)
+      calculateStats: async (golferId?: string) => {
         set({ loading: true, error: null });
-        
+
         try {
+          const effectiveGolferId = golferId || useGolferStore.getState().getActiveGolferId();
+          const clauses = [
+            Q.where('is_finished', true),
+            ...(effectiveGolferId ? [Q.where('golfer_id', effectiveGolferId)] : []),
+          ];
+
           const rounds = await database.collections
             .get<Round>('rounds')
-            .query(Q.where('is_finished', true))
+            .query(...clauses)
             .fetch();
           
           const stats = await get().calculateStatsForRounds(rounds);

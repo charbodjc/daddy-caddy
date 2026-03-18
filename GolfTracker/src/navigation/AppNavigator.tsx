@@ -24,6 +24,7 @@ import TournamentsScreen from '../screens/TournamentsScreen';
 import TournamentRoundsScreen from '../screens/TournamentRoundsScreen';
 import CameraScreen from '../screens/CameraScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import GolfersScreen from '../screens/GolfersScreen';
 import DatabaseDiagnosticScreen from '../screens/DatabaseDiagnosticScreen';
 import ContactsScreen from '../screens/ContactsScreen';
 
@@ -127,6 +128,11 @@ const SettingsStack = () => {
         name="SettingsList"
         component={SettingsScreen}
         options={{ title: 'Settings', headerShown: false }}
+      />
+      <SettingsStackNav.Screen
+        name="Golfers"
+        component={GolfersScreen}
+        options={{ title: 'Manage Golfers', headerShown: false }}
       />
       <SettingsStackNav.Screen
         name="Contacts"

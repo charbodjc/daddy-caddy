@@ -4,13 +4,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Round from '../../database/watermelon/models/Round';
 import { formatScoreVsPar } from '../../utils/scoreCalculations';
 import { formatDateShort } from '../../utils/dateFormatting';
+import { GolferAvatar } from '../golfer/GolferAvatar';
 
 interface RoundHeaderProps {
   round: Round;
   totalPar?: number;
+  golferName?: string;
+  golferColor?: string;
 }
 
-export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, totalPar: totalParProp }) => {
+export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, totalPar: totalParProp, golferName, golferColor }) => {
   const insets = useSafeAreaInsets();
   const calculateScore = () => {
     if (!round.totalScore) return { strokes: 0, toPar: 0 };
@@ -31,6 +34,12 @@ export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, tota
   return (
     <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
       <View style={styles.courseInfo}>
+        {golferName && golferColor && (
+          <View style={styles.golferRow}>
+            <GolferAvatar name={golferName} color={golferColor} size={24} />
+            <Text style={styles.golferText}>{golferName}</Text>
+          </View>
+        )}
         <Text style={styles.courseName}>{round.courseName}</Text>
         {round.tournamentName && (
           <Text style={styles.tournamentName}>{round.tournamentName}</Text>
@@ -63,6 +72,17 @@ const styles = StyleSheet.create({
   },
   courseInfo: {
     flex: 1,
+  },
+  golferRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  golferText: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
   },
   courseName: {
     fontSize: 20,

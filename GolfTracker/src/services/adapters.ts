@@ -28,6 +28,7 @@ export function roundToGolfRound(round: Round, holes: Hole[]): GolfRound {
   return {
     id: round.id,
     courseName: round.courseName,
+    golferId: round.golferId,
     tournamentId: round.tournamentId,
     tournamentName: round.tournamentName,
     date: round.date,
