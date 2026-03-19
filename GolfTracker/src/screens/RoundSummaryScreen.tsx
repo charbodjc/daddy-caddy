@@ -18,6 +18,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 // FontAwesome5 available for future use
 import { format } from 'date-fns';
 import { formatScoreVsPar, calculateScoreBreakdown } from '../utils/scoreCalculations';
+import { calculateRunningRoundStats, formatRunningStatsForSMS, RunningRoundStats } from '../utils/roundStats';
 
 interface RouteParams {
   roundId: string;
@@ -31,6 +32,7 @@ const RoundSummaryScreen: React.FC = () => {
   
   const [round, setRound] = useState<Round | null>(null);
   const [holes, setHoles] = useState<Array<{ strokes: number; par: number }>>([]);
+  const [roundStats, setRoundStats] = useState<RunningRoundStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   
@@ -47,8 +49,10 @@ const RoundSummaryScreen: React.FC = () => {
       const roundData = await database.collections.get<Round>('rounds').find(roundId);
       const holesData = await roundData.holes.fetch();
       
+      const stats = await calculateRunningRoundStats(roundId);
       setRound(roundData);
       setHoles(holesData);
+      setRoundStats(stats);
       setError(null);
     } catch (err) {
       setError(err as Error);
@@ -66,6 +70,8 @@ const RoundSummaryScreen: React.FC = () => {
     const toPar = totalStrokes - totalPar;
     const scoreDisplay = formatScoreVsPar(toPar);
 
+    const statsBlock = roundStats ? formatRunningStatsForSMS(roundStats) : '';
+
     const message = `
 🏌️ Golf Round Summary
 
@@ -73,7 +79,8 @@ const RoundSummaryScreen: React.FC = () => {
 📅 ${format(round.date, 'EEEE, MMM d, yyyy')}
 ${round.tournamentName ? `🏆 ${round.tournamentName}\n` : ''}
 ⛳ Score: ${totalStrokes} (${scoreDisplay})
-${round.totalPutts ? `🎯 Putts: ${round.totalPutts}\n` : ''}${round.fairwaysHit !== undefined ? `🎯 Fairways: ${round.fairwaysHit}/14\n` : ''}${round.greensInRegulation !== undefined ? `🟢 GIR: ${round.greensInRegulation}/18\n` : ''}
+${statsBlock}
+
 Played with Daddy Caddy ⛳
     `.trim();
 
@@ -82,7 +89,7 @@ Played with Daddy Caddy ⛳
     } catch (error) {
       console.error('Share failed:', error);
     }
-  }, [round, holes]);
+  }, [round, holes, roundStats]);
 
   const completedHoles = useMemo(() => holes.filter(h => h.strokes > 0), [holes]);
   const totalPar = useMemo(() => completedHoles.reduce((sum, h) => sum + h.par, 0), [completedHoles]);
@@ -157,29 +164,65 @@ Played with Daddy Caddy ⛳
       </View>
       
       {/* Statistics */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Statistics</Text>
-        
-        <View style={styles.statsGrid}>
-          {round.fairwaysHit !== undefined && (
-            <StatItem
-              icon={<Icon name="flag" size={20} color="#4CAF50" />}
-              label="Fairways Hit"
-              value={`${round.fairwaysHit}/14`}
-              percentage={Math.round((round.fairwaysHit / 14) * 100)}
-            />
-          )}
-          
-          {round.greensInRegulation !== undefined && (
-            <StatItem
-              icon={<Icon name="adjust" size={20} color="#4CAF50" />}
-              label="Greens in Regulation"
-              value={`${round.greensInRegulation}/18`}
-              percentage={Math.round((round.greensInRegulation / 18) * 100)}
-            />
-          )}
+      {(round.fairwaysHit !== undefined || round.greensInRegulation !== undefined) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Statistics</Text>
+
+          <View style={styles.statsGrid}>
+            {round.fairwaysHit !== undefined && (
+              <StatItem
+                icon={<Icon name="flag" size={20} color="#4CAF50" />}
+                label="Fairways Hit"
+                value={`${round.fairwaysHit}/14`}
+                percentage={Math.round((round.fairwaysHit / 14) * 100)}
+              />
+            )}
+
+            {round.greensInRegulation !== undefined && (
+              <StatItem
+                icon={<Icon name="adjust" size={20} color="#4CAF50" />}
+                label="Greens in Regulation"
+                value={`${round.greensInRegulation}/18`}
+                percentage={Math.round((round.greensInRegulation / 18) * 100)}
+              />
+            )}
+          </View>
         </View>
-      </View>
+      )}
+
+      {/* Detailed Stats — only shown when shot-level data was tracked */}
+      {roundStats && roundStats.totalPutts > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Putting</Text>
+          <View style={styles.detailedStatsList}>
+            <DetailedStatRow label="Total Putts" value={`${roundStats.totalPutts}`} />
+            <DetailedStatRow label="Total Putt Feet Made" value={`${Math.round(roundStats.totalPuttFeetMade)} ft`} />
+            {roundStats.birdiePuttCount > 0 && (
+              <DetailedStatRow label="Avg 1st Putt (Birdie Holes)" value={`${roundStats.avgBirdiePuttDistance} ft`} />
+            )}
+            {roundStats.parPuttCount > 0 && (
+              <DetailedStatRow label="Avg 1st Putt (Par Holes)" value={`${roundStats.avgParPuttDistance} ft`} />
+            )}
+            <DetailedStatRow label="1-Putts" value={`${roundStats.totalOnePutts}`} />
+            <DetailedStatRow label="3-Putts" value={`${roundStats.totalThreePutts}`} />
+          </View>
+        </View>
+      )}
+
+      {roundStats && (roundStats.teeShotsMissedLeft + roundStats.teeShotsMissedRight +
+        roundStats.approachMissedLeft + roundStats.approachMissedRight +
+        roundStats.totalPenaltyStrokes > 0) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Accuracy</Text>
+          <View style={styles.detailedStatsList}>
+            <DetailedStatRow label="Tee Shots Missed Left" value={`${roundStats.teeShotsMissedLeft}`} />
+            <DetailedStatRow label="Tee Shots Missed Right" value={`${roundStats.teeShotsMissedRight}`} />
+            <DetailedStatRow label="Approaches Missed Left" value={`${roundStats.approachMissedLeft}`} />
+            <DetailedStatRow label="Approaches Missed Right" value={`${roundStats.approachMissedRight}`} />
+            <DetailedStatRow label="Penalty Strokes" value={`${roundStats.totalPenaltyStrokes}`} />
+          </View>
+        </View>
+      )}
       
       {/* Scoring Breakdown */}
       <View style={styles.section}>
@@ -212,7 +255,7 @@ Played with Daddy Caddy ⛳
       )}
       
       {/* Actions */}
-      <View style={styles.actions}>
+      <View style={[styles.actions, { paddingBottom: Math.max(30, insets.bottom + 10) }]}>
         <Button title="Share Round" onPress={handleShare} style={styles.actionButton} />
       </View>
     </ScrollView>
@@ -255,9 +298,20 @@ const BreakdownItem: React.FC<{
   </View>
 ));
 
+const DetailedStatRow: React.FC<{
+  label: string;
+  value: string;
+}> = React.memo(({ label, value }) => (
+  <View style={styles.detailedStatRow}>
+    <Text style={styles.detailedStatLabel}>{label}</Text>
+    <Text style={styles.detailedStatValue}>{value}</Text>
+  </View>
+));
+
 ScoreDetailItem.displayName = 'ScoreDetailItem';
 StatItem.displayName = 'StatItem';
 BreakdownItem.displayName = 'BreakdownItem';
+DetailedStatRow.displayName = 'DetailedStatRow';
 
 const styles = StyleSheet.create({
   container: {
@@ -450,6 +504,35 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     marginBottom: 12,
+  },
+  detailedStatsList: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  detailedStatRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  detailedStatLabel: {
+    fontSize: 15,
+    color: '#555',
+    flex: 1,
+  },
+  detailedStatValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
   },
 });
 

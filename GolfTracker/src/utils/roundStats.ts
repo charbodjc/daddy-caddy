@@ -26,6 +26,18 @@ export interface RunningRoundStats {
   totalThreePutts: number;
   avgFirstPuttDistance: number;
   holesWithFirstPuttData: number;
+  avgBirdiePuttDistance: number;
+  birdiePuttCount: number;
+  totalBirdiePuttFeet: number;
+  avgParPuttDistance: number;
+  parPuttCount: number;
+  totalParPuttFeet: number;
+  totalPuttFeetMade: number;
+  teeShotsMissedLeft: number;
+  teeShotsMissedRight: number;
+  approachMissedLeft: number;
+  approachMissedRight: number;
+  totalPenaltyStrokes: number;
 }
 
 /**
@@ -106,6 +118,18 @@ export async function calculateRunningRoundStats(
     totalThreePutts: 0,
     avgFirstPuttDistance: 0,
     holesWithFirstPuttData: 0,
+    avgBirdiePuttDistance: 0,
+    birdiePuttCount: 0,
+    totalBirdiePuttFeet: 0,
+    avgParPuttDistance: 0,
+    parPuttCount: 0,
+    totalParPuttFeet: 0,
+    totalPuttFeetMade: 0,
+    teeShotsMissedLeft: 0,
+    teeShotsMissedRight: 0,
+    approachMissedLeft: 0,
+    approachMissedRight: 0,
+    totalPenaltyStrokes: 0,
   };
 
   let round: Round;
@@ -145,11 +169,83 @@ export async function calculateRunningRoundStats(
 
     if (holeStats.isOnePutt) stats.totalOnePutts += 1;
     if (holeStats.isThreePutt) stats.totalThreePutts += 1;
+
+    // Birdie/par putt distances (first putt distance on birdie/par holes)
+    const holeScore = hole.strokes;
+    const scoreToPar = holeScore - hole.par;
+    if (holeStats.firstPuttDistanceFeet !== undefined) {
+      if (scoreToPar === -1) {
+        stats.totalBirdiePuttFeet += holeStats.firstPuttDistanceFeet;
+        stats.birdiePuttCount += 1;
+      } else if (scoreToPar === 0) {
+        stats.totalParPuttFeet += holeStats.firstPuttDistanceFeet;
+        stats.parPuttCount += 1;
+      }
+    }
+
+    // Total feet of putts made
+    const puttShots = shotData.shots.filter(
+      s => s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase()
+    );
+    for (const putt of puttShots) {
+      if (putt.results.includes(SHOT_RESULTS.MADE) && putt.puttDistance) {
+        const distStr = putt.puttDistance.replace(/\s*(ft|feet)\s*$/i, '').trim();
+        const parsed = parseFloat(distStr);
+        if (!isNaN(parsed) && parsed > 0) {
+          stats.totalPuttFeetMade += parsed;
+        }
+      }
+    }
+
+    // Tee shot miss direction (exclude par 3s)
+    if (hole.par > 3) {
+      const teeShot = shotData.shots.find(
+        s => s.type === SHOT_TYPES.TEE_SHOT || s.type?.toLowerCase() === 'tee'
+      );
+      if (teeShot) {
+        if (teeShot.results.includes(SHOT_RESULTS.LEFT)) stats.teeShotsMissedLeft += 1;
+        if (teeShot.results.includes(SHOT_RESULTS.RIGHT)) stats.teeShotsMissedRight += 1;
+      }
+    }
+
+    // Approach miss direction (include par 3 tee shots as approaches)
+    const approachShots = shotData.shots.filter(
+      s => s.type === SHOT_TYPES.APPROACH
+    );
+    if (hole.par === 3) {
+      const par3TeeShot = shotData.shots.find(
+        s => s.type === SHOT_TYPES.TEE_SHOT || s.type?.toLowerCase() === 'tee'
+      );
+      if (par3TeeShot) approachShots.push(par3TeeShot);
+    }
+    for (const approach of approachShots) {
+      if (approach.results.includes(SHOT_RESULTS.LEFT)) stats.approachMissedLeft += 1;
+      if (approach.results.includes(SHOT_RESULTS.RIGHT)) stats.approachMissedRight += 1;
+    }
+
+    // Penalty strokes
+    for (const shot of shotData.shots) {
+      if (shot.penaltyStrokes) {
+        stats.totalPenaltyStrokes += shot.penaltyStrokes;
+      }
+    }
   }
 
   if (stats.holesWithFirstPuttData > 0) {
     stats.avgFirstPuttDistance = Math.round(
       stats.totalFirstPuttFeet / stats.holesWithFirstPuttData
+    );
+  }
+
+  if (stats.birdiePuttCount > 0) {
+    stats.avgBirdiePuttDistance = Math.round(
+      stats.totalBirdiePuttFeet / stats.birdiePuttCount
+    );
+  }
+
+  if (stats.parPuttCount > 0) {
+    stats.avgParPuttDistance = Math.round(
+      stats.totalParPuttFeet / stats.parPuttCount
     );
   }
 
@@ -164,15 +260,24 @@ export function formatRunningStatsForSMS(stats: RunningRoundStats): string {
 
   let text = '\n--- Round Stats ---\n';
   text += `Putts: ${stats.totalPutts}\n`;
+  text += `Total Putt Feet Made: ${Math.round(stats.totalPuttFeetMade)} ft\n`;
   if (stats.totalFairwayHoles > 0) {
     text += `Fairways: ${stats.totalFairwaysHit}/${stats.totalFairwayHoles}\n`;
   }
   text += `GIR: ${stats.totalGIR}/${stats.totalHolesPlayed}\n`;
   if (stats.holesWithFirstPuttData > 0) {
-    text += `Total 1st Putt Dist: ${Math.round(stats.totalFirstPuttFeet)} ft\n`;
     text += `Avg 1st Putt: ${stats.avgFirstPuttDistance} ft\n`;
   }
+  if (stats.birdiePuttCount > 0) {
+    text += `Avg 1st Putt (Birdie): ${stats.avgBirdiePuttDistance} ft\n`;
+  }
+  if (stats.parPuttCount > 0) {
+    text += `Avg 1st Putt (Par): ${stats.avgParPuttDistance} ft\n`;
+  }
   text += `1-Putts: ${stats.totalOnePutts}\n`;
-  text += `3-Putts: ${stats.totalThreePutts}`;
+  text += `3-Putts: ${stats.totalThreePutts}\n`;
+  text += `Tee Missed L/R: ${stats.teeShotsMissedLeft}/${stats.teeShotsMissedRight}\n`;
+  text += `Approach Missed L/R: ${stats.approachMissedLeft}/${stats.approachMissedRight}\n`;
+  text += `Penalty Strokes: ${stats.totalPenaltyStrokes}`;
   return text;
 }
