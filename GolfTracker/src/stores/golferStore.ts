@@ -1,13 +1,16 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { Alert } from 'react-native';
 import { database } from '../database/watermelon/database';
 import Golfer from '../database/watermelon/models/Golfer';
 import Round from '../database/watermelon/models/Round';
 import { Q } from '@nozbe/watermelondb';
 import { validateCreateGolfer } from '../validators/golferValidator';
-import { getPreference, setPreference } from '../services/preferenceService';
+import { getPreference, setPreference, removePreference } from '../services/preferenceService';
+import type { SmsContact } from '../types';
 
 const ACTIVE_GOLFER_KEY = 'active_golfer_id';
+const CONTACTS_MIGRATED_KEY = 'sms_contacts_migrated';
 
 /** Color palette — WCAG AA compliant. */
 const GOLFER_COLORS = [
@@ -34,6 +37,9 @@ interface GolferState {
   setActiveGolfer: (id: string) => Promise<void>;
   ensureDefaultGolfer: () => Promise<void>;
   getActiveGolferId: () => string | null;
+  updateGolferContacts: (golferId: string, contacts: SmsContact[]) => Promise<void>;
+  getGolferContacts: (golferId: string) => Promise<SmsContact[]>;
+  migrateGlobalContacts: () => Promise<void>;
 }
 
 export const useGolferStore = create<GolferState>()(
@@ -231,6 +237,105 @@ export const useGolferStore = create<GolferState>()(
       getActiveGolferId: () => {
         return get().activeGolferId;
       },
+
+      updateGolferContacts: async (golferId, contacts) => {
+        try {
+          await database.write(async () => {
+            const golfer = await database.collections.get<Golfer>('golfers').find(golferId);
+            await golfer.update((g) => {
+              g.smsContactsRaw = JSON.stringify(contacts);
+            });
+          });
+          await get().loadGolfers();
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error });
+          throw error;
+        }
+      },
+
+      getGolferContacts: async (golferId) => {
+        try {
+          const golfer = await database.collections.get<Golfer>('golfers').find(golferId);
+          return parseGolferContacts(golfer.smsContactsRaw);
+        } catch {
+          return [];
+        }
+      },
+
+      migrateGlobalContacts: async () => {
+        try {
+          const alreadyMigrated = await getPreference(CONTACTS_MIGRATED_KEY);
+          if (alreadyMigrated) return;
+
+          const raw = await getPreference('default_sms_group');
+          if (!raw) {
+            await setPreference(CONTACTS_MIGRATED_KEY, 'true');
+            return;
+          }
+
+          let legacyContacts: SmsContact[];
+          try {
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) {
+              await setPreference(CONTACTS_MIGRATED_KEY, 'true');
+              return;
+            }
+            legacyContacts = parsed.filter(
+              (c: Record<string, unknown>) => c && typeof c.phoneNumber === 'string',
+            );
+          } catch {
+            // Unparseable legacy format — clean it up
+            await removePreference('default_sms_group');
+            await removePreference('default_sms_group_name');
+            await setPreference(CONTACTS_MIGRATED_KEY, 'true');
+            return;
+          }
+
+          if (legacyContacts.length === 0) {
+            await removePreference('default_sms_group');
+            await removePreference('default_sms_group_name');
+            await setPreference(CONTACTS_MIGRATED_KEY, 'true');
+            return;
+          }
+
+          // Prompt user
+          const userChoice = await new Promise<'migrate' | 'skip'>((resolve) => {
+            Alert.alert(
+              'Migrate SMS Contacts',
+              `You have ${legacyContacts.length} contact${legacyContacts.length !== 1 ? 's' : ''} in your default SMS group. Would you like to assign them to your default golfer profile?`,
+              [
+                { text: 'Skip', style: 'cancel', onPress: () => resolve('skip') },
+                { text: 'Migrate', onPress: () => resolve('migrate') },
+              ],
+              { cancelable: false },
+            );
+          });
+
+          if (userChoice === 'migrate') {
+            const defaultGolfers = await database.collections
+              .get<Golfer>('golfers')
+              .query(Q.where('is_default', true))
+              .fetch();
+
+            if (defaultGolfers.length > 0) {
+              await database.write(async () => {
+                await defaultGolfers[0].update((g) => {
+                  g.smsContactsRaw = JSON.stringify(legacyContacts);
+                });
+              });
+              await get().loadGolfers();
+            }
+          }
+
+          // Clean up legacy keys regardless of choice
+          await removePreference('default_sms_group');
+          await removePreference('default_sms_group_name');
+          await setPreference(CONTACTS_MIGRATED_KEY, 'true');
+        } catch (err) {
+          console.error('Failed to migrate global contacts:', err);
+        }
+      },
     }),
     { name: 'GolferStore' },
   ),
@@ -244,4 +349,23 @@ function getNextUnusedColor(golfers: Golfer[]): string {
   }
   // All used — wrap around
   return GOLFER_COLORS[golfers.length % GOLFER_COLORS.length];
+}
+
+/** Parse the sms_contacts JSON column, returning [] on null/invalid data. */
+export function parseGolferContacts(raw: string | undefined | null): SmsContact[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (c: Record<string, unknown>) =>
+        c &&
+        typeof c.id === 'string' &&
+        typeof c.name === 'string' &&
+        typeof c.phoneNumber === 'string' &&
+        (c.phoneNumber as string).length > 0,
+    );
+  } catch {
+    return [];
+  }
 }

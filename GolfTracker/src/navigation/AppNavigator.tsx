@@ -26,7 +26,7 @@ import CameraScreen from '../screens/CameraScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import GolfersScreen from '../screens/GolfersScreen';
 import DatabaseDiagnosticScreen from '../screens/DatabaseDiagnosticScreen';
-import ContactsScreen from '../screens/ContactsScreen';
+import GolferContactsScreen from '../screens/GolferContactsScreen';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const HomeStackNav = createStackNavigator<HomeStackParamList>();
@@ -135,9 +135,9 @@ const SettingsStack = () => {
         options={{ title: 'Manage Golfers', headerShown: false }}
       />
       <SettingsStackNav.Screen
-        name="Contacts"
-        component={ContactsScreen}
-        options={{ title: 'Default Text Group', headerShown: false }}
+        name="GolferContacts"
+        component={GolferContactsScreen}
+        options={{ title: 'SMS Contacts', headerShown: false }}
       />
       <SettingsStackNav.Screen
         name="DatabaseDiagnostic"

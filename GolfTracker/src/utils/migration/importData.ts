@@ -4,7 +4,6 @@ import Round from '../../database/watermelon/models/Round';
 import Hole from '../../database/watermelon/models/Hole';
 import Tournament from '../../database/watermelon/models/Tournament';
 import Media from '../../database/watermelon/models/Media';
-import Contact from '../../database/watermelon/models/Contact';
 import { useGolferStore } from '../../stores/golferStore';
 
 // Matches the format originally defined in exportData.ts
@@ -176,29 +175,9 @@ export const importLegacyData = async (
         });
       }
       
-      // Import contacts
-      onProgress?.({
-        stage: 'Importing contacts',
-        current: 0,
-        total: data.contacts.length,
-      });
-      
-      for (let i = 0; i < data.contacts.length; i++) {
-        const contactData = data.contacts[i];
-        await database.collections.get<Contact>('contacts').create((contact) => {
-          contact._raw.id = contactData.id;
-          contact.name = contactData.name;
-          contact.phoneNumber = contactData.phoneNumber;
-          contact.isActive = contactData.isActive ?? true;
-        });
-        
-        onProgress?.({
-          stage: 'Importing contacts',
-          current: i + 1,
-          total: data.contacts.length,
-        });
-      }
-      
+      // Contacts are now stored per-golfer in the golfers table (sms_contacts column).
+      // Legacy contact import is skipped — users configure contacts via Settings → Golfers.
+
       // Import media
       onProgress?.({
         stage: 'Importing media',

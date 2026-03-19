@@ -31,7 +31,7 @@ export type TournamentStackParamList = {
 export type SettingsStackParamList = {
   SettingsList: undefined;
   Golfers: undefined;
-  Contacts: undefined;
+  GolferContacts: { golferId: string; golferName: string };
   DatabaseDiagnostic: undefined;
 };
 

@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 2,
+  version: 3,
   tables: [
     tableSchema({
       name: 'golfers',
@@ -10,6 +10,7 @@ export const schema = appSchema({
         { name: 'handicap', type: 'number', isOptional: true },
         { name: 'color', type: 'string' },
         { name: 'is_default', type: 'boolean' },
+        { name: 'sms_contacts', type: 'string', isOptional: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
       ],
@@ -66,14 +67,6 @@ export const schema = appSchema({
         { name: 'hole_number', type: 'number', isOptional: true },
         { name: 'timestamp', type: 'number' },
         { name: 'description', type: 'string', isOptional: true },
-      ]
-    }),
-    tableSchema({
-      name: 'contacts',
-      columns: [
-        { name: 'name', type: 'string' },
-        { name: 'phone_number', type: 'string' },
-        { name: 'is_active', type: 'boolean' },
       ]
     }),
   ]
