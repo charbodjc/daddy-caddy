@@ -18,6 +18,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   ScrollView,
+  TextInput,
   Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -339,15 +340,38 @@ const HoleScoringScreen: React.FC = () => {
   // ── SMS send ────────────────────────────────────────────────
 
   const handleSendSMS = useCallback(async () => {
+    Keyboard.dismiss();
+    if (!smsMessage.trim()) {
+      Alert.alert('Empty Message', 'Type a message or tap Skip.');
+      return;
+    }
     await openSMS(smsMessage);
     setStepHistory(prev => [...prev, step]);
     setStep('made_missed');
   }, [smsMessage, openSMS, step]);
 
   const handleSkipSMS = useCallback(() => {
+    Keyboard.dismiss();
     setStepHistory(prev => [...prev, step]);
     setStep('made_missed');
   }, [step]);
+
+  // ── Hole summary SMS (after Made It) ──────────────────────
+
+  const handleSendHoleSummary = useCallback(async () => {
+    Keyboard.dismiss();
+    if (!smsMessage.trim()) {
+      Alert.alert('Empty Message', 'Type a message or tap Skip.');
+      return;
+    }
+    await openSMS(smsMessage);
+    if (roundId) navigation.navigate('RoundTracker', { roundId });
+  }, [smsMessage, openSMS, navigation, roundId]);
+
+  const handleSkipHoleSummary = useCallback(() => {
+    Keyboard.dismiss();
+    if (roundId) navigation.navigate('RoundTracker', { roundId });
+  }, [navigation, roundId]);
 
   // ── Made / Missed handlers ──────────────────────────────────
 
@@ -392,14 +416,15 @@ const HoleScoringScreen: React.FC = () => {
         `${formatScoreVsPar(finalScoreVsPar)} on the hole\n\n` +
         `After ${holesPlayed} holes: ${formatScoreVsPar(totalScoreVsPar)}`;
 
-      await openSMS(summaryMsg);
-      navigation.navigate('RoundTracker', { roundId });
+      setSmsMessage(summaryMsg);
+      setStepHistory(prev => [...prev, step]);
+      setStep('hole_complete');
     } catch {
       Alert.alert('Error', 'Failed to save hole. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [puttDistance, shots, currentStroke, hole, roundId, updateHole, openSMS, navigation]);
+  }, [puttDistance, shots, currentStroke, hole, roundId, updateHole, step]);
 
   const handleMissed = useCallback(() => {
     addPuttShot(puttDistance, SHOT_RESULTS.MISSED);
@@ -476,8 +501,27 @@ const HoleScoringScreen: React.FC = () => {
         {step === 'trouble' && renderTrouble(handleTrouble)}
         {step === 'chip' && renderChip(handleChip)}
         {step === 'putt_distance' && renderPuttDistance(puttDistance, setPuttDistance, handlePuttDistanceSubmit)}
-        {step === 'sms_preview' && renderSMSPreview(smsMessage, recipients, handleSendSMS, handleSkipSMS)}
+        {step === 'sms_preview' && (
+          <SMSPreview
+            message={smsMessage}
+            recipients={recipients}
+            title="Send Update"
+            onChangeMessage={setSmsMessage}
+            onSend={handleSendSMS}
+            onSkip={handleSkipSMS}
+          />
+        )}
         {step === 'made_missed' && renderMadeMissed(puttDistance, handleMade, handleMissed, saving)}
+        {step === 'hole_complete' && (
+          <SMSPreview
+            message={smsMessage}
+            recipients={recipients}
+            title="Hole Summary"
+            onChangeMessage={setSmsMessage}
+            onSend={handleSendHoleSummary}
+            onSkip={handleSkipHoleSummary}
+          />
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -831,53 +875,68 @@ function renderPuttDistance(
   );
 }
 
-// ── SMS Preview ───────────────────────────────────────────────
+// ── SMS Preview (memoized to avoid full-screen re-render per keystroke) ──
 
-function renderSMSPreview(
-  message: string,
-  recipients: SmsContact[],
-  onSend: () => void,
-  onSkip: () => void,
-) {
-  return (
-    <View style={styles.buttonContainer}>
-      <Text style={styles.stepLabel}>Send Update</Text>
-      <View style={styles.smsPreview}>
-        {/* To field */}
-        <View style={styles.smsToRow}>
-          <Text style={styles.smsToLabel}>To:</Text>
-          <Text style={styles.smsToNames} numberOfLines={2}>
-            {recipients.map(c => c.name).join(', ') || 'No recipients configured'}
-          </Text>
-        </View>
-        {/* Message */}
-        <ScrollView style={styles.smsMessageBox} nestedScrollEnabled>
-          <Text style={styles.smsMessageText}>{message}</Text>
-        </ScrollView>
-      </View>
-      <View style={styles.smsActions}>
-        <TouchableOpacity
-          style={[styles.smsActionBtn, styles.goodButton]}
-          onPress={onSend}
-          accessibilityLabel="Send SMS"
-          accessibilityRole="button"
-        >
-          <Icon name="send" size={24} color="#fff" />
-          <Text style={styles.smsActionText}>Send</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.smsActionBtn, styles.skipButton]}
-          onPress={onSkip}
-          accessibilityLabel="Skip sending SMS"
-          accessibilityRole="button"
-        >
-          <Icon name="skip-next" size={24} color="#fff" />
-          <Text style={styles.smsActionText}>Skip</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+interface SMSPreviewProps {
+  message: string;
+  recipients: SmsContact[];
+  title: string;
+  onChangeMessage: (text: string) => void;
+  onSend: () => void;
+  onSkip: () => void;
 }
+
+const SMSPreview = React.memo(({
+  message,
+  recipients,
+  title,
+  onChangeMessage,
+  onSend,
+  onSkip,
+}: SMSPreviewProps) => (
+  <View style={styles.buttonContainer}>
+    <Text style={styles.stepLabel}>{title}</Text>
+    <View style={styles.smsPreview}>
+      {/* To field */}
+      <View style={styles.smsToRow}>
+        <Text style={styles.smsToLabel}>To:</Text>
+        <Text style={styles.smsToNames} numberOfLines={2}>
+          {recipients.map(c => c.name).join(', ') || 'No recipients configured'}
+        </Text>
+      </View>
+      {/* Editable message */}
+      <TextInput
+        style={styles.smsMessageInput}
+        value={message}
+        onChangeText={onChangeMessage}
+        multiline
+        textAlignVertical="top"
+        accessibilityLabel="SMS message"
+        accessibilityHint="Edit the message before sending"
+      />
+    </View>
+    <View style={styles.smsActions}>
+      <TouchableOpacity
+        style={[styles.smsActionBtn, styles.goodButton]}
+        onPress={onSend}
+        accessibilityLabel="Send SMS"
+        accessibilityRole="button"
+      >
+        <Icon name="send" size={24} color="#fff" />
+        <Text style={styles.smsActionText}>Send</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.smsActionBtn, styles.skipButton]}
+        onPress={onSkip}
+        accessibilityLabel="Skip sending SMS"
+        accessibilityRole="button"
+      >
+        <Icon name="skip-next" size={24} color="#fff" />
+        <Text style={styles.smsActionText}>Skip</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+));
 
 // ── Made / Missed buttons ─────────────────────────────────────
 
@@ -1127,8 +1186,18 @@ const styles = StyleSheet.create({
   },
   smsToLabel: { fontSize: 14, fontWeight: '600', color: '#666', marginRight: 8 },
   smsToNames: { fontSize: 14, color: '#333', flex: 1 },
-  smsMessageBox: { minHeight: 120, maxHeight: 240 },
-  smsMessageText: { fontSize: 15, color: '#333', lineHeight: 22 },
+  smsMessageInput: {
+    minHeight: 120,
+    maxHeight: 240,
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: '#fafafa',
+  },
   smsActions: {
     flexDirection: 'row',
     justifyContent: 'center',
