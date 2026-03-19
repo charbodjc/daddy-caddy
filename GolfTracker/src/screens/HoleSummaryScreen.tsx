@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   scroll: { flex: 1 },
   header: { padding: 24, alignItems: 'center' },
-  holeNum: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
+  holeNum: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
   parText: { fontSize: 14, color: 'rgba(255,255,255,0.85)', marginTop: 4 },
   scoreValue: { fontSize: 48, fontWeight: 'bold', color: '#fff', marginTop: 8 },
   scoreLabel: { fontSize: 18, fontWeight: '600', color: '#fff', marginTop: 2 },

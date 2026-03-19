@@ -1,4 +1,4 @@
-package com.golftracker
+package com.daddycaddy.golf
 
 import android.app.Application
 import com.facebook.react.PackageList

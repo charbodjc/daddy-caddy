@@ -1,42 +1,45 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import Round from '../../database/watermelon/models/Round';
 import { formatScoreVsPar } from '../../utils/scoreCalculations';
 import { formatDateShort } from '../../utils/dateFormatting';
-import { GolferAvatar } from '../golfer/GolferAvatar';
 
 interface RoundHeaderProps {
   round: Round;
   totalPar?: number;
   golferName?: string;
-  golferColor?: string;
+  onMenuPress?: () => void;
 }
 
-export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, totalPar: totalParProp, golferName, golferColor }) => {
+export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, totalPar: totalParProp, golferName, onMenuPress }) => {
   const insets = useSafeAreaInsets();
-  const calculateScore = () => {
-    if (!round.totalScore) return { strokes: 0, toPar: 0 };
-
-    // Use provided totalPar from actual hole data, fall back to 72 if not available
+  const toPar = (() => {
+    if (!round.totalScore) return 0;
     const totalPar = totalParProp && totalParProp > 0 ? totalParProp : 72;
-    const toPar = round.totalScore - totalPar;
+    return round.totalScore - totalPar;
+  })();
 
-    return {
-      strokes: round.totalScore,
-      toPar,
-    };
-  };
-  
-  const score = calculateScore();
-  const scoreDisplay = formatScoreVsPar(score.toPar);
-  
+  const scoreDisplay = round.totalScore != null && round.totalScore > 0 ? formatScoreVsPar(toPar) : '--';
+
   return (
     <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
+      {onMenuPress && (
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={onMenuPress}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityLabel="Open menu"
+          accessibilityRole="button"
+        >
+          <Icon name="menu" size={28} color="#fff" />
+        </TouchableOpacity>
+      )}
       <View style={styles.courseInfo}>
-        {golferName && golferColor && (
+        {golferName && (
           <View style={styles.golferRow}>
-            <GolferAvatar name={golferName} color={golferColor} size={24} />
+            <Text style={styles.golferEmoji}>🏌️</Text>
             <Text style={styles.golferText}>{golferName}</Text>
           </View>
         )}
@@ -48,13 +51,9 @@ export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, tota
           {formatDateShort(round.date)}
         </Text>
       </View>
-      
+
       <View style={styles.scoreInfo}>
-        <Text style={styles.scoreLabel}>Score</Text>
-        <Text style={styles.scoreValue}>
-          {score.strokes > 0 ? score.strokes : '--'}
-        </Text>
-        <Text style={styles.scoreToPar}>{scoreDisplay}</Text>
+        <Text style={styles.scoreValue}>{scoreDisplay}</Text>
       </View>
     </View>
   );
@@ -70,6 +69,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  menuButton: {
+    padding: 5,
+    marginRight: 12,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
   courseInfo: {
     flex: 1,
   },
@@ -78,6 +84,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginBottom: 4,
+  },
+  golferEmoji: {
+    fontSize: 18,
   },
   golferText: {
     fontSize: 13,
@@ -101,26 +110,15 @@ const styles = StyleSheet.create({
   },
   scoreInfo: {
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     padding: 16,
     borderRadius: 12,
-    minWidth: 100,
-  },
-  scoreLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 4,
+    minWidth: 80,
   },
   scoreValue: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
   },
-  scoreToPar: {
-    fontSize: 14,
-    color: '#fff',
-    fontWeight: '600',
-    marginTop: 2,
-  },
 });
-

@@ -5,10 +5,13 @@
     "scheme": "daddycaddy",
     "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/daddy_caddy_logo.png",
-    "userInterfaceStyle": "light",
+    "icon": {
+      "light": "./assets/daddy-caddy.png",
+      "dark": "./assets/daddy-caddy-dark.png"
+    },
+    "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/daddy_caddy_logo.png",
+      "image": "./assets/daddy-caddy.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -16,6 +19,11 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.daddycaddy.golf",
       "buildNumber": "2",
+      "icon": {
+        "light": "./assets/daddy-caddy.png",
+        "dark": "./assets/daddy-caddy-dark.png",
+        "tinted": true
+      },
       "infoPlist": {
         "NSContactsUsageDescription": "Daddy Caddy needs access to your contacts to select recipients for golf score updates and messages.",
         "NSMicrophoneUsageDescription": "Daddy Caddy uses the microphone for voice shot tracking.",
@@ -27,7 +35,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/daddy_caddy_logo.png",
+        "foregroundImage": "./assets/daddy-caddy.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.daddycaddy.golf",
@@ -38,7 +46,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/daddy_caddy_logo.png"
+      "favicon": "./assets/daddy-caddy.png"
     },
     "plugins": [
       "expo-dev-client",

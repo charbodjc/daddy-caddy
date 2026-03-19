@@ -1,6 +1,7 @@
 import React from 'react';
+import { StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createDrawerNavigator } from '@react-navigation/drawer';
 import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
@@ -9,7 +10,7 @@ import {
   ScoringStackParamList,
   TournamentStackParamList,
   SettingsStackParamList,
-  RootTabParamList,
+  RootDrawerParamList,
 } from '../types/navigation';
 
 // Import screens
@@ -29,7 +30,7 @@ import GolfersScreen from '../screens/GolfersScreen';
 import DatabaseDiagnosticScreen from '../screens/DatabaseDiagnosticScreen';
 import GolferContactsScreen from '../screens/GolferContactsScreen';
 
-const Tab = createBottomTabNavigator<RootTabParamList>();
+const Drawer = createDrawerNavigator<RootDrawerParamList>();
 const HomeStackNav = createStackNavigator<HomeStackParamList>();
 const ScoringStackNav = createStackNavigator<ScoringStackParamList>();
 const TournamentStackNav = createStackNavigator<TournamentStackParamList>();
@@ -43,15 +44,8 @@ const HomeStack = () => {
         headerShown: false,
       }}
     >
-      <HomeStackNav.Screen
-        name="HomeMain"
-        component={HomeScreen}
-      />
-      <HomeStackNav.Screen
-        name="Stats"
-        component={StatsScreen}
-        options={{ headerShown: true, title: 'Statistics' }}
-      />
+      <HomeStackNav.Screen name="HomeMain" component={HomeScreen} />
+      <HomeStackNav.Screen name="Stats" component={StatsScreen} />
     </HomeStackNav.Navigator>
   );
 };
@@ -61,44 +55,16 @@ const ScoringStack = () => {
   return (
     <ScoringStackNav.Navigator
       screenOptions={{
-        headerShown: true,
+        headerShown: false,
       }}
     >
-      <ScoringStackNav.Screen
-        name="RoundTracker"
-        component={RoundTrackerScreen}
-        options={{ headerShown: false }}
-      />
-      <ScoringStackNav.Screen
-        name="HoleDetails"
-        component={HoleDetailsScreen}
-        options={{ title: 'Hole Details' }}
-      />
-      <ScoringStackNav.Screen
-        name="ShotTracking"
-        component={ShotTrackingScreen}
-        options={{ headerShown: false }}
-      />
-      <ScoringStackNav.Screen
-        name="HoleScoring"
-        component={HoleScoringScreen}
-        options={{ headerShown: false }}
-      />
-      <ScoringStackNav.Screen
-        name="HoleSummary"
-        component={HoleSummaryScreen}
-        options={{ title: 'Hole Summary' }}
-      />
-      <ScoringStackNav.Screen
-        name="RoundSummary"
-        component={RoundSummaryScreen}
-        options={{ title: 'Round Summary' }}
-      />
-      <ScoringStackNav.Screen
-        name="Camera"
-        component={CameraScreen}
-        options={{ title: 'Capture Media' }}
-      />
+      <ScoringStackNav.Screen name="RoundTracker" component={RoundTrackerScreen} />
+      <ScoringStackNav.Screen name="HoleDetails" component={HoleDetailsScreen} />
+      <ScoringStackNav.Screen name="ShotTracking" component={ShotTrackingScreen} />
+      <ScoringStackNav.Screen name="HoleScoring" component={HoleScoringScreen} />
+      <ScoringStackNav.Screen name="HoleSummary" component={HoleSummaryScreen} />
+      <ScoringStackNav.Screen name="RoundSummary" component={RoundSummaryScreen} />
+      <ScoringStackNav.Screen name="Camera" component={CameraScreen} />
     </ScoringStackNav.Navigator>
   );
 };
@@ -106,22 +72,14 @@ const ScoringStack = () => {
 // Stack navigator for Tournaments
 const TournamentStack = () => {
   return (
-    <TournamentStackNav.Navigator>
-      <TournamentStackNav.Screen
-        name="TournamentsList"
-        component={TournamentsScreen}
-        options={{ title: 'Tournaments', headerShown: false }}
-      />
-      <TournamentStackNav.Screen
-        name="TournamentRounds"
-        component={TournamentRoundsScreen}
-        options={{ title: 'Tournament Rounds', headerShown: false }}
-      />
-      <TournamentStackNav.Screen
-        name="RoundSummary"
-        component={RoundSummaryScreen}
-        options={{ title: 'Round Summary' }}
-      />
+    <TournamentStackNav.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <TournamentStackNav.Screen name="TournamentsList" component={TournamentsScreen} />
+      <TournamentStackNav.Screen name="TournamentRounds" component={TournamentRoundsScreen} />
+      <TournamentStackNav.Screen name="RoundSummary" component={RoundSummaryScreen} />
     </TournamentStackNav.Navigator>
   );
 };
@@ -129,27 +87,15 @@ const TournamentStack = () => {
 // Stack navigator for Settings
 const SettingsStack = () => {
   return (
-    <SettingsStackNav.Navigator>
-      <SettingsStackNav.Screen
-        name="SettingsList"
-        component={SettingsScreen}
-        options={{ title: 'Settings', headerShown: false }}
-      />
-      <SettingsStackNav.Screen
-        name="Golfers"
-        component={GolfersScreen}
-        options={{ title: 'Manage Golfers', headerShown: false }}
-      />
-      <SettingsStackNav.Screen
-        name="GolferContacts"
-        component={GolferContactsScreen}
-        options={{ title: 'SMS Contacts', headerShown: false }}
-      />
-      <SettingsStackNav.Screen
-        name="DatabaseDiagnostic"
-        component={DatabaseDiagnosticScreen}
-        options={{ title: 'Database Diagnostics', headerShown: false }}
-      />
+    <SettingsStackNav.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <SettingsStackNav.Screen name="SettingsList" component={SettingsScreen} />
+      <SettingsStackNav.Screen name="Golfers" component={GolfersScreen} />
+      <SettingsStackNav.Screen name="GolferContacts" component={GolferContactsScreen} />
+      <SettingsStackNav.Screen name="DatabaseDiagnostic" component={DatabaseDiagnosticScreen} />
     </SettingsStackNav.Navigator>
   );
 };
@@ -157,31 +103,57 @@ const SettingsStack = () => {
 const AppNavigator = () => {
   return (
     <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          tabBarIcon: ({ color, size }) => {
-            if (route.name === 'Home') {
-              return <FontAwesome5 name="home" size={size} color={color} />;
-            } else if (route.name === 'Scoring') {
-              return <FontAwesome5 name="golf-ball" size={size} color={color} />;
-            } else if (route.name === 'Tournaments') {
-              return <FontAwesome5 name="trophy" size={size} color={color} />;
-            } else if (route.name === 'Settings') {
-              return <Icon name="settings" size={size} color={color} />;
-            }
-
-            return <Icon name="home" size={size} color={color} />;
-          },
-          tabBarActiveTintColor: '#4CAF50',
-          tabBarInactiveTintColor: 'gray',
+      <StatusBar barStyle="light-content" />
+      <Drawer.Navigator
+        screenOptions={{
           headerShown: false,
-        })}
+          drawerPosition: 'left',
+          drawerActiveTintColor: '#4CAF50',
+          drawerInactiveTintColor: 'gray',
+          drawerLabelStyle: {
+            fontSize: 16,
+            fontWeight: '600',
+          },
+        }}
       >
-        <Tab.Screen name="Home" component={HomeStack} />
-        <Tab.Screen name="Scoring" component={ScoringStack} />
-        <Tab.Screen name="Tournaments" component={TournamentStack} />
-        <Tab.Screen name="Settings" component={SettingsStack} />
-      </Tab.Navigator>
+        <Drawer.Screen
+          name="Home"
+          component={HomeStack}
+          options={{
+            drawerIcon: ({ color, size }) => (
+              <FontAwesome5 name="home" size={size} color={color} />
+            ),
+          }}
+        />
+        <Drawer.Screen
+          name="Scoring"
+          component={ScoringStack}
+          options={{
+            swipeEnabled: false,
+            drawerIcon: ({ color, size }) => (
+              <FontAwesome5 name="golf-ball" size={size} color={color} />
+            ),
+          }}
+        />
+        <Drawer.Screen
+          name="Tournaments"
+          component={TournamentStack}
+          options={{
+            drawerIcon: ({ color, size }) => (
+              <FontAwesome5 name="trophy" size={size} color={color} />
+            ),
+          }}
+        />
+        <Drawer.Screen
+          name="Settings"
+          component={SettingsStack}
+          options={{
+            drawerIcon: ({ color, size }) => (
+              <Icon name="settings" size={size} color={color} />
+            ),
+          }}
+        />
+      </Drawer.Navigator>
     </NavigationContainer>
   );
 };

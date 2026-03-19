@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, DrawerActions } from '@react-navigation/native';
 import { AppNavigationProp } from '../types/navigation';
 import { useRound } from '../hooks/useRound';
 import { useRoundStore } from '../stores/roundStore';
@@ -79,14 +79,27 @@ const HomeScreen: React.FC = () => {
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <View style={styles.headerContent}>
-          <Image 
-            source={require('../../assets/daddy_caddy_logo.png')} 
-            style={styles.logo}
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>Daddy Caddy</Text>
-          <Text style={styles.subtitle}>Your Golf Companion</Text>
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Open menu"
+            accessibilityRole="button"
+          >
+            <Icon name="menu" size={28} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Image
+              source={require('../../assets/daddy_caddy_logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+              accessible={false}
+            />
+            <Text style={styles.title}>Daddy Caddy</Text>
+            <Text style={styles.subtitle}>Your Golf Companion</Text>
+          </View>
+          <View style={styles.menuButton} />
         </View>
       </View>
       
@@ -248,10 +261,20 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#4CAF50',
-    padding: 30,
+    padding: 20,
+  },
+  headerRow: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
+  menuButton: {
+    padding: 5,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
   headerContent: {
+    flex: 1,
     alignItems: 'center',
   },
   logo: {
