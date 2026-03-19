@@ -18,7 +18,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 // FontAwesome5 available for future use
 import { format } from 'date-fns';
 import { formatScoreVsPar, calculateScoreBreakdown } from '../utils/scoreCalculations';
-import { calculateRunningRoundStats, RunningRoundStats } from '../utils/roundStats';
+import { calculateRunningRoundStats, formatRunningStatsForSMS, RunningRoundStats } from '../utils/roundStats';
 
 interface RouteParams {
   roundId: string;
@@ -70,6 +70,8 @@ const RoundSummaryScreen: React.FC = () => {
     const toPar = totalStrokes - totalPar;
     const scoreDisplay = formatScoreVsPar(toPar);
 
+    const statsBlock = roundStats ? formatRunningStatsForSMS(roundStats) : '';
+
     const message = `
 🏌️ Golf Round Summary
 
@@ -77,7 +79,8 @@ const RoundSummaryScreen: React.FC = () => {
 📅 ${format(round.date, 'EEEE, MMM d, yyyy')}
 ${round.tournamentName ? `🏆 ${round.tournamentName}\n` : ''}
 ⛳ Score: ${totalStrokes} (${scoreDisplay})
-${round.totalPutts ? `🎯 Putts: ${round.totalPutts}\n` : ''}${round.fairwaysHit !== undefined ? `🎯 Fairways: ${round.fairwaysHit}/14\n` : ''}${round.greensInRegulation !== undefined ? `🟢 GIR: ${round.greensInRegulation}/18\n` : ''}
+${statsBlock}
+
 Played with Daddy Caddy ⛳
     `.trim();
 
@@ -86,7 +89,7 @@ Played with Daddy Caddy ⛳
     } catch (error) {
       console.error('Share failed:', error);
     }
-  }, [round, holes]);
+  }, [round, holes, roundStats]);
 
   const completedHoles = useMemo(() => holes.filter(h => h.strokes > 0), [holes]);
   const totalPar = useMemo(() => completedHoles.reduce((sum, h) => sum + h.par, 0), [completedHoles]);
@@ -161,62 +164,64 @@ Played with Daddy Caddy ⛳
       </View>
       
       {/* Statistics */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Statistics</Text>
+      {(round.fairwaysHit !== undefined || round.greensInRegulation !== undefined) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Statistics</Text>
 
-        <View style={styles.statsGrid}>
-          {round.fairwaysHit !== undefined && (
-            <StatItem
-              icon={<Icon name="flag" size={20} color="#4CAF50" />}
-              label="Fairways Hit"
-              value={`${round.fairwaysHit}/14`}
-              percentage={Math.round((round.fairwaysHit / 14) * 100)}
-            />
-          )}
+          <View style={styles.statsGrid}>
+            {round.fairwaysHit !== undefined && (
+              <StatItem
+                icon={<Icon name="flag" size={20} color="#4CAF50" />}
+                label="Fairways Hit"
+                value={`${round.fairwaysHit}/14`}
+                percentage={Math.round((round.fairwaysHit / 14) * 100)}
+              />
+            )}
 
-          {round.greensInRegulation !== undefined && (
-            <StatItem
-              icon={<Icon name="adjust" size={20} color="#4CAF50" />}
-              label="Greens in Regulation"
-              value={`${round.greensInRegulation}/18`}
-              percentage={Math.round((round.greensInRegulation / 18) * 100)}
-            />
-          )}
+            {round.greensInRegulation !== undefined && (
+              <StatItem
+                icon={<Icon name="adjust" size={20} color="#4CAF50" />}
+                label="Greens in Regulation"
+                value={`${round.greensInRegulation}/18`}
+                percentage={Math.round((round.greensInRegulation / 18) * 100)}
+              />
+            )}
+          </View>
         </View>
-      </View>
+      )}
 
-      {/* Detailed Stats */}
-      {roundStats && roundStats.totalHolesPlayed > 0 && (
-        <>
-          {/* Putting Stats */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Putting</Text>
-            <View style={styles.detailedStatsList}>
-              <DetailedStatRow label="Total Putts" value={`${roundStats.totalPutts}`} />
-              <DetailedStatRow label="Total Putt Feet Made" value={`${Math.round(roundStats.totalPuttFeetMade)} ft`} />
-              {roundStats.birdiePuttCount > 0 && (
-                <DetailedStatRow label="Avg Birdie Putt Distance" value={`${roundStats.avgBirdiePuttDistance} ft`} />
-              )}
-              {roundStats.parPuttCount > 0 && (
-                <DetailedStatRow label="Avg Par Putt Distance" value={`${roundStats.avgParPuttDistance} ft`} />
-              )}
-              <DetailedStatRow label="1-Putts" value={`${roundStats.totalOnePutts}`} />
-              <DetailedStatRow label="3-Putts" value={`${roundStats.totalThreePutts}`} />
-            </View>
+      {/* Detailed Stats — only shown when shot-level data was tracked */}
+      {roundStats && roundStats.totalPutts > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Putting</Text>
+          <View style={styles.detailedStatsList}>
+            <DetailedStatRow label="Total Putts" value={`${roundStats.totalPutts}`} />
+            <DetailedStatRow label="Total Putt Feet Made" value={`${Math.round(roundStats.totalPuttFeetMade)} ft`} />
+            {roundStats.birdiePuttCount > 0 && (
+              <DetailedStatRow label="Avg 1st Putt (Birdie Holes)" value={`${roundStats.avgBirdiePuttDistance} ft`} />
+            )}
+            {roundStats.parPuttCount > 0 && (
+              <DetailedStatRow label="Avg 1st Putt (Par Holes)" value={`${roundStats.avgParPuttDistance} ft`} />
+            )}
+            <DetailedStatRow label="1-Putts" value={`${roundStats.totalOnePutts}`} />
+            <DetailedStatRow label="3-Putts" value={`${roundStats.totalThreePutts}`} />
           </View>
+        </View>
+      )}
 
-          {/* Tee Shot & Approach Stats */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Accuracy</Text>
-            <View style={styles.detailedStatsList}>
-              <DetailedStatRow label="Tee Shots Missed Left" value={`${roundStats.teeShotsMissedLeft}`} />
-              <DetailedStatRow label="Tee Shots Missed Right" value={`${roundStats.teeShotsMissedRight}`} />
-              <DetailedStatRow label="Approaches Missed Left" value={`${roundStats.approachMissedLeft}`} />
-              <DetailedStatRow label="Approaches Missed Right" value={`${roundStats.approachMissedRight}`} />
-              <DetailedStatRow label="Penalty Strokes" value={`${roundStats.totalPenaltyStrokes}`} />
-            </View>
+      {roundStats && (roundStats.teeShotsMissedLeft + roundStats.teeShotsMissedRight +
+        roundStats.approachMissedLeft + roundStats.approachMissedRight +
+        roundStats.totalPenaltyStrokes > 0) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Accuracy</Text>
+          <View style={styles.detailedStatsList}>
+            <DetailedStatRow label="Tee Shots Missed Left" value={`${roundStats.teeShotsMissedLeft}`} />
+            <DetailedStatRow label="Tee Shots Missed Right" value={`${roundStats.teeShotsMissedRight}`} />
+            <DetailedStatRow label="Approaches Missed Left" value={`${roundStats.approachMissedLeft}`} />
+            <DetailedStatRow label="Approaches Missed Right" value={`${roundStats.approachMissedRight}`} />
+            <DetailedStatRow label="Penalty Strokes" value={`${roundStats.totalPenaltyStrokes}`} />
           </View>
-        </>
+        </View>
       )}
       
       {/* Scoring Breakdown */}
@@ -250,7 +255,7 @@ Played with Daddy Caddy ⛳
       )}
       
       {/* Actions */}
-      <View style={styles.actions}>
+      <View style={[styles.actions, { paddingBottom: Math.max(30, insets.bottom + 10) }]}>
         <Button title="Share Round" onPress={handleShare} style={styles.actionButton} />
       </View>
     </ScrollView>

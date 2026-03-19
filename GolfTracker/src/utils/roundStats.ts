@@ -213,10 +213,10 @@ export async function calculateRunningRoundStats(
       s => s.type === SHOT_TYPES.APPROACH
     );
     if (hole.par === 3) {
-      const teeShot = shotData.shots.find(
+      const par3TeeShot = shotData.shots.find(
         s => s.type === SHOT_TYPES.TEE_SHOT || s.type?.toLowerCase() === 'tee'
       );
-      if (teeShot) approachShots.push(teeShot);
+      if (par3TeeShot) approachShots.push(par3TeeShot);
     }
     for (const approach of approachShots) {
       if (approach.results.includes(SHOT_RESULTS.LEFT)) stats.approachMissedLeft += 1;
@@ -269,10 +269,10 @@ export function formatRunningStatsForSMS(stats: RunningRoundStats): string {
     text += `Avg 1st Putt: ${stats.avgFirstPuttDistance} ft\n`;
   }
   if (stats.birdiePuttCount > 0) {
-    text += `Avg Birdie Putt: ${stats.avgBirdiePuttDistance} ft\n`;
+    text += `Avg 1st Putt (Birdie): ${stats.avgBirdiePuttDistance} ft\n`;
   }
   if (stats.parPuttCount > 0) {
-    text += `Avg Par Putt: ${stats.avgParPuttDistance} ft\n`;
+    text += `Avg 1st Putt (Par): ${stats.avgParPuttDistance} ft\n`;
   }
   text += `1-Putts: ${stats.totalOnePutts}\n`;
   text += `3-Putts: ${stats.totalThreePutts}\n`;
