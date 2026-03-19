@@ -3,6 +3,7 @@ import * as SMS from 'expo-sms';
 import { GolfHole, SmsContact, SHOT_TYPES } from '../types';
 import { database } from '../database/watermelon/database';
 import Golfer from '../database/watermelon/models/Golfer';
+import Round from '../database/watermelon/models/Round';
 import { parseGolferContacts } from '../stores/golferStore';
 import { getScoreName } from '../utils/scoreColors';
 
@@ -15,6 +16,20 @@ class SMSService {
     try {
       const golfer = await database.collections.get<Golfer>('golfers').find(golferId);
       return parseGolferContacts(golfer.smsContactsRaw);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Resolve SMS recipients via a round's associated golfer.
+   * Returns an empty array if the round has no golfer or the golfer has no contacts.
+   */
+  async getRecipientsForRound(roundId: string): Promise<SmsContact[]> {
+    try {
+      const round = await database.collections.get<Round>('rounds').find(roundId);
+      if (!round.golferId) return [];
+      return this.getRecipientsForGolfer(round.golferId);
     } catch {
       return [];
     }

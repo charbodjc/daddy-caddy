@@ -357,14 +357,19 @@ export function parseGolferContacts(raw: string | undefined | null): SmsContact[
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (c: Record<string, unknown>) =>
-        c &&
-        typeof c.id === 'string' &&
-        typeof c.name === 'string' &&
-        typeof c.phoneNumber === 'string' &&
-        (c.phoneNumber as string).length > 0,
-    );
+    return parsed
+      .filter(
+        (c: Record<string, unknown>) =>
+          c &&
+          typeof c.name === 'string' &&
+          typeof c.phoneNumber === 'string' &&
+          (c.phoneNumber as string).length > 0,
+      )
+      .map((c: Record<string, unknown>) => ({
+        id: typeof c.id === 'string' ? c.id : `legacy-${c.phoneNumber}`,
+        name: c.name as string,
+        phoneNumber: c.phoneNumber as string,
+      }));
   } catch {
     return [];
   }

@@ -33,13 +33,14 @@ import Round from '../database/watermelon/models/Round';
 import {
   TrackedShot,
   ShotData,
+  SmsContact,
   SHOT_TYPES,
   SHOT_RESULTS,
 } from '../types';
 import { parseShotData, deriveHoleStats, calculateTotalStrokes, calculateRunningRoundStats } from '../utils/roundStats';
 import { getScoreName } from '../utils/scoreColors';
 import { formatScoreVsPar } from '../utils/scoreCalculations';
-import { getPreference } from '../services/preferenceService';
+import smsService from '../services/sms';
 import { generateHoleCommentary } from '../utils/holeCommentary';
 import type { ScoringStackParamList } from '../types/navigation';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -61,13 +62,6 @@ type WorkflowStep =
   | 'sms_preview'     // Show SMS preview before sending
   | 'made_missed'     // Made it / Missed it buttons
   | 'hole_complete';  // Final SMS with hole summary
-
-// ── Saved contact type ──────────────────────────────────────────
-
-interface SavedContact {
-  name: string;
-  phoneNumber: string;
-}
 
 // Maximum putt distance digits
 const MAX_PUTT_DIGITS = 3;
@@ -95,7 +89,7 @@ const HoleScoringScreen: React.FC = () => {
   const [stepHistory, setStepHistory] = useState<WorkflowStep[]>([]);
   const [puttDistance, setPuttDistance] = useState('');
   const [smsMessage, setSmsMessage] = useState('');
-  const [recipients, setRecipients] = useState<SavedContact[]>([]);
+  const [recipients, setRecipients] = useState<SmsContact[]>([]);
 
   // Load hole data
   useEffect(() => {
@@ -121,18 +115,9 @@ const HoleScoringScreen: React.FC = () => {
         else if (h.par === 4) setStep('tee_par4');
         else setStep('tee_par5');
 
-        // Load SMS recipients
-        const raw = await getPreference('default_sms_group');
-        if (raw) {
-          try {
-            const contacts = JSON.parse(raw);
-            if (Array.isArray(contacts)) {
-              setRecipients(contacts);
-            }
-          } catch {
-            // legacy format - skip
-          }
-        }
+        // Load SMS recipients (service handles missing golfer gracefully)
+        const contacts = await smsService.getRecipientsForRound(roundId);
+        setRecipients(contacts);
       } catch (err) {
         setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
@@ -225,7 +210,7 @@ const HoleScoringScreen: React.FC = () => {
   const openSMS = useCallback(async (message: string) => {
     const phoneNumbers = recipients.map(c => c.phoneNumber).filter(Boolean);
     if (phoneNumbers.length === 0) {
-      Alert.alert('No Recipients', 'Configure SMS recipients in Settings > Contacts.');
+      Alert.alert('No Recipients', 'Configure SMS recipients in Manage Golfers.');
       return;
     }
 
@@ -850,7 +835,7 @@ function renderPuttDistance(
 
 function renderSMSPreview(
   message: string,
-  recipients: SavedContact[],
+  recipients: SmsContact[],
   onSend: () => void,
   onSkip: () => void,
 ) {
