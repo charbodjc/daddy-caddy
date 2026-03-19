@@ -5,6 +5,7 @@
 export const SHOT_TYPES = {
   TEE_SHOT: 'Tee Shot',
   APPROACH: 'Approach',
+  CHIP: 'Chip',
   PUTT: 'Putt',
   PENALTY: 'Penalty',
 } as const;
@@ -20,8 +21,11 @@ export const SHOT_RESULTS = {
   SAND: 'sand',
   HAZARD: 'hazard',
   OB: 'ob',
+  LOST: 'lost',
   MADE: 'made',
   MISSED: 'missed',
+  SHORT: 'short',
+  LONG: 'long',
 } as const;
 
 export type ShotResult = typeof SHOT_RESULTS[keyof typeof SHOT_RESULTS];

@@ -15,6 +15,10 @@ export type ScoringStackParamList = {
     roundId: string;
     preselectedShotType?: string;
   };
+  HoleScoring: {
+    holeId: string;
+    roundId: string;
+  };
   HoleSummary: { holeId: string; roundId: string };
   RoundSummary: { roundId: string };
   Camera: { currentHole: number; roundId: string };

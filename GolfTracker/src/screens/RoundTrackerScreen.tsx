@@ -145,7 +145,7 @@ const RoundTrackerScreen: React.FC = () => {
   };
   
   const navigateToShotTracking = (hole: { id: string; par: number }) => {
-    navigation.navigate('ShotTracking', {
+    navigation.navigate('HoleScoring', {
       holeId: hole.id,
       roundId: round?.id,
     } );

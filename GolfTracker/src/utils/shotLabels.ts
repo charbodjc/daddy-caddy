@@ -14,8 +14,11 @@ export function getResultLabel(result: string): string {
     case SHOT_RESULTS.SAND: return 'Sand';
     case SHOT_RESULTS.HAZARD: return 'Hazard';
     case SHOT_RESULTS.OB: return 'OB';
+    case SHOT_RESULTS.LOST: return 'Lost Ball';
     case SHOT_RESULTS.MADE: return 'Made';
     case SHOT_RESULTS.MISSED: return 'Missed';
+    case SHOT_RESULTS.SHORT: return 'Short';
+    case SHOT_RESULTS.LONG: return 'Long';
     default: return result;
   }
 }
