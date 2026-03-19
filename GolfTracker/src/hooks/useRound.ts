@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import { useRoundStore } from '../stores/roundStore';
+import { useGolferStore } from '../stores/golferStore';
 
 export const useRound = (roundId?: string) => {
   const { activeRound, loading, error } = useRoundStore();
+  const activeGolferId = useGolferStore((s) => s.activeGolferId);
 
   useEffect(() => {
     // Access actions via getState() to avoid putting unstable Zustand
@@ -14,7 +16,7 @@ export const useRound = (roundId?: string) => {
     } else {
       loadActiveRound();
     }
-  }, [roundId]);
+  }, [roundId, activeGolferId]);
 
   return {
     round: activeRound,

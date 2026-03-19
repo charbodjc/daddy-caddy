@@ -77,13 +77,13 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.golftracker"
+    namespace 'com.daddycaddy.golf'
     defaultConfig {
-        applicationId "com.golftracker"
+        applicationId 'com.daddycaddy.golf'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 27
-        versionName "1.2.7"
+        versionCode 1
+        versionName "1.0.1"
     }
     signingConfigs {
         debug {

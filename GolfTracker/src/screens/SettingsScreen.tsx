@@ -6,9 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Switch,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, DrawerActions } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { database } from '../database/watermelon/database';
@@ -21,12 +20,10 @@ const SettingsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [exporting, setExporting] = useState(false);
-  const [notifications, setNotifications] = useState(false);
   
   const handleExportData = async () => {
     setExporting(true);
     try {
-      // TODO: Implement WatermelonDB export
       Alert.alert('Coming Soon', 'Data export will be available in a future update.');
     } finally {
       setExporting(false);
@@ -67,7 +64,6 @@ const SettingsScreen: React.FC = () => {
   };
   
   const handleDatabaseDiagnostics = () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cross-stack navigation
     (navigation as any).navigate('DatabaseDiagnostic');
   };
   
@@ -109,6 +105,15 @@ const SettingsScreen: React.FC = () => {
     <ScrollView style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityLabel="Open menu"
+          accessibilityRole="button"
+        >
+          <Icon name="menu" size={28} color="#fff" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
       </View>
       
@@ -134,22 +139,6 @@ const SettingsScreen: React.FC = () => {
       {/* Preferences */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Preferences</Text>
-        
-        <View style={styles.settingItem}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Notifications</Text>
-            <Text style={styles.settingDescription}>
-              Receive round reminders
-            </Text>
-          </View>
-          <Switch
-            value={notifications}
-            onValueChange={setNotifications}
-            trackColor={{ false: '#ccc', true: '#4CAF50' }}
-            thumbColor="#fff"
-            accessibilityLabel="Notifications"
-          />
-        </View>
         
         <TouchableOpacity
           style={styles.settingItem}
@@ -279,6 +268,15 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#4CAF50',
     padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  menuButton: {
+    padding: 5,
+    marginRight: 12,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 28,

@@ -1,4 +1,4 @@
-package com.golftracker
+package com.daddycaddy.golf
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

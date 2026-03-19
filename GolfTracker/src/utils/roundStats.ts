@@ -266,13 +266,13 @@ export function formatRunningStatsForSMS(stats: RunningRoundStats): string {
   }
   text += `GIR: ${stats.totalGIR}/${stats.totalHolesPlayed}\n`;
   if (stats.holesWithFirstPuttData > 0) {
-    text += `Avg 1st Putt: ${stats.avgFirstPuttDistance} ft\n`;
+    text += `Avg Putt Length: ${stats.avgFirstPuttDistance} ft\n`;
   }
   if (stats.birdiePuttCount > 0) {
-    text += `Avg 1st Putt (Birdie): ${stats.avgBirdiePuttDistance} ft\n`;
+    text += `Avg Putt Length (Birdie): ${stats.avgBirdiePuttDistance} ft\n`;
   }
   if (stats.parPuttCount > 0) {
-    text += `Avg 1st Putt (Par): ${stats.avgParPuttDistance} ft\n`;
+    text += `Avg Putt Length (Par): ${stats.avgParPuttDistance} ft\n`;
   }
   text += `1-Putts: ${stats.totalOnePutts}\n`;
   text += `3-Putts: ${stats.totalThreePutts}\n`;

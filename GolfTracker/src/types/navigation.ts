@@ -39,12 +39,12 @@ export type SettingsStackParamList = {
   DatabaseDiagnostic: undefined;
 };
 
-// Composite type for screens that navigate across stacks
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- screens navigate across multiple stacks
-export type AppNavigationProp = RNNavigationProp<any>;
+// Composite type — screens navigate both within and across stacks; proper
+// CompositeNavigationProp would require per-screen typing which is a larger refactor.
+export type AppNavigationProp = RNNavigationProp<Record<string, unknown>>;
 
-// Bottom tabs
-export type RootTabParamList = {
+// Drawer navigation
+export type RootDrawerParamList = {
   Home: undefined;
   Scoring: { screen?: string; params?: Record<string, unknown> } | undefined;
   Tournaments: { screen?: string; params?: Record<string, unknown> } | undefined;

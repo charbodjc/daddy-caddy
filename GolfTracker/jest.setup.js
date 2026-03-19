@@ -1,3 +1,23 @@
+// Mock react-native-reanimated — must be first to prevent Babel plugin crash
+jest.mock('react-native-reanimated', () => {
+  const View = require('react-native').View;
+  return {
+    default: { addWhitelistedNativeProps: jest.fn(), addWhitelistedUIProps: jest.fn() },
+    useSharedValue: jest.fn((init) => ({ value: init })),
+    useAnimatedStyle: jest.fn(() => ({})),
+    withTiming: jest.fn((val) => val),
+    withSpring: jest.fn((val) => val),
+    withDecay: jest.fn((val) => val),
+    Easing: { linear: jest.fn(), ease: jest.fn(), bezier: jest.fn(() => jest.fn()) },
+    createAnimatedComponent: (comp) => comp || View,
+    View,
+    Text: View,
+    Image: View,
+    ScrollView: View,
+    FlatList: View,
+  };
+});
+
 // Mock react-native-vector-icons
 jest.mock('react-native-vector-icons/MaterialIcons', () => 'Icon');
 jest.mock('react-native-vector-icons/FontAwesome5', () => 'Icon');
@@ -45,6 +65,7 @@ jest.mock('react-native-gesture-handler', () => {
     RectButton: View,
     BorderlessButton: View,
     FlatList: View,
+    GestureHandlerRootView: View,
     gestureHandlerRootHOC: jest.fn(),
     Directions: {},
   };

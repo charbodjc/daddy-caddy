@@ -392,7 +392,12 @@ const HoleScoringScreen: React.FC = () => {
         `${formatScoreVsPar(finalScoreVsPar)} on the hole\n\n` +
         `After ${holesPlayed} holes: ${formatScoreVsPar(totalScoreVsPar)}`;
 
-      await openSMS(summaryMsg);
+      // SMS is best-effort — don't block navigation or show error for SMS failures
+      try {
+        await openSMS(summaryMsg);
+      } catch {
+        // SMS send failed silently — hole data was already saved
+      }
       navigation.navigate('RoundTracker', { roundId });
     } catch {
       Alert.alert('Error', 'Failed to save hole. Please try again.');
@@ -931,7 +936,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 8, marginRight: 8 },
   headerCenter: { flex: 1 },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: S.white },
+  headerTitle: { fontSize: 28, fontWeight: 'bold', color: S.white },
   headerSub: { fontSize: 14, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
   undoBtn: {
     padding: 8,

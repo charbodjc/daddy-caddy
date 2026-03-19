@@ -8,6 +8,7 @@ import {
   Share,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { AppNavigationProp } from '../types/navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { database } from '../database/watermelon/database';
 import Round from '../database/watermelon/models/Round';
@@ -15,7 +16,6 @@ import { LoadingScreen } from '../components/common/LoadingScreen';
 import { ErrorScreen } from '../components/common/ErrorScreen';
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-// FontAwesome5 available for future use
 import { format } from 'date-fns';
 import { formatScoreVsPar, calculateScoreBreakdown } from '../utils/scoreCalculations';
 import { calculateRunningRoundStats, formatRunningStatsForSMS, RunningRoundStats } from '../utils/roundStats';
@@ -26,7 +26,7 @@ interface RouteParams {
 
 const RoundSummaryScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const navigation = useNavigation<AppNavigationProp>();
   const route = useRoute();
   const { roundId } = (route.params as RouteParams) || {};
   
@@ -42,7 +42,10 @@ const RoundSummaryScreen: React.FC = () => {
   }, [roundId]);
   
   const loadRound = async () => {
-    if (!roundId) return;
+    if (!roundId) {
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     try {
@@ -91,6 +94,14 @@ Played with Daddy Caddy ⛳
     }
   }, [round, holes, roundStats]);
 
+  const handleEditRound = useCallback(() => {
+    if (!roundId) return;
+    navigation.navigate('Scoring', {
+      screen: 'RoundTracker',
+      params: { roundId },
+    });
+  }, [navigation, roundId]);
+
   const completedHoles = useMemo(() => holes.filter(h => h.strokes > 0), [holes]);
   const totalPar = useMemo(() => completedHoles.reduce((sum, h) => sum + h.par, 0), [completedHoles]);
   const breakdown = useMemo(() => {
@@ -135,15 +146,26 @@ Played with Daddy Caddy ⛳
           <Text style={styles.headerSubtitle}>{round.courseName}</Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.shareButton}
-          onPress={handleShare}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityLabel="Share round"
-          accessibilityRole="button"
-        >
-          <Icon name="share" size={24} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerActionButton}
+            onPress={handleEditRound}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Edit round"
+            accessibilityRole="button"
+          >
+            <Icon name="edit" size={24} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerActionButton}
+            onPress={handleShare}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Share round"
+            accessibilityRole="button"
+          >
+            <Icon name="share" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
       
       {/* Score Card */}
@@ -164,26 +186,26 @@ Played with Daddy Caddy ⛳
       </View>
       
       {/* Statistics */}
-      {(round.fairwaysHit !== undefined || round.greensInRegulation !== undefined) && (
+      {roundStats && (roundStats.totalFairwayHoles > 0 || roundStats.totalHolesPlayed > 0) && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Statistics</Text>
 
           <View style={styles.statsGrid}>
-            {round.fairwaysHit !== undefined && (
+            {roundStats.totalFairwayHoles > 0 && (
               <StatItem
                 icon={<Icon name="flag" size={20} color="#4CAF50" />}
                 label="Fairways Hit"
-                value={`${round.fairwaysHit}/14`}
-                percentage={Math.round((round.fairwaysHit / 14) * 100)}
+                value={`${roundStats.totalFairwaysHit}/${roundStats.totalFairwayHoles}`}
+                percentage={Math.round((roundStats.totalFairwaysHit / roundStats.totalFairwayHoles) * 100)}
               />
             )}
 
-            {round.greensInRegulation !== undefined && (
+            {roundStats.totalHolesPlayed > 0 && (
               <StatItem
                 icon={<Icon name="adjust" size={20} color="#4CAF50" />}
                 label="Greens in Regulation"
-                value={`${round.greensInRegulation}/18`}
-                percentage={Math.round((round.greensInRegulation / 18) * 100)}
+                value={`${roundStats.totalGIR}/${roundStats.totalHolesPlayed}`}
+                percentage={Math.round((roundStats.totalGIR / roundStats.totalHolesPlayed) * 100)}
               />
             )}
           </View>
@@ -198,10 +220,10 @@ Played with Daddy Caddy ⛳
             <DetailedStatRow label="Total Putts" value={`${roundStats.totalPutts}`} />
             <DetailedStatRow label="Total Putt Feet Made" value={`${Math.round(roundStats.totalPuttFeetMade)} ft`} />
             {roundStats.birdiePuttCount > 0 && (
-              <DetailedStatRow label="Avg 1st Putt (Birdie Holes)" value={`${roundStats.avgBirdiePuttDistance} ft`} />
+              <DetailedStatRow label="Avg Putt Length (Birdie)" value={`${roundStats.avgBirdiePuttDistance} ft`} />
             )}
             {roundStats.parPuttCount > 0 && (
-              <DetailedStatRow label="Avg 1st Putt (Par Holes)" value={`${roundStats.avgParPuttDistance} ft`} />
+              <DetailedStatRow label="Avg Putt Length (Par)" value={`${roundStats.avgParPuttDistance} ft`} />
             )}
             <DetailedStatRow label="1-Putts" value={`${roundStats.totalOnePutts}`} />
             <DetailedStatRow label="3-Putts" value={`${roundStats.totalThreePutts}`} />
@@ -327,12 +349,15 @@ const styles = StyleSheet.create({
   backButton: {
     marginRight: 15,
     padding: 5,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   headerInfo: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
     marginBottom: 4,
@@ -341,8 +366,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
   },
-  shareButton: {
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerActionButton: {
     padding: 5,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scoreCard: {
     backgroundColor: '#fff',

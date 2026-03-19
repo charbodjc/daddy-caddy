@@ -17,6 +17,7 @@ import { ErrorScreen } from '../components/common/ErrorScreen';
 import { Button } from '../components/common/Button';
 import Tournament from '../database/watermelon/models/Tournament';
 import Round from '../database/watermelon/models/Round';
+import Hole from '../database/watermelon/models/Hole';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { format } from 'date-fns';
 import { database } from '../database/watermelon/database';
@@ -39,6 +40,7 @@ const TournamentRoundsScreen: React.FC = () => {
 
   const [tournament, setTournament] = React.useState<Tournament | null>(null);
   const [rounds, setRounds] = React.useState<Round[]>([]);
+  const [parByRound, setParByRound] = React.useState<Record<string, number>>({});
   const [loading, setLoading] = React.useState(true);
   const [creating, setCreating] = React.useState(false);
   const [loadError, setLoadError] = React.useState<Error | null>(null);
@@ -58,6 +60,19 @@ const TournamentRoundsScreen: React.FC = () => {
       setTournament(t);
       const tournamentRounds = await getTournamentRounds(tournamentId);
       setRounds(tournamentRounds);
+
+      // Calculate actual par for each round from its holes
+      const parMap: Record<string, number> = {};
+      await Promise.all(
+        tournamentRounds.map(async (r) => {
+          const holes: Hole[] = await r.holes.fetch();
+          const scoredHoles = holes.filter((h) => h.strokes > 0);
+          if (scoredHoles.length > 0) {
+            parMap[r.id] = scoredHoles.reduce((sum, h) => sum + h.par, 0);
+          }
+        }),
+      );
+      setParByRound(parMap);
     } catch (error) {
       console.error('Failed to load tournament/rounds:', error);
       setLoadError(error as Error);
@@ -96,8 +111,8 @@ const TournamentRoundsScreen: React.FC = () => {
   }, [navigation]);
 
   const renderRoundItem = useCallback(({ item }: { item: Round }) => (
-    <RoundCard round={item} onPress={() => handleRoundPress(item)} />
-  ), [handleRoundPress]);
+    <RoundCard round={item} totalPar={parByRound[item.id]} onPress={() => handleRoundPress(item)} />
+  ), [handleRoundPress, parByRound]);
 
   const keyExtractor = useCallback((item: Round) => item.id, []);
 
@@ -169,13 +184,12 @@ const TournamentRoundsScreen: React.FC = () => {
 // Round Card Component
 const RoundCard: React.FC<{
   round: Round;
+  totalPar?: number;
   onPress: () => void;
-}> = React.memo(({ round, onPress }) => {
+}> = React.memo(({ round, totalPar, onPress }) => {
   const getScoreDisplay = () => {
-    if (!round.totalScore) return '--';
-
-    const par = 72; // Standard par, should calculate from holes
-    const toPar = round.totalScore - par;
+    if (!round.totalScore || !totalPar) return '--';
+    const toPar = round.totalScore - totalPar;
     return formatScoreVsPar(toPar);
   };
   
@@ -223,12 +237,15 @@ const styles = StyleSheet.create({
   backButton: {
     marginRight: 15,
     padding: 5,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   headerInfo: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
     marginBottom: 4,

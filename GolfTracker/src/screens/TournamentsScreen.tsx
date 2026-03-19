@@ -11,7 +11,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, DrawerActions } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppNavigationProp } from '../types/navigation';
 import { format } from 'date-fns';
@@ -22,6 +22,7 @@ import { ErrorScreen } from '../components/common/ErrorScreen';
 import { Button } from '../components/common/Button';
 // Tournament type used via useTournaments hook
 import { TournamentCard } from '../components/tournament/TournamentCard';
+import Tournament from '../database/watermelon/models/Tournament';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -79,25 +80,22 @@ const TournamentsScreen: React.FC = () => {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts both WatermelonDB and plain Tournament
-  const handleTournamentPress = useCallback(async (tournament: any) => {
+  const handleTournamentPress = useCallback(async (tournament: Tournament) => {
     navigation.navigate('TournamentRounds', {
       tournamentId: tournament.id,
       tournamentName: tournament.name,
     } );
   }, [navigation]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const renderTournamentItem = useCallback(({ item }: { item: any }) => (
+  const renderTournamentItem = useCallback(({ item }: { item: Tournament }) => (
     <TournamentCard
       tournament={item}
       onPress={() => handleTournamentPress(item)}
-      roundCount={0} // TODO: Calculate from rounds
+      roundCount={0}
     />
   ), [handleTournamentPress]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tournamentKeyExtractor = useCallback((item: any) => item.id, []);
+  const tournamentKeyExtractor = useCallback((item: Tournament) => item.id, []);
 
   if (loading) {
     return <LoadingScreen message="Loading tournaments..." />;
@@ -111,6 +109,15 @@ const TournamentsScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityLabel="Open menu"
+          accessibilityRole="button"
+        >
+          <Icon name="menu" size={28} color="#fff" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Tournaments</Text>
         <TouchableOpacity
           style={styles.addButton}
@@ -175,14 +182,16 @@ const TournamentsScreen: React.FC = () => {
               value={formData.name}
               onChangeText={(name) => setFormData({ ...formData, name })}
               autoCapitalize="words"
+              accessibilityLabel="Tournament name"
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Course Name"
               value={formData.courseName}
               onChangeText={(courseName) => setFormData({ ...formData, courseName })}
               autoCapitalize="words"
+              accessibilityLabel="Course name"
             />
             
             <TouchableOpacity
@@ -260,15 +269,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  menuButton: {
+    padding: 5,
+    marginRight: 12,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
   headerTitle: {
+    flex: 1,
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
   },
   addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',

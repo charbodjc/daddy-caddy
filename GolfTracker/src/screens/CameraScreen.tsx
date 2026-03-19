@@ -112,12 +112,19 @@ const CameraScreen = () => {
             <TouchableOpacity
               style={styles.retakeButton}
               onPress={() => setSelectedImage(null)}
+              accessibilityLabel="Retake photo or video"
+              accessibilityRole="button"
             >
               <Icon name="refresh" size={20} color="#666" />
               <Text style={styles.retakeButtonText}>Retake</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.useButton} onPress={saveMedia}>
+
+            <TouchableOpacity
+              style={styles.useButton}
+              onPress={saveMedia}
+              accessibilityLabel={`Use this ${isVideo ? 'video' : 'photo'}`}
+              accessibilityRole="button"
+            >
               <Icon name="check" size={20} color="#fff" />
               <Text style={styles.useButtonText}>Use {isVideo ? 'Video' : 'Photo'}</Text>
             </TouchableOpacity>
@@ -129,6 +136,8 @@ const CameraScreen = () => {
             <TouchableOpacity
               style={styles.captureButton}
               onPress={handleCameraLaunch}
+              accessibilityLabel="Take photo or video with camera"
+              accessibilityRole="button"
             >
               <Icon name="camera-alt" size={48} color="#4CAF50" />
               <Text style={styles.captureButtonText}>Take Photo/Video</Text>
@@ -137,6 +146,8 @@ const CameraScreen = () => {
             <TouchableOpacity
               style={styles.captureButton}
               onPress={handleGalleryLaunch}
+              accessibilityLabel="Choose photo or video from gallery"
+              accessibilityRole="button"
             >
               <Icon name="photo-library" size={48} color="#4CAF50" />
               <Text style={styles.captureButtonText}>Choose from Gallery</Text>
@@ -168,6 +179,8 @@ const CameraScreen = () => {
       <TouchableOpacity
         style={styles.cancelButton}
         onPress={() => navigation.goBack()}
+        accessibilityLabel="Cancel and go back"
+        accessibilityRole="button"
       >
         <Text style={styles.cancelButtonText}>Cancel</Text>
       </TouchableOpacity>
@@ -186,7 +199,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
   },

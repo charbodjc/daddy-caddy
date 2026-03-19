@@ -34,16 +34,10 @@ describe('RoundHeader Component', () => {
     expect(getByText(/Jan/)).toBeTruthy();
   });
   
-  it('should display total score', () => {
+  it('should display score relative to par', () => {
     const { getByText } = render(<RoundHeader round={testRound} />);
-    
-    expect(getByText('85')).toBeTruthy();
-  });
-  
-  it('should calculate score to par', () => {
-    const { getByText } = render(<RoundHeader round={testRound} />);
-    
-    // 85 - 72 (par) = +13
+
+    // 85 - 72 (default par) = +13 — header only shows relative-to-par
     expect(getByText('+13')).toBeTruthy();
   });
   
