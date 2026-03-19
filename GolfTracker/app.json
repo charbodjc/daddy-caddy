@@ -5,10 +5,7 @@
     "scheme": "daddycaddy",
     "version": "1.0.1",
     "orientation": "portrait",
-    "icon": {
-      "light": "./assets/daddy-caddy.png",
-      "dark": "./assets/daddy-caddy-dark.png"
-    },
+    "icon": "./assets/daddy-caddy.png",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/daddy-caddy.png",
