@@ -16,11 +16,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.daddycaddy.golf",
       "buildNumber": "2",
-      "icon": {
-        "light": "./assets/daddy-caddy.png",
-        "dark": "./assets/daddy-caddy-dark.png",
-        "tinted": true
-      },
+      "icon": "./assets/daddy-caddy.png",
       "infoPlist": {
         "NSContactsUsageDescription": "Daddy Caddy needs access to your contacts to select recipients for golf score updates and messages.",
         "NSMicrophoneUsageDescription": "Daddy Caddy uses the microphone for voice shot tracking.",
