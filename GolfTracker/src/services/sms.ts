@@ -1,107 +1,106 @@
 import { Platform, Linking } from 'react-native';
 import * as SMS from 'expo-sms';
-import { GolfRound, GolfHole, MediaItem, Contact, SHOT_TYPES } from '../types';
-import AIService from './ai';
-import { getPreference } from './preferenceService';
+import { GolfHole, SmsContact, SHOT_TYPES } from '../types';
+import { database } from '../database/watermelon/database';
+import Golfer from '../database/watermelon/models/Golfer';
+import { parseGolferContacts } from '../stores/golferStore';
 import { getScoreName } from '../utils/scoreColors';
-import { formatScoreVsPar, calculateScoreBreakdown } from '../utils/scoreCalculations';
-import { formatDateShort } from '../utils/dateFormatting';
-
-interface RoundStats {
-  totalScore: number;
-  scoreVsPar: string;
-  eagles: number;
-  birdies: number;
-  pars: number;
-  bogeys: number;
-  doubleBogeys: number;
-  fairwaysHit: number;
-  greensInRegulation: number;
-  totalPutts: number;
-  playedHoles?: number;
-}
-
-interface SavedContact {
-  name: string;
-  phoneNumber: string;
-}
 
 class SMSService {
-  async sendRoundSummary(
-    round: GolfRound,
-    mediaItems: MediaItem[]
-  ): Promise<{ success: boolean; sent: boolean; errors: string[]; groupName?: string }> {
-    const errors: string[] = [];
-
+  /**
+   * Resolve SMS recipients for a golfer from their WatermelonDB record.
+   * Returns an empty array if the golfer has no contacts configured.
+   */
+  async getRecipientsForGolfer(golferId: string): Promise<SmsContact[]> {
     try {
-      // Generate AI analysis
-      const aiAnalysis = await AIService.analyzeRound(round);
-      
-      // Calculate statistics
-      const stats = this.calculateRoundStats(round);
-      
-      // Create message content
-      const message = this.formatMessage(round, stats, aiAnalysis, mediaItems);
-
-      // Load default recipients list from settings (comma or newline separated)
-      const recipients = await this.getDefaultRecipients();
-      const groupName = await getPreference('default_sms_group_name') || 'your text group';
-
-      // Open Messages app with pre-filled message
-      const result = await this.openSMS(recipients, message);
-
-      if (!result.success) {
-        errors.push('Failed to open Messages');
-      }
-
-      return {
-        success: result.success,
-        sent: result.sent,
-        errors,
-        groupName,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        sent: false,
-        errors: [`Failed to prepare message: ${error}`],
-      };
+      const golfer = await database.collections.get<Golfer>('golfers').find(golferId);
+      return parseGolferContacts(golfer.smsContactsRaw);
+    } catch {
+      return [];
     }
   }
 
+  async sendHoleSummary(
+    hole: GolfHole,
+    aiSummary: string,
+    mediaCount: { photos: number; videos: number },
+    golferId: string,
+    runningStatsText?: string,
+  ): Promise<{ success: boolean; sent: boolean; errors: string[] }> {
+    const recipients = await this.getRecipientsForGolfer(golferId);
+    if (recipients.length === 0) {
+      return { success: false, sent: false, errors: ['No SMS contacts configured'] };
+    }
+
+    let message = `Hole ${hole.holeNumber} Update\n`;
+    message += `${aiSummary}\n\n`;
+
+    const diff = hole.strokes - hole.par;
+    message += `Score: ${hole.strokes} (${getScoreName(diff)})\n`;
+
+    if (hole.shotData) {
+      try {
+        const parsed =
+          typeof hole.shotData === 'string' ? JSON.parse(hole.shotData) : hole.shotData;
+        if (parsed?.shots && Array.isArray(parsed.shots)) {
+          const puttCount = parsed.shots.filter(
+            (s: { type: string }) =>
+              s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase(),
+          ).length;
+          if (puttCount > 0) {
+            message += `Putts: ${puttCount}\n`;
+          }
+        }
+      } catch {
+        // shotData not parseable, skip putt count
+      }
+    }
+
+    const totalMedia = mediaCount.photos + mediaCount.videos;
+    if (totalMedia > 0) {
+      message += `\n📸 Media: `;
+      if (mediaCount.photos > 0)
+        message += `${mediaCount.photos} photo${mediaCount.photos !== 1 ? 's' : ''}`;
+      if (mediaCount.photos > 0 && mediaCount.videos > 0) message += ' & ';
+      if (mediaCount.videos > 0)
+        message += `${mediaCount.videos} video${mediaCount.videos !== 1 ? 's' : ''}`;
+      message += ' attached';
+    }
+
+    if (runningStatsText) {
+      message += runningStatsText;
+    }
+
+    const phoneNumbers = recipients.map((c) => c.phoneNumber);
+    const result = await this.openSMS(phoneNumbers, message);
+    return {
+      success: result.success,
+      sent: result.sent,
+      errors: result.success ? [] : ['Failed to open SMS app'],
+    };
+  }
+
   private async openSMS(
-    recipients: string,
-    body: string
+    recipients: string[],
+    body: string,
   ): Promise<{ success: boolean; sent: boolean }> {
     try {
-      // Parse recipients into array
-      const recipientArray = recipients
-        .split(/[\n,;]/)
-        .map(r => r.trim())
-        .filter(Boolean);
-
-      if (recipientArray.length === 0) {
+      if (recipients.length === 0) {
         return { success: false, sent: false };
       }
 
       // Use expo-sms sendSMSAsync which passes the message body directly to the
       // native SMS composer without URL encoding. The Linking.openURL approach with
       // sms: URLs causes iOS to display raw percent-encoded text (%20, %0A, etc.)
-      // instead of readable characters — especially with longer messages and emojis.
       const isAvailable = await SMS.isAvailableAsync();
       if (isAvailable) {
-        const result = await SMS.sendSMSAsync(recipientArray, body);
-        // On iOS: result is 'sent' or 'cancelled'
-        // On Android: result is always 'unknown' (platform limitation)
+        const result = await SMS.sendSMSAsync(recipients, body);
         const wasSent = result.result === 'sent' || result.result === 'unknown';
-        return {
-          success: true,
-          sent: wasSent,
-        };
+        return { success: true, sent: wasSent };
       }
 
       // Fallback to sms: URL scheme if expo-sms is not available
-      const addresses = recipientArray.join(',');
+      const addresses = recipients.join(',');
       const encodedBody = encodeURIComponent(body);
       const separator = Platform.OS === 'ios' ? '&' : '?';
       const smsUrl = `sms:${addresses}${separator}body=${encodedBody}`;
@@ -112,263 +111,10 @@ class SMSService {
         return { success: true, sent: true };
       }
 
-      console.warn('SMS is not available on this device');
       return { success: false, sent: false };
-    } catch (error) {
-      console.error('Error opening SMS:', error);
-      return { success: false, sent: false };
-    }
-  }
-
-  private calculateRoundStats(round: GolfRound) {
-    // Only calculate stats for holes that have been played (strokes > 0)
-    const playedHoles = round.holes.filter(hole => hole.strokes > 0);
-
-    if (playedHoles.length === 0) {
-      return {
-        totalScore: 0,
-        scoreVsPar: 'E',
-        eagles: 0,
-        birdies: 0,
-        pars: 0,
-        bogeys: 0,
-        doubleBogeys: 0,
-        fairwaysHit: 0,
-        greensInRegulation: 0,
-        totalPutts: 0,
-      };
-    }
-
-    const totalPar = playedHoles.reduce((sum, hole) => sum + hole.par, 0);
-    const totalStrokes = playedHoles.reduce((sum, hole) => sum + hole.strokes, 0);
-    const score = totalStrokes - totalPar;
-    const breakdown = calculateScoreBreakdown(playedHoles);
-
-    return {
-      totalScore: totalStrokes,
-      scoreVsPar: formatScoreVsPar(score),
-      eagles: breakdown.eagles,
-      birdies: breakdown.birdies,
-      pars: breakdown.pars,
-      bogeys: breakdown.bogeys,
-      doubleBogeys: breakdown.doublePlus,
-      fairwaysHit: round.fairwaysHit || 0,
-      greensInRegulation: round.greensInRegulation || 0,
-      totalPutts: round.totalPutts || 0,
-      playedHoles: playedHoles.length,
-    };
-  }
-
-  private formatMessage(
-    round: GolfRound,
-    stats: RoundStats,
-    aiAnalysis: string,
-    mediaItems: MediaItem[]
-  ): string {
-    const date = formatDateShort(round.date);
-    const mediaCount = mediaItems.length;
-
-    let message = `Golf Round Update - ${date}\n`;
-    message += `📍 ${round.courseName}\n`;
-    if (round.tournamentName) {
-      message += `🏆 ${round.tournamentName}\n`;
-    }
-    message += `\n`;
-    message += `Score: ${stats.totalScore} (${stats.scoreVsPar})\n`;
-    message += `\n`;
-    message += `📊 Round Stats:\n`;
-    
-    if (stats.eagles > 0) message += `🦅 Eagles: ${stats.eagles}\n`;
-    if (stats.birdies > 0) message += `🐦 Birdies: ${stats.birdies}\n`;
-    message += `✅ Pars: ${stats.pars}\n`;
-    if (stats.bogeys > 0) message += `😐 Bogeys: ${stats.bogeys}\n`;
-    if (stats.doubleBogeys > 0) message += `😔 Double+: ${stats.doubleBogeys}\n`;
-    
-    message += `\n`;
-    const holesPlayed = stats.playedHoles || round.holes.filter(h => h.strokes > 0).length;
-    const par3Count = round.holes.filter(h => h.par === 3 && h.strokes > 0).length;
-    const fairwayHoles = Math.max(0, holesPlayed - par3Count);
-    
-    if (fairwayHoles > 0) {
-      message += `🎯 Fairways: ${stats.fairwaysHit}/${fairwayHoles}\n`;
-    }
-    message += `🟢 GIR: ${stats.greensInRegulation}/${holesPlayed}\n`;
-    message += `🏌️ Putts: ${stats.totalPutts}\n`;
-    
-    if (mediaCount > 0) {
-      message += `\n`;
-      message += `📸 ${mediaCount} photos/videos captured\n`;
-    }
-
-    // Add AI insights (truncated for SMS)
-    if (aiAnalysis && aiAnalysis !== 'AI analysis unavailable. Please configure OpenAI API key.') {
-      message += `\n`;
-      message += `🤖 AI Insights:\n`;
-      // Take first 300 characters of AI analysis for SMS
-      const truncatedAnalysis = aiAnalysis.substring(0, 300);
-      message += truncatedAnalysis;
-      if (aiAnalysis.length > 300) {
-        message += '...';
-      }
-    }
-
-    // Add hole-by-hole highlights only for played holes
-    const playedHoles = round.holes.filter(hole => hole.strokes > 0);
-    
-    if (playedHoles.length > 0) {
-      const bestHole = playedHoles.reduce((best, hole) => {
-        const score = hole.strokes - hole.par;
-        const bestScore = best.strokes - best.par;
-        return score < bestScore ? hole : best;
-      });
-
-      const worstHole = playedHoles.reduce((worst, hole) => {
-        const score = hole.strokes - hole.par;
-        const worstScore = worst.strokes - worst.par;
-        return score > worstScore ? hole : worst;
-      });
-
-      message += `\n`;
-      message += `🌟 Best Hole: #${bestHole.holeNumber} (${getScoreName(bestHole.strokes - bestHole.par)})\n`;
-      message += `😅 Tough Hole: #${worstHole.holeNumber} (${getScoreName(worstHole.strokes - worstHole.par)})\n`;
-    }
-
-    return message;
-  }
-
-  // Score naming delegated to shared utility getScoreName()
-
-  async sendQuickUpdate(
-    message: string
-  ): Promise<{ success: boolean; sent: boolean; errors: string[]; groupName?: string }> {
-    const errors: string[] = [];
-
-    try {
-      const recipients = await this.getDefaultRecipients();
-      const groupName = await getPreference('default_sms_group_name') || 'your text group';
-
-      // Open Messages app with pre-filled message
-      const result = await this.openSMS(recipients, message);
-
-      if (!result.success) {
-        errors.push('Failed to open Messages');
-      }
-
-      return {
-        success: result.success,
-        sent: result.sent,
-        errors,
-        groupName,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        sent: false,
-        errors: [`Failed to send message: ${error}`],
-      };
-    }
-  }
-
-  async sendHoleUpdate(
-    hole: number,
-    score: string,
-    notes: string,
-  ): Promise<{ success: boolean; sent: boolean; errors: string[]; groupName?: string }> {
-    const message = `⛳ Hole ${hole} Update\n🏌️ Score: ${score}\n${notes ? `📝 ${notes}` : ''}`;
-    return this.sendQuickUpdate(message);
-  }
-
-  async sendHoleSummary(
-    hole: GolfHole,
-    aiSummary: string,
-    mediaCount: { photos: number; videos: number },
-    contacts?: Contact[],
-    runningStatsText?: string
-  ): Promise<{ success: boolean; sent: boolean; errors: string[]; groupName?: string }> {
-    // Create message with AI summary
-    let message = `Hole ${hole.holeNumber} Update\n`;
-    message += `${aiSummary}\n\n`;
-
-    // Add stats
-    const diff = hole.strokes - hole.par;
-    const scoreText = getScoreName(diff);
-
-    message += `Score: ${hole.strokes} (${scoreText})\n`;
-
-    // Derive putt count from shots array (putts are shots with type 'Putt')
-    if (hole.shotData) {
-      try {
-        const parsed = typeof hole.shotData === 'string' ? JSON.parse(hole.shotData) : hole.shotData;
-        if (parsed?.shots && Array.isArray(parsed.shots)) {
-          const puttCount = parsed.shots.filter((s: { type: string }) => s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase()).length;
-          if (puttCount > 0) {
-            message += `Putts: ${puttCount}\n`;
-          }
-        }
-      } catch {
-        // shotData not parseable, skip putt count
-      }
-    }
-
-    // Add media info
-    const totalMedia = mediaCount.photos + mediaCount.videos;
-    if (totalMedia > 0) {
-      message += `\n📸 Media: `;
-      if (mediaCount.photos > 0) message += `${mediaCount.photos} photo${mediaCount.photos !== 1 ? 's' : ''}`;
-      if (mediaCount.photos > 0 && mediaCount.videos > 0) message += ' & ';
-      if (mediaCount.videos > 0) message += `${mediaCount.videos} video${mediaCount.videos !== 1 ? 's' : ''}`;
-      message += ' attached';
-    }
-
-    // Add running round stats
-    if (runningStatsText) {
-      message += runningStatsText;
-    }
-
-    if (contacts && contacts.length > 0) {
-      // Use specified contacts
-      const phoneNumbers = contacts.map(c => c.phoneNumber).join(',');
-      const groupName = 'selected contacts';
-      const result = await this.openSMS(phoneNumbers, message);
-      return {
-        success: result.success,
-        sent: result.sent,
-        errors: result.success ? [] : ['Failed to open SMS app'],
-        groupName,
-      };
-    }
-    
-    // Use default recipients
-    return this.sendQuickUpdate(message);
-  }
-
-  private async getDefaultRecipients(): Promise<string> {
-    const raw = await getPreference('default_sms_group');
-    if (!raw) return '';
-    
-    try {
-      // Try to parse as JSON first (new format with names and numbers)
-      const contacts = JSON.parse(raw);
-      if (Array.isArray(contacts)) {
-        // Extract phone numbers from contact objects
-        const phoneNumbers = contacts
-          .map((c: SavedContact) => c.phoneNumber)
-          .filter(Boolean)
-          .join(',');
-        console.log(`📱 Loaded ${contacts.length} contacts from JSON: ${contacts.map((c: SavedContact) => c.name).join(', ')}`);
-        return phoneNumbers;
-      }
     } catch {
-      // Fallback: Parse old format (comma-separated phone numbers only)
-      console.log('📱 Using legacy format (numbers only)');
+      return { success: false, sent: false };
     }
-    
-    // Normalize separators to commas (legacy format)
-    return raw
-      .split(/[\n,;]/)
-      .map(s => s.trim())
-      .filter(Boolean)
-      .join(',');
   }
 }
 

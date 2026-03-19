@@ -8,8 +8,6 @@ import Round from './models/Round';
 import Hole from './models/Hole';
 import Tournament from './models/Tournament';
 import Media from './models/Media';
-import Contact from './models/Contact';
-
 // Use LokiJS adapter for testing (works in Node environment)
 // Use SQLite adapter for production (native performance)
 const adapter = process.env.NODE_ENV === 'test'
@@ -30,6 +28,6 @@ const adapter = process.env.NODE_ENV === 'test'
 
 export const database = new Database({
   adapter,
-  modelClasses: [Golfer, Round, Hole, Tournament, Media, Contact],
+  modelClasses: [Golfer, Round, Hole, Tournament, Media],
 });
 

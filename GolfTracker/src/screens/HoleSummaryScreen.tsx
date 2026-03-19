@@ -78,7 +78,7 @@ const HoleSummaryScreen: React.FC = () => {
   const { toastConfig, showToast, hideToast } = useToast();
 
   const [hole, setHole] = useState<Hole | null>(null);
-  const [_round, setRound] = useState<Round | null>(null);
+  const [round, setRound] = useState<Round | null>(null);
   const [totalHoles, setTotalHoles] = useState(18);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -150,7 +150,7 @@ const HoleSummaryScreen: React.FC = () => {
   }, [hole, mediaItems]);
 
   const handleSendSMS = useCallback(async () => {
-    if (!hole) return;
+    if (!hole || !round?.golferId) return;
     setSendingSms(true);
     try {
       const golfHole = holeToGolfHole(hole);
@@ -162,21 +162,21 @@ const HoleSummaryScreen: React.FC = () => {
         golfHole,
         aiSummary,
         mediaCounts,
-        undefined,
+        round.golferId,
         runningText,
       );
 
       if (result.success && result.sent) {
         showToast('Message opened', 'success');
       } else if (!result.success) {
-        showToast(result.errors.join(', ') || 'Failed to send', 'error');
+        showToast(result.errors.join(', ') || 'No SMS contacts configured', 'error');
       }
     } catch {
       showToast('Failed to send SMS', 'error');
     } finally {
       setSendingSms(false);
     }
-  }, [hole, roundId, aiSummary, showToast]);
+  }, [hole, round, roundId, aiSummary, showToast]);
 
   const handleNextHole = useCallback(() => {
     navigation.navigate('RoundTracker', { roundId });

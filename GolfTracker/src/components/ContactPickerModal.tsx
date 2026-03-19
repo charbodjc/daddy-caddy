@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,16 +10,11 @@ import {
   SafeAreaView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome5';
-
-interface Contact {
-  id: string;
-  name: string;
-  phoneNumber: string;
-}
+import type { SmsContact } from '../types';
 
 interface ContactPickerModalProps {
   visible: boolean;
-  contacts: Contact[];
+  contacts: SmsContact[];
   selectedContactIds: Set<string>;
   onClose: () => void;
   onSave: (selectedIds: Set<string>) => void;
@@ -34,6 +29,13 @@ const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [localSelected, setLocalSelected] = useState(new Set(selectedContactIds));
+
+  useEffect(() => {
+    if (visible) {
+      setLocalSelected(new Set(selectedContactIds));
+      setSearchQuery('');
+    }
+  }, [visible, selectedContactIds]);
 
   const filteredContacts = contacts.filter(
     (contact) =>
@@ -62,7 +64,7 @@ const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
   };
 
   const selectAll = () => {
-    setLocalSelected(new Set(filteredContacts.map((c) => c.id)));
+    setLocalSelected((prev) => new Set([...prev, ...filteredContacts.map((c) => c.id)]));
   };
 
   const clearAll = () => {
@@ -108,6 +110,7 @@ const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
             onChangeText={setSearchQuery}
             autoCapitalize="none"
             autoCorrect={false}
+            accessibilityLabel="Search contacts"
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity
@@ -126,10 +129,20 @@ const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
             {localSelected.size} of {contacts.length} selected
           </Text>
           <View style={styles.actionButtons}>
-            <TouchableOpacity onPress={selectAll} style={styles.actionButton}>
+            <TouchableOpacity
+              onPress={selectAll}
+              style={styles.actionButton}
+              accessibilityRole="button"
+              accessibilityLabel="Select all contacts"
+            >
               <Text style={styles.actionButtonText}>Select All</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={clearAll} style={styles.actionButton}>
+            <TouchableOpacity
+              onPress={clearAll}
+              style={styles.actionButton}
+              accessibilityRole="button"
+              accessibilityLabel="Clear all selections"
+            >
               <Text style={[styles.actionButtonText, styles.clearText]}>
                 Clear
               </Text>
@@ -203,8 +216,11 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e0e0e0',
   },
   headerButton: {
-    padding: 8,
-    minWidth: 40,
+    padding: 12,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
   },
   headerTitle: {
     fontSize: 18,

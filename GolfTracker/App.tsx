@@ -16,6 +16,14 @@ const App = () => {
     initializeApp();
   }, []);
 
+  // Run legacy contact migration after the app is rendered, so the Alert
+  // dialog appears over the actual app UI rather than a loading spinner
+  useEffect(() => {
+    if (isInitialized) {
+      useGolferStore.getState().migrateGlobalContacts();
+    }
+  }, [isInitialized]);
+
   const initializeApp = async () => {
     try {
       // Check if user has completed onboarding

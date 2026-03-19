@@ -58,12 +58,19 @@ export interface GolfHole {
   shotData?: ShotData;
 }
 
+export interface SmsContact {
+  id: string;
+  name: string;
+  phoneNumber: string;
+}
+
 export interface Golfer {
   id: string;
   name: string;
   handicap?: number;
   color: string;
   isDefault: boolean;
+  smsContacts: SmsContact[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -98,13 +105,6 @@ export interface Tournament {
   createdAt: Date;
   updatedAt: Date;
   isComplete?: boolean;
-}
-
-export interface Contact {
-  id: string;
-  name: string;
-  phoneNumber: string;
-  isActive: boolean;
 }
 
 export interface MediaItem {
