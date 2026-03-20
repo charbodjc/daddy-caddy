@@ -53,14 +53,14 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSCameraUsageDescription</key>
+    <string>Daddy Caddy uses the camera to capture photos and videos of your golf rounds.</string>
     <key>NSContactsUsageDescription</key>
     <string>Daddy Caddy needs access to your contacts to select recipients for golf score updates and messages.</string>
-    <key>NSCameraUsageDescription</key>
-    <string>Daddy Caddy needs access to your camera to take photos of your golf rounds and tournaments.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Daddy Caddy uses the microphone for voice shot tracking.</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>Daddy Caddy needs access to your photo library to attach photos to your golf rounds and tournaments.</string>
+    <string>Daddy Caddy needs access to your photo library to select and save golf media.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Daddy Caddy uses speech recognition to convert voice commands to golf scores.</string>
     <key>RCTNewArchEnabled</key>
@@ -88,7 +88,7 @@
       <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
     <key>UIUserInterfaceStyle</key>
-    <string>Light</string>
+    <string>Automatic</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
   </dict>
