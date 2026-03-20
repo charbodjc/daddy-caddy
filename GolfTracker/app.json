@@ -5,10 +5,10 @@
     "scheme": "daddycaddy",
     "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/daddy-caddy.png",
+    "icon": "./assets/daddy-caddy-logo2-light.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/daddy-caddy.png",
+      "image": "./assets/daddy-caddy-logo2-light.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -17,8 +17,8 @@
       "bundleIdentifier": "com.daddycaddy.golf",
       "buildNumber": "2",
       "icon": {
-        "light": "./assets/daddy-caddy.png",
-        "dark": "./assets/daddy-caddy-dark.png"
+        "light": "./assets/daddy-caddy-logo2-light.png",
+        "dark": "./assets/daddy-caddy-logo2-dark.png"
       },
       "infoPlist": {
         "NSCameraUsageDescription": "Daddy Caddy uses the camera to capture photos and videos of your golf rounds.",
@@ -33,7 +33,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/daddy-caddy.png",
+        "foregroundImage": "./assets/daddy-caddy-logo2-light.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.daddycaddy.golf",
@@ -45,7 +45,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/daddy-caddy.png"
+      "favicon": "./assets/daddy-caddy-logo2-light.png"
     },
     "plugins": [
       "expo-dev-client",
