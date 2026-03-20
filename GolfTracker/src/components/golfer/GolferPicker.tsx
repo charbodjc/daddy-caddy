@@ -57,7 +57,7 @@ export const GolferPicker: React.FC<GolferPickerProps> = ({
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color="#4CAF50" />
+        <ActivityIndicator size="small" color="#2E7D32" />
       </View>
     );
   }
@@ -100,7 +100,7 @@ export const GolferPicker: React.FC<GolferPickerProps> = ({
           accessibilityLabel="Add golfer"
           accessibilityHint="Opens a form to create a new golfer"
         >
-          <Icon name="add-circle" size={28} color="#4CAF50" />
+          <Icon name="add-circle" size={28} color="#2E7D32" />
         </TouchableOpacity>
       </ScrollView>
 
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   chipSelected: {
-    borderColor: '#4CAF50',
+    borderColor: '#2E7D32',
     backgroundColor: '#f0f9f0',
   },
   chipText: {
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: '#4CAF50',
+    borderColor: '#2E7D32',
   },
   modalOverlay: {
     flex: 1,

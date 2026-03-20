@@ -10,7 +10,7 @@
  */
 export function getScoreColor(strokesVsPar: number): string {
   if (strokesVsPar <= -2) return '#FFD700'; // gold – eagle or better
-  if (strokesVsPar === -1) return '#4CAF50'; // green – birdie
+  if (strokesVsPar === -1) return '#2E7D32'; // green – birdie
   if (strokesVsPar === 0) return '#333333'; // neutral dark – par
   if (strokesVsPar === 1) return '#FF9800'; // orange – bogey
   return '#f44336'; // red – double bogey or worse

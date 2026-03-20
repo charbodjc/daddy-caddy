@@ -136,7 +136,7 @@ const SettingsScreen: React.FC = () => {
           accessibilityLabel="Manage Golfers"
         >
           <View style={styles.settingInfo}>
-            <Icon name="people" size={24} color="#4CAF50" />
+            <Icon name="people" size={24} color="#2E7D32" />
             <View style={styles.settingText}>
               <Text style={styles.settingLabel}>Manage Golfers</Text>
               <Text style={styles.settingDescription}>
@@ -154,7 +154,7 @@ const SettingsScreen: React.FC = () => {
           accessibilityLabel="Replay tutorial"
         >
           <View style={styles.settingInfo}>
-            <Icon name="help-outline" size={24} color="#4CAF50" />
+            <Icon name="help-outline" size={24} color="#2E7D32" />
             <View style={styles.settingText}>
               <Text style={styles.settingLabel}>Tutorial</Text>
               <Text style={styles.settingDescription}>
@@ -178,7 +178,7 @@ const SettingsScreen: React.FC = () => {
           accessibilityLabel="Export data"
         >
           <View style={styles.settingInfo}>
-            <Icon name="cloud-upload" size={24} color="#4CAF50" />
+            <Icon name="cloud-upload" size={24} color="#2E7D32" />
             <View style={styles.settingText}>
               <Text style={styles.settingLabel}>Export Data</Text>
               <Text style={styles.settingDescription}>
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#2E7D32',
   },
   footer: {
     padding: 30,

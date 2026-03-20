@@ -108,7 +108,7 @@ const AppNavigator = () => {
         screenOptions={{
           headerShown: false,
           drawerPosition: 'left',
-          drawerActiveTintColor: '#4CAF50',
+          drawerActiveTintColor: '#2E7D32',
           drawerInactiveTintColor: 'gray',
           drawerLabelStyle: {
             fontSize: 16,

@@ -160,7 +160,7 @@ const CameraScreen = () => {
               accessibilityLabel="Take photo or video with camera"
               accessibilityRole="button"
             >
-              <Icon name="camera-alt" size={48} color="#4CAF50" />
+              <Icon name="camera-alt" size={48} color="#2E7D32" />
               <Text style={styles.captureButtonText}>Take Photo/Video</Text>
             </TouchableOpacity>
 
@@ -170,7 +170,7 @@ const CameraScreen = () => {
               accessibilityLabel="Choose photo or video from gallery"
               accessibilityRole="button"
             >
-              <Icon name="photo-library" size={48} color="#4CAF50" />
+              <Icon name="photo-library" size={48} color="#2E7D32" />
               <Text style={styles.captureButtonText}>Choose from Gallery</Text>
             </TouchableOpacity>
           </View>
@@ -178,19 +178,19 @@ const CameraScreen = () => {
           <View style={styles.tips}>
             <Text style={styles.tipsTitle}>Tips for Great Golf Photos:</Text>
             <View style={styles.tipItem}>
-              <Icon name="check-circle" size={16} color="#4CAF50" />
+              <Icon name="check-circle" size={16} color="#2E7D32" />
               <Text style={styles.tipText}>Capture your swing from multiple angles</Text>
             </View>
             <View style={styles.tipItem}>
-              <Icon name="check-circle" size={16} color="#4CAF50" />
+              <Icon name="check-circle" size={16} color="#2E7D32" />
               <Text style={styles.tipText}>Include the hole number marker in scenic shots</Text>
             </View>
             <View style={styles.tipItem}>
-              <Icon name="check-circle" size={16} color="#4CAF50" />
+              <Icon name="check-circle" size={16} color="#2E7D32" />
               <Text style={styles.tipText}>Record video for swing analysis</Text>
             </View>
             <View style={styles.tipItem}>
-              <Icon name="check-circle" size={16} color="#4CAF50" />
+              <Icon name="check-circle" size={16} color="#2E7D32" />
               <Text style={styles.tipText}>Photograph memorable moments with playing partners</Text>
             </View>
           </View>
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
   },
   useButton: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#2E7D32',
     padding: 15,
     borderRadius: 10,
     flexDirection: 'row',

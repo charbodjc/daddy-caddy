@@ -241,7 +241,7 @@ const RoundTrackerScreen: React.FC = () => {
 
             {params.tournamentName && (
               <View style={styles.tournamentBadge}>
-                <Icon name="emoji-events" size={20} color="#4CAF50" />
+                <Icon name="emoji-events" size={20} color="#2E7D32" />
                 <Text style={styles.tournamentText}>{params.tournamentName}</Text>
               </View>
             )}
@@ -294,12 +294,12 @@ const RoundTrackerScreen: React.FC = () => {
       {/* Action Bar */}
       <View style={styles.actionBar}>
         <TouchableOpacity style={styles.actionButton} onPress={handleViewSummary} accessibilityLabel="View round summary" accessibilityRole="button">
-          <Icon name="bar-chart" size={20} color="#4CAF50" />
+          <Icon name="bar-chart" size={20} color="#2E7D32" />
           <Text style={styles.actionText}>Summary</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionButton} onPress={handleFinishRound} accessibilityLabel="Finish round" accessibilityRole="button">
-          <Icon name="check-circle" size={20} color="#4CAF50" />
+          <Icon name="check-circle" size={20} color="#2E7D32" />
           <Text style={styles.actionText}>Finish</Text>
         </TouchableOpacity>
 
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
   },
   tournamentText: {
     fontSize: 16,
-    color: '#4CAF50',
+    color: '#2E7D32',
     fontWeight: '600',
   },
   fieldLabel: {
@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
   },
   parButton: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#2E7D32',
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',

@@ -202,7 +202,7 @@ const RoundCard: React.FC<{
       
       {round.isFinished && (
         <View style={styles.statusBadge}>
-          <Icon name="check-circle" size={16} color="#4CAF50" />
+          <Icon name="check-circle" size={16} color="#2E7D32" />
           <Text style={styles.statusText}>Completed</Text>
         </View>
       )}
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   scoreToPar: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: '#2E7D32',
     marginTop: 2,
   },
   statusBadge: {
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 13,
-    color: '#4CAF50',
+    color: '#2E7D32',
     fontWeight: '500',
   },
 });

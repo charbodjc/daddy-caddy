@@ -184,7 +184,7 @@ Played with Daddy Caddy ⛳
           <View style={styles.statsGrid}>
             {roundStats.totalFairwayHoles > 0 && (
               <StatItem
-                icon={<Icon name="flag" size={20} color="#4CAF50" />}
+                icon={<Icon name="flag" size={20} color="#2E7D32" />}
                 label="Fairways Hit"
                 value={`${roundStats.totalFairwaysHit}/${roundStats.totalFairwayHoles}`}
                 percentage={Math.round((roundStats.totalFairwaysHit / roundStats.totalFairwayHoles) * 100)}
@@ -193,7 +193,7 @@ Played with Daddy Caddy ⛳
 
             {roundStats.totalHolesPlayed > 0 && (
               <StatItem
-                icon={<Icon name="adjust" size={20} color="#4CAF50" />}
+                icon={<Icon name="adjust" size={20} color="#2E7D32" />}
                 label="Greens in Regulation"
                 value={`${roundStats.totalGIR}/${roundStats.totalHolesPlayed}`}
                 percentage={Math.round((roundStats.totalGIR / roundStats.totalHolesPlayed) * 100)}
@@ -261,7 +261,7 @@ Played with Daddy Caddy ⛳
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>AI Analysis</Text>
           <View style={styles.aiCard}>
-            <Icon name="psychology" size={24} color="#4CAF50" style={styles.aiIcon} />
+            <Icon name="psychology" size={24} color="#2E7D32" style={styles.aiIcon} />
             <Text style={styles.aiText}>{round.aiAnalysis}</Text>
           </View>
         </View>
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
   scoreToPar: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: '#2E7D32',
     marginTop: 4,
   },
   scoreDivider: {
@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
   },
   statPercentage: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#2E7D32',
     fontWeight: '600',
   },
   breakdownList: {
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
   breakdownValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#2E7D32',
   },
   aiCard: {
     backgroundColor: '#fff',

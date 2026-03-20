@@ -151,7 +151,7 @@ const DatabaseDiagnosticScreen = () => {
       <View style={styles.container}>
         <ScreenHeader title="Database Diagnostics" leftAction="back" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
+          <ActivityIndicator size="large" color="#2E7D32" />
         </View>
       </View>
     );
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   retryButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#2E7D32',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 5,

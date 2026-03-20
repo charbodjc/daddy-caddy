@@ -93,7 +93,7 @@ const StatsScreen: React.FC = () => {
           
           <View style={styles.statsGrid}>
             <StatCard
-              icon={<Icon name="golf-course" size={24} color="#4CAF50" />}
+              icon={<Icon name="golf-course" size={24} color="#2E7D32" />}
               value={Math.round(stats.averageScore)}
               label="Avg Score"
             />
@@ -108,7 +108,7 @@ const StatsScreen: React.FC = () => {
               label="Worst Round"
             />
             <StatCard
-              icon={<FontAwesome5 name="golf-ball" size={24} color="#4CAF50" />}
+              icon={<FontAwesome5 name="golf-ball" size={24} color="#2E7D32" />}
               value={Math.round(stats.averagePutts)}
               label="Avg Putts"
             />
@@ -121,12 +121,12 @@ const StatsScreen: React.FC = () => {
           
           <View style={styles.statsGrid}>
             <StatCard
-              icon={<Icon name="flag" size={24} color="#4CAF50" />}
+              icon={<Icon name="flag" size={24} color="#2E7D32" />}
               value={`${Math.round(stats.fairwayAccuracy)}%`}
               label="Fairways Hit"
             />
             <StatCard
-              icon={<Icon name="adjust" size={24} color="#4CAF50" />}
+              icon={<Icon name="adjust" size={24} color="#2E7D32" />}
               value={`${Math.round(stats.girPercentage)}%`}
               label="Greens in Reg"
             />
@@ -154,7 +154,7 @@ const StatsScreen: React.FC = () => {
               icon="✅"
               label="Pars"
               value={stats.pars}
-              color="#4CAF50"
+              color="#2E7D32"
             />
             <PerformanceItem
               icon="😐"

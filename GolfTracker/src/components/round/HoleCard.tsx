@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   cardActive: {
-    borderColor: '#4CAF50',
+    borderColor: '#2E7D32',
     borderWidth: 2,
     backgroundColor: '#f0f9f0',
   },

@@ -63,7 +63,7 @@ RoundHeader.displayName = 'RoundHeader';
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#2E7D32',
     padding: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',

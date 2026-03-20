@@ -172,7 +172,7 @@ const HoleDetailsScreen: React.FC = () => {
             accessibilityLabel="Add photo or video"
             accessibilityRole="button"
           >
-            <Icon name="add-a-photo" size={20} color="#4CAF50" />
+            <Icon name="add-a-photo" size={20} color="#2E7D32" />
             <Text style={styles.addMediaText}>Add</Text>
           </TouchableOpacity>
         </View>
@@ -189,7 +189,7 @@ const HoleDetailsScreen: React.FC = () => {
                 <Icon
                   name={item.type === 'photo' ? 'photo' : 'videocam'}
                   size={32}
-                  color="#4CAF50"
+                  color="#2E7D32"
                 />
               </View>
             ))}
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
   },
   addMediaText: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#2E7D32',
     fontWeight: '600',
   },
   emptyMedia: {

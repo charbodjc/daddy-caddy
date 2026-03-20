@@ -205,7 +205,7 @@ const MediaScreen = () => {
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#2E7D32" />
       </View>
     );
   }
@@ -228,7 +228,7 @@ const MediaScreen = () => {
           <Text style={styles.sectionTitle}>{t.name}</Text>
           {t.rounds.map(r => (
             <TouchableOpacity key={r.id} style={styles.roundRow} onPress={() => openRound(r)}>
-              <Icon name="image" size={18} color="#4CAF50" />
+              <Icon name="image" size={18} color="#2E7D32" />
               <Text style={styles.roundItemName}>{r.name || `Round at ${r.courseName}`} — {formatDateShort(new Date(r.date))}</Text>
             </TouchableOpacity>
           ))}

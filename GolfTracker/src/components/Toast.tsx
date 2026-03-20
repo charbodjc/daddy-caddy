@@ -79,7 +79,7 @@ export const Toast: React.FC<ToastProps> = ({
   const getColor = () => {
     switch (type) {
       case 'success':
-        return '#4CAF50';
+        return '#2E7D32';
       case 'error':
         return '#F44336';
       case 'info':

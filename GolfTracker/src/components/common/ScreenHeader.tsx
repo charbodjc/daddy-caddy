@@ -24,7 +24,7 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = React.memo(({
   leftAction,
   onLeftPress,
   rightContent,
-  backgroundColor = '#4CAF50',
+  backgroundColor = '#2E7D32',
   centered = false,
   children,
 }) => {

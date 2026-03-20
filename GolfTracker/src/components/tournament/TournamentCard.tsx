@@ -27,7 +27,7 @@ export const TournamentCard: React.FC<TournamentCardProps> = React.memo(({
     >
       <View style={styles.header}>
         <View style={styles.iconContainer}>
-          <Icon name="emoji-events" size={28} color="#4CAF50" />
+          <Icon name="emoji-events" size={28} color="#2E7D32" />
         </View>
         <View style={styles.info}>
           <Text style={styles.name}>{tournament.name}</Text>
