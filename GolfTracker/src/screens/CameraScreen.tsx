@@ -6,89 +6,91 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  ActivityIndicator,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  launchCamera,
-  launchImageLibrary,
-  ImagePickerResponse,
-  MediaType,
-  PhotoQuality,
-} from 'react-native-image-picker';
-import { database } from '../database/watermelon/database';
-import Media from '../database/watermelon/models/Media';
+import RNFS from 'react-native-fs';
+import MediaService from '../services/media';
+import type { MediaItem } from '../types';
 
 const CameraScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const route = useRoute();
   const { currentHole, roundId } = route.params as {
-    currentHole?: number;
-    roundId?: string;
+    currentHole: number;
+    roundId: string;
   };
 
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [isVideo, setIsVideo] = useState(false);
+  const [capturedMedia, setCapturedMedia] = useState<MediaItem | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const options = {
-    mediaType: 'mixed' as MediaType,
-    includeBase64: false,
-    maxHeight: 2000,
-    maxWidth: 2000,
-    quality: 0.8 as PhotoQuality,
-    videoQuality: 'high' as const,
+  const showPermissionDeniedAlert = (permissionType: string) => {
+    Alert.alert(
+      'Permission Required',
+      `${permissionType} access is needed. Please enable it in Settings.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ],
+    );
   };
 
-  const handleCameraLaunch = () => {
-    launchCamera(options, handleResponse);
-  };
-
-  const handleGalleryLaunch = () => {
-    launchImageLibrary(options, handleResponse);
-  };
-
-  const handleResponse = (response: ImagePickerResponse) => {
-    if (response.didCancel || response.errorMessage) {
-      return;
+  const handleCameraLaunch = async () => {
+    try {
+      const media = await MediaService.captureMedia('mixed');
+      if (media) {
+        setCapturedMedia(media);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('permissions')) {
+        showPermissionDeniedAlert('Camera');
+      } else {
+        Alert.alert('Error', 'Failed to launch camera. Please try again.');
+        console.error('Camera launch error:', error);
+      }
     }
+  };
 
-    if (response.assets && response.assets[0]) {
-      const asset = response.assets[0];
-      setSelectedImage(asset.uri || null);
-      setIsVideo(asset.type?.startsWith('video/') || false);
+  const handleGalleryLaunch = async () => {
+    try {
+      const media = await MediaService.selectFromLibrary('mixed');
+      if (media) {
+        setCapturedMedia(media);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('permissions')) {
+        showPermissionDeniedAlert('Photo library');
+      } else {
+        Alert.alert('Error', 'Failed to open gallery. Please try again.');
+        console.error('Gallery launch error:', error);
+      }
     }
   };
 
   const saveMedia = async () => {
-    if (!selectedImage) {
-      Alert.alert('Error', 'No media selected');
+    if (!capturedMedia) {
       return;
     }
 
+    setSaving(true);
     try {
-      if (roundId) {
-        await database.write(async () => {
-          await database.collections.get<Media>('media').create((m) => {
-            m.uri = selectedImage;
-            m.type = isVideo ? 'video' : 'photo';
-            m.roundId = roundId;
-            m.holeNumber = currentHole;
-            m.timestamp = new Date();
-            m.description = currentHole ? `Hole ${currentHole}` : undefined;
-          });
-        });
-      }
-
+      await MediaService.saveMedia(capturedMedia, roundId, currentHole);
       Alert.alert('Success', 'Media saved successfully', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
       Alert.alert('Error', 'Failed to save media');
       console.error('Save media error:', error);
+    } finally {
+      setSaving(false);
     }
   };
+
+  const isVideo = capturedMedia?.type === 'video';
 
   return (
     <View style={styles.container}>
@@ -99,19 +101,30 @@ const CameraScreen = () => {
         )}
       </View>
 
-      {selectedImage ? (
+      {capturedMedia ? (
         <View style={styles.previewContainer}>
-          <Image source={{ uri: selectedImage }} style={styles.preview} />
-          <View style={styles.previewOverlay}>
+          <Image
+            source={{ uri: capturedMedia.uri }}
+            style={styles.preview}
+            resizeMode="contain"
+            accessibilityLabel={isVideo ? 'Selected video preview' : 'Selected photo preview'}
+          />
+          <View style={styles.previewOverlay} accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
             {isVideo && (
               <Icon name="play-circle-outline" size={64} color="#fff" />
             )}
           </View>
-          
+
           <View style={styles.previewActions}>
             <TouchableOpacity
               style={styles.retakeButton}
-              onPress={() => setSelectedImage(null)}
+              onPress={() => {
+                if (capturedMedia?.uri) {
+                  RNFS.unlink(capturedMedia.uri).catch(() => {});
+                }
+                setCapturedMedia(null);
+              }}
+              disabled={saving}
               accessibilityLabel="Retake photo or video"
               accessibilityRole="button"
             >
@@ -120,13 +133,20 @@ const CameraScreen = () => {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.useButton}
+              style={[styles.useButton, saving && styles.useButtonDisabled]}
               onPress={saveMedia}
+              disabled={saving}
               accessibilityLabel={`Use this ${isVideo ? 'video' : 'photo'}`}
               accessibilityRole="button"
             >
-              <Icon name="check" size={20} color="#fff" />
-              <Text style={styles.useButtonText}>Use {isVideo ? 'Video' : 'Photo'}</Text>
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Icon name="check" size={20} color="#fff" />
+              )}
+              <Text style={styles.useButtonText}>
+                {saving ? 'Saving...' : `Use ${isVideo ? 'Video' : 'Photo'}`}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -177,12 +197,13 @@ const CameraScreen = () => {
       )}
 
       <TouchableOpacity
-        style={styles.cancelButton}
+        style={[styles.cancelButton, saving && styles.cancelButtonDisabled, { marginBottom: Math.max(insets.bottom, 20) }]}
         onPress={() => navigation.goBack()}
+        disabled={saving}
         accessibilityLabel="Cancel and go back"
         accessibilityRole="button"
       >
-        <Text style={styles.cancelButtonText}>Cancel</Text>
+        <Text style={[styles.cancelButtonText, saving && styles.cancelButtonTextDisabled]}>Cancel</Text>
       </TouchableOpacity>
     </View>
   );
@@ -282,6 +303,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
+  useButtonDisabled: {
+    opacity: 0.7,
+  },
   useButtonText: {
     fontSize: 16,
     color: '#fff',
@@ -311,7 +335,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   cancelButton: {
-    margin: 20,
+    marginHorizontal: 20,
     marginTop: 0,
     padding: 15,
     backgroundColor: '#fff',
@@ -320,10 +344,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
+  cancelButtonDisabled: {
+    opacity: 0.5,
+  },
   cancelButtonText: {
     fontSize: 16,
     color: '#666',
     fontWeight: '600',
+  },
+  cancelButtonTextDisabled: {
+    color: '#aaa',
   },
 });
 

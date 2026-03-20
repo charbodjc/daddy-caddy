@@ -5,10 +5,7 @@
     "scheme": "daddycaddy",
     "version": "1.0.1",
     "orientation": "portrait",
-    "icon": {
-      "light": "./assets/daddy-caddy.png",
-      "dark": "./assets/daddy-caddy-dark.png"
-    },
+    "icon": "./assets/daddy-caddy.png",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/daddy-caddy.png",
@@ -21,12 +18,13 @@
       "buildNumber": "2",
       "icon": {
         "light": "./assets/daddy-caddy.png",
-        "dark": "./assets/daddy-caddy-dark.png",
-        "tinted": true
+        "dark": "./assets/daddy-caddy-dark.png"
       },
       "infoPlist": {
+        "NSCameraUsageDescription": "Daddy Caddy uses the camera to capture photos and videos of your golf rounds.",
         "NSContactsUsageDescription": "Daddy Caddy needs access to your contacts to select recipients for golf score updates and messages.",
         "NSMicrophoneUsageDescription": "Daddy Caddy uses the microphone for voice shot tracking.",
+        "NSPhotoLibraryUsageDescription": "Daddy Caddy needs access to your photo library to select and save golf media.",
         "NSSpeechRecognitionUsageDescription": "Daddy Caddy uses speech recognition to convert voice commands to golf scores."
       },
       "config": {
@@ -41,6 +39,7 @@
       "package": "com.daddycaddy.golf",
       "versionCode": 1,
       "permissions": [
+        "CAMERA",
         "READ_CONTACTS",
         "RECORD_AUDIO"
       ]
@@ -50,6 +49,7 @@
     },
     "plugins": [
       "expo-dev-client",
+      "expo-image-picker",
       "expo-speech-recognition"
     ],
     "extra": {
