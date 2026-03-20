@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, ActivityIndicator, Modal, Dimensions, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { database } from '../database/watermelon/database';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 import Tournament from '../database/watermelon/models/Tournament';
 import Round from '../database/watermelon/models/Round';
 import MediaModel from '../database/watermelon/models/Media';
@@ -21,7 +21,6 @@ interface TournamentWithRounds {
 }
 
 const MediaScreen = () => {
-  const insets = useSafeAreaInsets();
   const [tournaments, setTournaments] = useState<TournamentWithRounds[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRound, setSelectedRound] = useState<{ id: string; name?: string; courseName: string; date: Date } | null>(null);
@@ -68,7 +67,6 @@ const MediaScreen = () => {
         .get<MediaModel>('media')
         .query(Q.where('round_id', round.id))
         .fetch();
-      console.log(`Loaded ${mediaModels.length} media items for round ${round.id}`);
 
       const grouped: Record<number, MediaItem[]> = {};
       mediaModels.forEach(m => {
@@ -112,29 +110,12 @@ const MediaScreen = () => {
     return (
       <>
         <ScrollView style={styles.container}>
-          <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-            <Text style={styles.headerTitle}>Photos and Videos</Text>
-          </View>
-          
-          <View style={styles.roundHeader}>
-            <TouchableOpacity
-              onPress={() => setSelectedRound(null)}
-              style={styles.backButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              accessibilityLabel="Go back"
-              accessibilityRole="button"
-            >
-              <Icon name="arrow-back" size={24} color="#333" />
-            </TouchableOpacity>
-            <View style={styles.roundInfo}>
-              <Text style={styles.roundName}>
-                {selectedRound.name || `Round at ${selectedRound.courseName}`}
-              </Text>
-              <Text style={styles.roundDetails}>
-                {selectedRound.courseName} • {formatDateShort(new Date(selectedRound.date))}
-              </Text>
-            </View>
-          </View>
+          <ScreenHeader
+            title={selectedRound.name || `Round at ${selectedRound.courseName}`}
+            subtitle={`${selectedRound.courseName} • ${formatDateShort(new Date(selectedRound.date))}`}
+            leftAction="back"
+            onLeftPress={() => setSelectedRound(null)}
+          />
           {holesWithMedia.length > 0 ? (
             holesWithMedia.map(hole => (
               <View key={hole} style={styles.section}>
@@ -231,9 +212,7 @@ const MediaScreen = () => {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <Text style={styles.headerTitle}>Photos and Videos</Text>
-      </View>
+      <ScreenHeader title="Photos and Videos" leftAction="menu" />
       {tournaments.length === 0 ? (
         <View style={styles.emptyState}>
           <FontAwesome5 name="camera" size={64} color="#ccc" />
@@ -266,8 +245,6 @@ const MediaScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
-  header: { backgroundColor: '#4CAF50', paddingBottom: 20, paddingHorizontal: 20 },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
@@ -312,7 +289,6 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
-  title: { fontSize: 18, fontWeight: 'bold', color: '#333' },
   section: { backgroundColor: '#fff', margin: 12, padding: 12, borderRadius: 10 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 8 },
   roundRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },

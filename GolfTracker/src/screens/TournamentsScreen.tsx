@@ -11,9 +11,9 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
-import { useNavigation, DrawerActions } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { AppNavigationProp } from '../types/navigation';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 import { format } from 'date-fns';
 import { useTournaments } from '../hooks/useTournaments';
 import { useTournamentStore } from '../stores/tournamentStore';
@@ -27,7 +27,6 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const TournamentsScreen: React.FC = () => {
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<AppNavigationProp>();
   const { tournaments, loading, error, reload } = useTournaments();
   const { createTournament, deleteTournament: _deleteTournament } = useTournamentStore();
@@ -108,26 +107,20 @@ const TournamentsScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityLabel="Open menu"
-          accessibilityRole="button"
-        >
-          <Icon name="menu" size={28} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tournaments</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setModalVisible(true)}
-          accessibilityLabel="Create tournament"
-          accessibilityRole="button"
-        >
-          <Icon name="add" size={24} color="#fff" />
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title="Tournaments"
+        leftAction="menu"
+        rightContent={
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => setModalVisible(true)}
+            accessibilityLabel="Create tournament"
+            accessibilityRole="button"
+          >
+            <Icon name="add" size={24} color="#fff" />
+          </TouchableOpacity>
+        }
+      />
       
       {/* Tournament List */}
       {tournaments.length === 0 ? (
@@ -261,26 +254,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  menuButton: {
-    padding: 5,
-    marginRight: 12,
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
   },
   addButton: {
     width: 44,

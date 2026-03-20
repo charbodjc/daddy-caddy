@@ -8,8 +8,8 @@ import {
   Alert,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppNavigationProp } from '../types/navigation';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 import { useTournamentStore } from '../stores/tournamentStore';
 import { useRoundStore } from '../stores/roundStore';
 import { LoadingScreen } from '../components/common/LoadingScreen';
@@ -30,7 +30,6 @@ interface RouteParams {
 }
 
 const TournamentRoundsScreen: React.FC = () => {
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<AppNavigationProp>();
   const route = useRoute();
   const { tournamentId, tournamentName: _tournamentName } = (route.params as RouteParams) || {};
@@ -127,25 +126,15 @@ const TournamentRoundsScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityLabel="Go back"
-          accessibilityRole="button"
-        >
-          <Icon name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>{tournament.name}</Text>
-          <Text style={styles.headerSubtitle}>{tournament.courseName}</Text>
-          <Text style={styles.headerDates}>
-            {formatDateRange(tournament.startDate, tournament.endDate)}
-          </Text>
-        </View>
-      </View>
+      <ScreenHeader
+        title={tournament.name}
+        subtitle={tournament.courseName}
+        leftAction="back"
+      >
+        <Text style={styles.headerDates}>
+          {formatDateRange(tournament.startDate, tournament.endDate)}
+        </Text>
+      </ScreenHeader>
       
       {/* Round Count Summary */}
       <View style={styles.summary}>
@@ -228,33 +217,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  backButton: {
-    marginRight: 15,
-    padding: 5,
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 2,
-  },
   headerDates: {
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
@@ -298,12 +260,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#f44336',
-    textAlign: 'center',
-    padding: 20,
   },
   roundCard: {
     backgroundColor: '#fff',

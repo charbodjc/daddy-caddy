@@ -12,6 +12,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 import RNFS from 'react-native-fs';
 import MediaService from '../services/media';
 import type { MediaItem } from '../types';
@@ -94,12 +95,12 @@ const CameraScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <Text style={styles.title}>Capture Media</Text>
-        {currentHole && (
-          <Text style={styles.subtitle}>Hole {currentHole}</Text>
-        )}
-      </View>
+      <ScreenHeader
+        title="Capture Media"
+        subtitle={currentHole ? `Hole ${currentHole}` : undefined}
+        leftAction="back"
+        centered
+      />
 
       {capturedMedia ? (
         <View style={styles.previewContainer}>
@@ -213,22 +214,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#fff',
-    opacity: 0.9,
-    marginTop: 5,
   },
   captureContainer: {
     flex: 1,

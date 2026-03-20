@@ -29,7 +29,6 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, DrawerActions } from '@react-navigation/native';
 import { AppNavigationProp } from '../types/navigation';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRound } from '../hooks/useRound';
 import { useRoundStore } from '../stores/roundStore';
 import { LoadingScreen } from '../components/common/LoadingScreen';
@@ -41,6 +40,7 @@ import Hole from '../database/watermelon/models/Hole';
 import { useObservable } from '../hooks/useObservable';
 import { HoleCard } from '../components/round/HoleCard';
 import { GolferPicker } from '../components/golfer/GolferPicker';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 import { useGolfers } from '../hooks/useGolfers';
 
 interface RouteParams {
@@ -53,7 +53,6 @@ interface RouteParams {
 const RoundTrackerScreen: React.FC = () => {
   const navigation = useNavigation<AppNavigationProp>();
   const route = useRoute();
-  const insets = useSafeAreaInsets();
   const params = (route.params as RouteParams) || {};
 
   const { round, loading, error } = useRound(params.roundId);
@@ -236,18 +235,7 @@ const RoundTrackerScreen: React.FC = () => {
           style={styles.container}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={[styles.setupHeader, { paddingTop: insets.top + 10 }]}>
-            <TouchableOpacity
-              style={styles.setupMenuButton}
-              onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              accessibilityLabel="Open menu"
-              accessibilityRole="button"
-            >
-              <Icon name="menu" size={28} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.setupHeaderTitle}>New Round</Text>
-          </View>
+          <ScreenHeader title="New Round" leftAction="menu" />
           <View style={styles.setupContainer}>
             <Text style={styles.setupTitle}>New Round Setup</Text>
 
@@ -394,24 +382,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  setupHeader: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  setupMenuButton: {
-    padding: 5,
-    marginRight: 12,
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  setupHeaderTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
   },
   setupContainer: {
     flex: 1,

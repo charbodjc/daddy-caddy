@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStats } from '../hooks/useStats';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 import { LoadingScreen } from '../components/common/LoadingScreen';
 import { ErrorScreen } from '../components/common/ErrorScreen';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -11,7 +11,6 @@ import { useGolfers } from '../hooks/useGolfers';
 import { useStatsStore } from '../stores/statsStore';
 
 const StatsScreen: React.FC = () => {
-  const insets = useSafeAreaInsets();
   const { stats, loading, error, refresh } = useStats();
   const { golfers, activeGolferId, activeGolfer, loading: golfersLoading, createGolfer } = useGolfers();
   const { calculateStats } = useStatsStore();
@@ -47,9 +46,7 @@ const StatsScreen: React.FC = () => {
   if (!stats || stats.totalRounds === 0) {
     return (
       <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-          <Text style={styles.headerTitle}>Statistics</Text>
-        </View>
+        <ScreenHeader title="Statistics" leftAction="menu" />
         <View style={styles.emptyState}>
           <FontAwesome5 name="chart-line" size={80} color="#ddd" />
           <Text style={styles.emptyTitle}>No Statistics Yet</Text>
@@ -63,15 +60,13 @@ const StatsScreen: React.FC = () => {
   
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <Text style={styles.headerTitle}>
-          {activeGolfer && selectedGolferId === activeGolferId
-            ? `${activeGolfer.name}'s Statistics`
-            : 'Statistics'}
-        </Text>
-        <Text style={styles.headerSubtitle}>{stats.totalRounds} Rounds Played</Text>
-      </View>
+      <ScreenHeader
+        title={activeGolfer && selectedGolferId === activeGolferId
+          ? `${activeGolfer.name}'s Statistics`
+          : 'Statistics'}
+        subtitle={`${stats.totalRounds} Rounds Played`}
+        leftAction="menu"
+      />
 
       {/* Golfer filter */}
       {golfers.length > 1 && (
@@ -217,20 +212,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
   },
   golferFilter: {
     paddingHorizontal: 15,
