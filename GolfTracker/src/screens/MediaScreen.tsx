@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, ActivityIndicator, Modal, Dimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, ActivityIndicator, Modal, Alert, useWindowDimensions } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { database } from '../database/watermelon/database';
@@ -12,8 +12,6 @@ import { MediaItem } from '../types';
 import Video from 'react-native-video';
 import { formatDateShort } from '../utils/dateFormatting';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-
 interface TournamentWithRounds {
   id: string;
   name: string;
@@ -21,6 +19,7 @@ interface TournamentWithRounds {
 }
 
 const MediaScreen = () => {
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [tournaments, setTournaments] = useState<TournamentWithRounds[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRound, setSelectedRound] = useState<{ id: string; name?: string; courseName: string; date: Date } | null>(null);
@@ -109,13 +108,14 @@ const MediaScreen = () => {
       
     return (
       <>
-        <ScrollView style={styles.container}>
+        <View style={styles.container}>
           <ScreenHeader
             title={selectedRound.name || `Round at ${selectedRound.courseName}`}
             subtitle={`${selectedRound.courseName} • ${formatDateShort(new Date(selectedRound.date))}`}
             leftAction="back"
             onLeftPress={() => setSelectedRound(null)}
           />
+          <ScrollView style={styles.scrollContent}>
           {holesWithMedia.length > 0 ? (
             holesWithMedia.map(hole => (
               <View key={hole} style={styles.section}>
@@ -150,15 +150,15 @@ const MediaScreen = () => {
               </Text>
             </View>
           )}
-        </ScrollView>
+          </ScrollView>
 
-        {/* Media Viewer Modal */}
-        <Modal
-          visible={showMediaViewer}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={closeMediaViewer}
-        >
+          {/* Media Viewer Modal */}
+          <Modal
+            visible={showMediaViewer}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={closeMediaViewer}
+          >
           <View style={styles.modalContainer}>
             <TouchableOpacity
               style={styles.closeButton}
@@ -172,9 +172,9 @@ const MediaScreen = () => {
             {selectedMedia && (
               <View style={styles.mediaContainer}>
                 {selectedMedia.type === 'photo' ? (
-                  <Image 
-                    source={{ uri: selectedMedia.uri }} 
-                    style={styles.fullscreenImage}
+                  <Image
+                    source={{ uri: selectedMedia.uri }}
+                    style={{ width: screenWidth, height: screenHeight * 0.8 }}
                     resizeMode="contain"
                     onError={(error) => {
                       console.error('Image load error:', error);
@@ -184,7 +184,7 @@ const MediaScreen = () => {
                 ) : (
                   <Video
                     source={{ uri: selectedMedia.uri }}
-                    style={styles.fullscreenVideo}
+                    style={{ width: screenWidth, height: screenHeight * 0.6 }}
                     controls={true}
                     resizeMode="contain"
                     paused={false}
@@ -196,8 +196,9 @@ const MediaScreen = () => {
                 )}
               </View>
             )}
-          </View>
-        </Modal>
+            </View>
+          </Modal>
+        </View>
       </>
     );
   }
@@ -245,6 +246,7 @@ const MediaScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
+  scrollContent: { flex: 1 },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
@@ -291,7 +293,7 @@ const styles = StyleSheet.create({
   },
   section: { backgroundColor: '#fff', margin: 12, padding: 12, borderRadius: 10 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 8 },
-  roundRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
+  roundRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, minHeight: 44 },
   roundItemName: { color: '#333' },
   holeTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 8 },
   thumbRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -315,14 +317,6 @@ const styles = StyleSheet.create({
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  fullscreenImage: {
-    width: screenWidth,
-    height: screenHeight * 0.8,
-  },
-  fullscreenVideo: {
-    width: screenWidth,
-    height: screenHeight * 0.6,
   },
 });
 

@@ -51,9 +51,8 @@ const DatabaseDiagnosticScreen = () => {
         const sampleRecords = allRecords.slice(0, 3);
 
         // Extract sample data as plain objects
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- WatermelonDB _raw is internal
-        const sampleData = sampleRecords.map((record: any) => {
-          const raw = record._raw || {};
+        const sampleData = sampleRecords.map((record) => {
+          const raw = (record as unknown as { _raw?: Record<string, unknown> })._raw ?? {};
           return { ...raw } as Record<string, unknown>;
         });
 

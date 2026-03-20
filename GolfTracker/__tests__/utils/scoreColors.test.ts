@@ -11,7 +11,7 @@ describe('getScoreColor', () => {
   });
 
   it('returns green for birdie (-1)', () => {
-    expect(getScoreColor(-1)).toBe('#4CAF50');
+    expect(getScoreColor(-1)).toBe('#388E3C');
   });
 
   it('returns dark grey for par (0)', () => {

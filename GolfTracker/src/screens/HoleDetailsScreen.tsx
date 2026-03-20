@@ -93,7 +93,8 @@ const HoleDetailsScreen: React.FC = () => {
       });
       
       Alert.alert('Success', 'Notes saved');
-    } catch (error) {
+    } catch (saveErr) {
+      console.error('Failed to save notes:', saveErr);
       Alert.alert('Error', 'Failed to save notes');
     } finally {
       setSaving(false);
