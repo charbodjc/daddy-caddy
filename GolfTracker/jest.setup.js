@@ -89,10 +89,12 @@ jest.mock('react-native-share', () => ({
   },
 }));
 
-// Mock react-native-image-picker
-jest.mock('react-native-image-picker', () => ({
-  launchCamera: jest.fn().mockResolvedValue({ assets: [] }),
-  launchImageLibrary: jest.fn().mockResolvedValue({ assets: [] }),
+// Mock expo-image-picker
+jest.mock('expo-image-picker', () => ({
+  launchCameraAsync: jest.fn().mockResolvedValue({ canceled: true, assets: [] }),
+  launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: true, assets: [] }),
+  requestCameraPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted', granted: true }),
+  requestMediaLibraryPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted', granted: true }),
 }));
 
 // Mock react-native-video
