@@ -216,17 +216,7 @@ const HomeScreen: React.FC = () => {
           <Icon name="chevron-right" size={20} color="#ccc" />
         </TouchableOpacity>
       </View>
-      
-      {/* Empty State */}
-      {!activeRound && stats && stats.totalRounds === 0 && (
-        <View style={styles.emptyState}>
-          <FontAwesome5 name="golf-ball" size={80} color="#ddd" />
-          <Text style={styles.emptyTitle}>Welcome to Daddy Caddy!</Text>
-          <Text style={styles.emptyText}>
-            Start your first round to begin tracking your golf game.
-          </Text>
-        </View>
-      )}
+
     </ScrollView>
   );
 };
@@ -347,22 +337,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#333',
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: 40,
-  },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
   },
 });
 
