@@ -97,7 +97,7 @@ const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
             accessibilityLabel="Save selection"
             accessibilityRole="button"
           >
-            <Icon name="check" size={20} color="#4CAF50" />
+            <Icon name="check" size={20} color="#2E7D32" />
           </TouchableOpacity>
         </View>
 
@@ -167,7 +167,7 @@ const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
                   <Icon
                     name="user"
                     size={16}
-                    color={isSelected ? '#4CAF50' : '#666'}
+                    color={isSelected ? '#2E7D32' : '#666'}
                   />
                   <View style={styles.contactInfo}>
                     <Text style={styles.contactName}>{item.name}</Text>
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#2E7D32',
     fontWeight: '600',
   },
   clearText: {
@@ -313,8 +313,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkboxSelected: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
   },
   emptyState: {
     alignItems: 'center',

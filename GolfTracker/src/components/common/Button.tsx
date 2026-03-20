@@ -39,7 +39,7 @@ export const Button: React.FC<ButtonProps> = React.memo(({
       accessibilityRole="button"
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'secondary' ? '#4CAF50' : '#fff'} />
+        <ActivityIndicator color={variant === 'secondary' ? '#2E7D32' : '#fff'} />
       ) : (
         <Text style={[
           styles.text,
@@ -66,12 +66,12 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   primary: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#2E7D32',
   },
   secondary: {
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#4CAF50',
+    borderColor: '#2E7D32',
   },
   danger: {
     backgroundColor: '#f44336',
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   textSecondary: {
-    color: '#4CAF50',
+    color: '#2E7D32',
   },
   textDanger: {
     color: '#fff',

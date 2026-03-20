@@ -57,7 +57,7 @@ function shotColor(shot: { type: string; results: string[] }): string {
     shot.results.includes(SHOT_RESULTS.CENTER) ||
     shot.results.includes(SHOT_RESULTS.GREEN) ||
     shot.results.includes(SHOT_RESULTS.MADE)
-  ) return '#4CAF50';
+  ) return '#2E7D32';
   if (shot.results.includes(SHOT_RESULTS.OB) || shot.results.includes(SHOT_RESULTS.HAZARD)) return '#F44336';
   if (shot.results.includes(SHOT_RESULTS.SAND)) return '#F4B400';
   if (shot.type === SHOT_TYPES.PENALTY) return '#F44336';
@@ -212,12 +212,12 @@ const HoleSummaryScreen: React.FC = () => {
           <View style={styles.statsRow}>
             {stats.fairwayHit !== undefined && (
               <View style={styles.statChip}>
-                <Icon name="golf-course" size={16} color={stats.fairwayHit ? '#4CAF50' : '#F44336'} />
+                <Icon name="golf-course" size={16} color={stats.fairwayHit ? '#2E7D32' : '#F44336'} />
                 <Text style={styles.statChipText}>FW {stats.fairwayHit ? 'Hit' : 'Miss'}</Text>
               </View>
             )}
             <View style={styles.statChip}>
-              <Icon name="flag" size={16} color={stats.greenInRegulation ? '#4CAF50' : '#F44336'} />
+              <Icon name="flag" size={16} color={stats.greenInRegulation ? '#2E7D32' : '#F44336'} />
               <Text style={styles.statChipText}>GIR {stats.greenInRegulation ? 'Yes' : 'No'}</Text>
             </View>
             <View style={styles.statChip}>
@@ -254,7 +254,7 @@ const HoleSummaryScreen: React.FC = () => {
         {/* AI Summary */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <FontAwesome5 name="robot" size={18} color="#4CAF50" />
+            <FontAwesome5 name="robot" size={18} color="#2E7D32" />
             <Text style={styles.cardTitle}>AI Summary</Text>
             <TouchableOpacity
               onPress={regenerateAI}
@@ -267,7 +267,7 @@ const HoleSummaryScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
           {isAnalyzing ? (
-            <ActivityIndicator size="small" color="#4CAF50" />
+            <ActivityIndicator size="small" color="#2E7D32" />
           ) : (
             <Text style={styles.aiText}>{aiSummary}</Text>
           )}

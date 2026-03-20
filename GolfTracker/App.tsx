@@ -58,7 +58,7 @@ const App = () => {
   if (!isInitialized || showOnboarding === null) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#2E7D32" />
         <Text style={styles.loadingText}>Initializing Daddy Caddy...</Text>
       </View>
     );

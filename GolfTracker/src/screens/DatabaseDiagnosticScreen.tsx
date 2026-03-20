@@ -51,9 +51,8 @@ const DatabaseDiagnosticScreen = () => {
         const sampleRecords = allRecords.slice(0, 3);
 
         // Extract sample data as plain objects
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- WatermelonDB _raw is internal
-        const sampleData = sampleRecords.map((record: any) => {
-          const raw = record._raw || {};
+        const sampleData = sampleRecords.map((record) => {
+          const raw = (record as unknown as { _raw?: Record<string, unknown> })._raw ?? {};
           return { ...raw } as Record<string, unknown>;
         });
 
@@ -151,7 +150,7 @@ const DatabaseDiagnosticScreen = () => {
       <View style={styles.container}>
         <ScreenHeader title="Database Diagnostics" leftAction="back" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
+          <ActivityIndicator size="large" color="#2E7D32" />
         </View>
       </View>
     );
@@ -354,7 +353,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   retryButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#2E7D32',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 5,

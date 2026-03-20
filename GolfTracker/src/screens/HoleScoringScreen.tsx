@@ -923,7 +923,7 @@ function renderMadeMissed(
 
 // ── Styles ────────────────────────────────────────────────────
 
-const S = { green: '#4CAF50', red: '#F44336', white: '#fff', bg: '#f5f5f5' } as const;
+const S = { green: '#2E7D32', red: '#F44336', white: '#fff', bg: '#f5f5f5' } as const;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: S.bg },

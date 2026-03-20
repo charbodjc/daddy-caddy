@@ -138,7 +138,7 @@ const GolferContactsScreen: React.FC = () => {
       <View style={styles.container}>
         {header}
         <View style={styles.centeredContent}>
-          <ActivityIndicator size="large" color="#4CAF50" />
+          <ActivityIndicator size="large" color="#2E7D32" />
           <Text style={styles.loadingText}>Loading contacts...</Text>
         </View>
       </View>
@@ -240,7 +240,7 @@ const GolferContactsScreen: React.FC = () => {
                 <Icon
                   name="person"
                   size={20}
-                  color={isSelected ? '#4CAF50' : '#666'}
+                  color={isSelected ? '#2E7D32' : '#666'}
                 />
                 <View style={styles.contactInfo}>
                   <Text style={styles.contactName}>{item.name}</Text>
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#2E7D32',
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 8,
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#2E7D32',
     fontWeight: '600',
   },
   clearText: {
@@ -424,8 +424,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkboxSelected: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
   },
   emptyState: {
     alignItems: 'center',
@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#e0e0e0',
   },
   saveButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#2E7D32',
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 8,

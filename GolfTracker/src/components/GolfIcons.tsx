@@ -9,11 +9,11 @@ interface IconProps {
 }
 
 // Golf-themed icon components
-export const GolfBallIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const GolfBallIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <FontAwesome5 name="golf-ball" size={size} color={color} />
 );
 
-export const FlagIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const FlagIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <FontAwesome5 name="flag" size={size} color={color} />
 );
 
@@ -25,11 +25,11 @@ export const CameraIcon = ({ size = 24, color = '#2196F3' }: IconProps) => (
   <FontAwesome5 name="camera" size={size} color={color} />
 );
 
-export const ChartIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const ChartIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <FontAwesome5 name="chart-line" size={size} color={color} />
 );
 
-export const CheckIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const CheckIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <FontAwesome5 name="check-circle" size={size} color={color} />
 );
 
@@ -41,19 +41,19 @@ export const ShareIcon = ({ size = 24, color = '#2196F3' }: IconProps) => (
   <FontAwesome5 name="share-alt" size={size} color={color} />
 );
 
-export const MapPinIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const MapPinIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <FontAwesome5 name="map-pin" size={size} color={color} />
 );
 
-export const BullseyeIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const BullseyeIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <FontAwesome5 name="bullseye" size={size} color={color} />
 );
 
-export const TreeIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const TreeIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <FontAwesome5 name="tree" size={size} color={color} />
 );
 
-export const MountainIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const MountainIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <Icon name="terrain" size={size} color={color} />
 );
 
@@ -69,7 +69,7 @@ export const ClockIcon = ({ size = 24, color = '#666' }: IconProps) => (
   <FontAwesome5 name="clock" size={size} color={color} />
 );
 
-export const UserGroupIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const UserGroupIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <FontAwesome5 name="users" size={size} color={color} />
 );
 
@@ -77,11 +77,11 @@ export const MessageIcon = ({ size = 24, color = '#2196F3' }: IconProps) => (
   <FontAwesome5 name="sms" size={size} color={color} />
 );
 
-export const LocationIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const LocationIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <Ionicons name="location-sharp" size={size} color={color} />
 );
 
-export const HomeIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const HomeIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <FontAwesome5 name="home" size={size} color={color} />
 );
 
@@ -90,7 +90,7 @@ export const SettingsIcon = ({ size = 24, color = '#666' }: IconProps) => (
 );
 
 // Shot type icons
-export const TeeShotIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const TeeShotIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <FontAwesome5 name="rocket" size={size} color={color} solid />
 );
 
@@ -106,7 +106,7 @@ export const BunkerIcon = ({ size = 24, color = '#D2691E' }: IconProps) => (
   <FontAwesome5 name="mountain" size={size} color={color} />
 );
 
-export const PuttIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const PuttIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <FontAwesome5 name="bullseye" size={size} color={color} />
 );
 
@@ -115,7 +115,7 @@ export const EagleIcon = ({ size = 24, color = '#FFD700' }: IconProps) => (
   <FontAwesome5 name="dove" size={size} color={color} />
 );
 
-export const BirdieIcon = ({ size = 24, color = '#4CAF50' }: IconProps) => (
+export const BirdieIcon = ({ size = 24, color = '#2E7D32' }: IconProps) => (
   <FontAwesome5 name="crow" size={size} color={color} />
 );
 

@@ -28,7 +28,7 @@ describe('Button Component', () => {
     );
     
     const button = getByText('Primary').parent?.parent;
-    expect(button?.props.style).toMatchObject({ backgroundColor: '#4CAF50' });
+    expect(button?.props.style).toMatchObject({ backgroundColor: '#2E7D32' });
   });
   
   it('should render secondary variant', () => {
@@ -38,7 +38,7 @@ describe('Button Component', () => {
     
     const text = getByText('Secondary');
     expect(text.props.style).toContainEqual(
-      expect.objectContaining({ color: '#4CAF50' })
+      expect.objectContaining({ color: '#2E7D32' })
     );
   });
   

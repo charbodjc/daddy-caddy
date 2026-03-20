@@ -21,7 +21,7 @@ const ONBOARDING_SLIDES = [
     description: 'The perfect tool for parents and friends to follow players at tournaments and share every moment back home.',
     icon: 'people',
     iconType: 'MaterialIcons' as const,
-    color: '#4CAF50',
+    color: '#2E7D32',
   },
   {
     id: 2,
@@ -61,7 +61,7 @@ const ONBOARDING_SLIDES = [
     description: "You're all set to follow and share the tournament experience. Start tracking now!",
     icon: 'check-circle',
     iconType: 'MaterialIcons' as const,
-    color: '#4CAF50',
+    color: '#2E7D32',
   },
 ];
 

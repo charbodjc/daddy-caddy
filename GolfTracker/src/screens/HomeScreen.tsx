@@ -100,7 +100,7 @@ const HomeScreen: React.FC = () => {
       {activeRound ? (
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Icon name="golf-course" size={24} color="#4CAF50" />
+            <Icon name="golf-course" size={24} color="#2E7D32" />
             <Text style={styles.cardTitle}>Active Round</Text>
           </View>
           {activeGolfer && (
@@ -125,7 +125,7 @@ const HomeScreen: React.FC = () => {
       ) : (
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Icon name="add-circle" size={24} color="#4CAF50" />
+            <Icon name="add-circle" size={24} color="#2E7D32" />
             <Text style={styles.cardTitle}>Start New Round</Text>
           </View>
           <Text style={styles.cardText}>
@@ -143,7 +143,7 @@ const HomeScreen: React.FC = () => {
       {stats && stats.totalRounds > 0 && (
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Icon name="bar-chart" size={24} color="#4CAF50" />
+            <Icon name="bar-chart" size={24} color="#2E7D32" />
             <Text style={styles.cardTitle}>{activeGolfer ? `${activeGolfer.name}'s Statistics` : 'Your Statistics'}</Text>
           </View>
           
@@ -176,7 +176,7 @@ const HomeScreen: React.FC = () => {
             accessibilityLabel="View all statistics"
           >
             <Text style={styles.viewAllText}>View All Stats</Text>
-            <Icon name="chevron-right" size={20} color="#4CAF50" />
+            <Icon name="chevron-right" size={20} color="#2E7D32" />
           </TouchableOpacity>
         </View>
       )}
@@ -184,12 +184,12 @@ const HomeScreen: React.FC = () => {
       {/* Quick Actions */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Icon name="explore" size={24} color="#4CAF50" />
+          <Icon name="explore" size={24} color="#2E7D32" />
           <Text style={styles.cardTitle}>Quick Actions</Text>
         </View>
         
         <TouchableOpacity style={styles.actionItem} onPress={handleGoToTournaments} accessibilityRole="button" accessibilityLabel="Go to Tournaments">
-          <FontAwesome5 name="trophy" size={20} color="#4CAF50" />
+          <FontAwesome5 name="trophy" size={20} color="#2E7D32" />
           <Text style={styles.actionText}>Tournaments</Text>
           <Icon name="chevron-right" size={20} color="#ccc" />
         </TouchableOpacity>
@@ -200,7 +200,7 @@ const HomeScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Go to Statistics"
         >
-          <FontAwesome5 name="chart-line" size={20} color="#4CAF50" />
+          <FontAwesome5 name="chart-line" size={20} color="#2E7D32" />
           <Text style={styles.actionText}>Statistics</Text>
           <Icon name="chevron-right" size={20} color="#ccc" />
         </TouchableOpacity>
@@ -211,22 +211,12 @@ const HomeScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Go to Settings"
         >
-          <Icon name="settings" size={20} color="#4CAF50" />
+          <Icon name="settings" size={20} color="#2E7D32" />
           <Text style={styles.actionText}>Settings</Text>
           <Icon name="chevron-right" size={20} color="#ccc" />
         </TouchableOpacity>
       </View>
-      
-      {/* Empty State */}
-      {!activeRound && stats && stats.totalRounds === 0 && (
-        <View style={styles.emptyState}>
-          <FontAwesome5 name="golf-ball" size={80} color="#ddd" />
-          <Text style={styles.emptyTitle}>Welcome to Daddy Caddy!</Text>
-          <Text style={styles.emptyText}>
-            Start your first round to begin tracking your golf game.
-          </Text>
-        </View>
-      )}
+
     </ScrollView>
   );
 };
@@ -289,7 +279,7 @@ const styles = StyleSheet.create({
   },
   tournamentName: {
     fontSize: 16,
-    color: '#4CAF50',
+    color: '#2E7D32',
     marginBottom: 5,
   },
   dateText: {
@@ -314,7 +304,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#2E7D32',
   },
   statLabel: {
     fontSize: 12,
@@ -331,7 +321,7 @@ const styles = StyleSheet.create({
   },
   viewAllText: {
     fontSize: 16,
-    color: '#4CAF50',
+    color: '#2E7D32',
     fontWeight: '600',
     marginRight: 5,
   },
@@ -347,22 +337,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#333',
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: 40,
-  },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
   },
 });
 

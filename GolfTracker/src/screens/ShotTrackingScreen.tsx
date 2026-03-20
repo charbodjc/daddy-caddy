@@ -413,7 +413,7 @@ const ShotTrackingScreen: React.FC = () => {
   );
 };
 
-const S = { green: '#4CAF50', white: '#fff', bg: '#f5f5f5', border: '#e0e0e0' } as const;
+const S = { green: '#2E7D32', white: '#fff', bg: '#f5f5f5', border: '#e0e0e0' } as const;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: S.bg },
   header: { backgroundColor: S.green, paddingBottom: 16, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' },

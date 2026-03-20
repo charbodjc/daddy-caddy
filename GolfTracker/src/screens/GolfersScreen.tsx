@@ -234,7 +234,7 @@ const GolfersScreen: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel={`SMS Contacts, ${getContactCount(editingGolfer)} configured, tap to edit`}
           >
-            <Icon name="sms" size={22} color="#4CAF50" />
+            <Icon name="sms" size={22} color="#2E7D32" />
             <View style={styles.smsContactsInfo}>
               <Text style={styles.smsContactsLabel}>SMS Contacts</Text>
               <Text style={styles.smsContactsCount}>
@@ -303,7 +303,7 @@ const GolfersScreen: React.FC = () => {
               </Text>
               {getContactCount(golfer) > 0 && (
                 <View style={styles.smsCountRow}>
-                  <Icon name="sms" size={14} color="#4CAF50" />
+                  <Icon name="sms" size={14} color="#2E7D32" />
                   <Text style={styles.smsCountText}>
                     {getContactCount(golfer)} SMS contact{getContactCount(golfer) !== 1 ? 's' : ''}
                   </Text>
@@ -509,7 +509,7 @@ const styles = StyleSheet.create({
   },
   smsCountText: {
     fontSize: 12,
-    color: '#4CAF50',
+    color: '#2E7D32',
     fontWeight: '500',
   },
   modalButtons: {
