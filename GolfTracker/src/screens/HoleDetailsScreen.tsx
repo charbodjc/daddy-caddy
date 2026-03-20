@@ -9,8 +9,10 @@ import {
   Alert,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import type { ScoringStackParamList } from '../types/navigation';
 import { database } from '../database/watermelon/database';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 import Hole from '../database/watermelon/models/Hole';
 import Media from '../database/watermelon/models/Media';
 import { useRoundStore } from '../stores/roundStore';
@@ -29,8 +31,7 @@ interface RouteParams {
 }
 
 const HoleDetailsScreen: React.FC = () => {
-  const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<ScoringStackParamList>>();
   const route = useRoute();
   const { holeId, roundId } = (route.params as RouteParams) || {};
   
@@ -100,9 +101,9 @@ const HoleDetailsScreen: React.FC = () => {
   };
   
   const handleNavigateToCamera = () => {
-    (navigation as any).navigate('Camera', {
+    navigation.navigate('Camera', {
       roundId,
-      holeNumber: hole?.holeNumber,
+      currentHole: hole?.holeNumber ?? 0,
     });
   };
   
@@ -119,24 +120,13 @@ const HoleDetailsScreen: React.FC = () => {
   const scoreColorValue = getScoreColor(score);
   
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityLabel="Go back"
-          accessibilityRole="button"
-        >
-          <Icon name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>Hole {hole.holeNumber}</Text>
-          <Text style={styles.headerSubtitle}>Par {hole.par}</Text>
-        </View>
-      </View>
+    <View style={styles.container}>
+      <ScreenHeader
+        title={`Hole ${hole.holeNumber}`}
+        subtitle={`Par ${hole.par}`}
+        leftAction="back"
+      />
+      <ScrollView style={styles.scrollContent}>
       
       {/* Score Card */}
       <View style={styles.scoreCard}>
@@ -219,6 +209,7 @@ const HoleDetailsScreen: React.FC = () => {
           value={notes}
           onChangeText={setNotes}
           textAlignVertical="top"
+          accessibilityLabel="Hole notes"
         />
         
         <Button
@@ -245,7 +236,8 @@ const HoleDetailsScreen: React.FC = () => {
           </View>
         ) : null;
       })()}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -269,28 +261,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  backButton: {
-    marginRight: 15,
-    padding: 5,
-  },
-  headerInfo: {
+  scrollContent: {
     flex: 1,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
   },
   scoreCard: {
     backgroundColor: '#fff',

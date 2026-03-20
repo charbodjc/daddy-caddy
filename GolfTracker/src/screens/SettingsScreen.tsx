@@ -7,18 +7,19 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { useNavigation, DrawerActions } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { database } from '../database/watermelon/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { resetOnboarding } from '../utils/onboarding';
 import { useGolferStore } from '../stores/golferStore';
 import { removePreference } from '../services/preferenceService';
+import type { SettingsStackParamList } from '../types/navigation';
 
 const SettingsScreen: React.FC = () => {
-  const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<SettingsStackParamList>>();
   const [exporting, setExporting] = useState(false);
   
   const handleExportData = async () => {
@@ -64,7 +65,7 @@ const SettingsScreen: React.FC = () => {
   };
   
   const handleDatabaseDiagnostics = () => {
-    (navigation as any).navigate('DatabaseDiagnostic');
+    navigation.navigate('DatabaseDiagnostic');
   };
   
   const handleReplayOnboarding = async () => {
@@ -103,19 +104,7 @@ const SettingsScreen: React.FC = () => {
   
   return (
     <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityLabel="Open menu"
-          accessibilityRole="button"
-        >
-          <Icon name="menu" size={28} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
-      </View>
+      <ScreenHeader title="Settings" leftAction="menu" />
       
       {/* App Information */}
       <View style={styles.section}>
@@ -142,7 +131,7 @@ const SettingsScreen: React.FC = () => {
         
         <TouchableOpacity
           style={styles.settingItem}
-          onPress={() => (navigation as any).navigate('Golfers')}
+          onPress={() => navigation.navigate('Golfers')}
           accessibilityRole="button"
           accessibilityLabel="Manage Golfers"
         >
@@ -264,24 +253,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  menuButton: {
-    padding: 5,
-    marginRight: 12,
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
   },
   section: {
     marginTop: 20,

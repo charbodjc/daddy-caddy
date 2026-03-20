@@ -11,8 +11,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { GolferAvatar } from '../components/golfer/GolferAvatar';
 import { Button } from '../components/common/Button';
@@ -38,7 +38,6 @@ const COLORS = [
 ];
 
 const GolfersScreen: React.FC = () => {
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<StackNavigationProp<SettingsStackParamList>>();
   const {
     golfers,
@@ -271,17 +270,7 @@ const GolfersScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Icon name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Manage Golfers</Text>
-      </View>
+      <ScreenHeader title="Manage Golfers" leftAction="back" />
 
       <ScrollView style={styles.content}>
         {golfers.length === 1 && (
@@ -375,24 +364,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  backButton: {
-    padding: 8,
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
   },
   content: {
     flex: 1,

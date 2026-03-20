@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 import { useDeviceContacts } from '../hooks/useDeviceContacts';
 import { useGolferStore, parseGolferContacts } from '../stores/golferStore';
 import type { SmsContact } from '../types';
@@ -125,22 +126,11 @@ const GolferContactsScreen: React.FC = () => {
   const filteredContacts = getFilteredContacts();
 
   const header = (
-    <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-      <TouchableOpacity
-        onPress={() => navigation.goBack()}
-        style={styles.backButton}
-        accessibilityRole="button"
-        accessibilityLabel="Go back to Golfers"
-      >
-        <Icon name="arrow-back" size={24} color="#fff" />
-      </TouchableOpacity>
-      <View style={styles.headerText}>
-        <Text style={styles.headerTitle}>SMS Contacts</Text>
-        <Text style={styles.headerSubtitle}>
-          Select who receives updates for {golferName}
-        </Text>
-      </View>
-    </View>
+    <ScreenHeader
+      title="SMS Contacts"
+      subtitle={`Select who receives updates for ${golferName}`}
+      leftAction="back"
+    />
   );
 
   if (loading) {
@@ -302,32 +292,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  backButton: {
-    padding: 8,
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  headerText: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 2,
   },
   centeredContent: {
     flex: 1,

@@ -10,8 +10,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { database } from '../database/watermelon/database';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 
 interface TableInfo {
   name: string;
@@ -34,8 +34,7 @@ interface DiagnosticData {
   error?: string;
 }
 
-const DatabaseDiagnosticScreen = ({ navigation }: { navigation: { goBack: () => void } }) => {
-  const insets = useSafeAreaInsets();
+const DatabaseDiagnosticScreen = () => {
   const [diagnostics, setDiagnostics] = useState<DiagnosticData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -150,12 +149,7 @@ const DatabaseDiagnosticScreen = ({ navigation }: { navigation: { goBack: () => 
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Icon name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Database Diagnostics</Text>
-        </View>
+        <ScreenHeader title="Database Diagnostics" leftAction="back" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#4CAF50" />
         </View>
@@ -166,12 +160,7 @@ const DatabaseDiagnosticScreen = ({ navigation }: { navigation: { goBack: () => 
   if (!diagnostics) {
     return (
       <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Icon name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Database Diagnostics</Text>
-        </View>
+        <ScreenHeader title="Database Diagnostics" leftAction="back" />
         <View style={styles.errorContainer}>
           <Icon name="error-outline" size={48} color="#f44336" />
           <Text style={styles.errorText}>Failed to load diagnostics</Text>
@@ -186,12 +175,7 @@ const DatabaseDiagnosticScreen = ({ navigation }: { navigation: { goBack: () => 
   if (diagnostics.error) {
     return (
       <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Icon name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Database Diagnostics</Text>
-        </View>
+        <ScreenHeader title="Database Diagnostics" leftAction="back" />
         <View style={styles.errorContainer}>
           <Icon name="error-outline" size={48} color="#f44336" />
           <Text style={styles.errorText}>Database Error</Text>
@@ -208,18 +192,7 @@ const DatabaseDiagnosticScreen = ({ navigation }: { navigation: { goBack: () => 
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityLabel="Go back"
-          accessibilityRole="button"
-        >
-          <Icon name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Database Diagnostics</Text>
-      </View>
+      <ScreenHeader title="Database Diagnostics" leftAction="back" />
 
       <ScrollView
         style={styles.content}
@@ -260,6 +233,9 @@ const DatabaseDiagnosticScreen = ({ navigation }: { navigation: { goBack: () => 
               <TouchableOpacity
                 style={styles.tableHeader}
                 onPress={() => toggleTableExpansion(tableName)}
+                accessibilityRole="button"
+                accessibilityLabel={`Toggle ${tableName} table details`}
+                accessibilityState={{ expanded: isExpanded }}
               >
                 <View style={styles.tableHeaderLeft}>
                   <Icon
@@ -329,7 +305,12 @@ const DatabaseDiagnosticScreen = ({ navigation }: { navigation: { goBack: () => 
 
         {/* Actions */}
         <View style={styles.actionsSection}>
-          <TouchableOpacity style={styles.dangerButton} onPress={clearDatabase}>
+          <TouchableOpacity
+            style={styles.dangerButton}
+            onPress={clearDatabase}
+            accessibilityRole="button"
+            accessibilityLabel="Clear all database data"
+          >
             <Icon name="delete-forever" size={20} color="#fff" />
             <Text style={styles.dangerButtonText}>Clear All Data</Text>
           </TouchableOpacity>
@@ -345,23 +326,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  backButton: {
-    marginRight: 15,
-    padding: 5,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    flex: 1,
   },
   content: {
     flex: 1,

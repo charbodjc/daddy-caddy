@@ -1,12 +1,12 @@
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, DrawerActions } from '@react-navigation/native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { AppNavigationProp } from '../types/navigation';
 import { useRound } from '../hooks/useRound';
 import { useRoundStore } from '../stores/roundStore';
 import { useStats } from '../hooks/useStats';
 import { LoadingScreen } from '../components/common/LoadingScreen';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
@@ -17,7 +17,6 @@ import { useGolfers } from '../hooks/useGolfers';
 import { useStatsStore } from '../stores/statsStore';
 
 const HomeScreen: React.FC = () => {
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<AppNavigationProp>();
   const { round: activeRound, loading: roundLoading, reload: reloadRound } = useRound();
   const { stats, loading: statsLoading, refresh: refreshStats } = useStats();
@@ -77,31 +76,12 @@ const HomeScreen: React.FC = () => {
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
       }
     >
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity
-            style={styles.menuButton}
-            onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel="Open menu"
-            accessibilityRole="button"
-          >
-            <Icon name="menu" size={28} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Image
-              source={require('../../assets/daddy_caddy_logo.png')}
-              style={styles.logo}
-              resizeMode="contain"
-              accessible={false}
-            />
-            <Text style={styles.title}>Daddy Caddy</Text>
-            <Text style={styles.subtitle}>Your Golf Companion</Text>
-          </View>
-          <View style={styles.menuButton} />
-        </View>
-      </View>
+      <ScreenHeader
+        title="Daddy Caddy"
+        subtitle="Your Golf Companion"
+        leftAction="menu"
+        centered
+      />
       
       {/* Golfer Switcher */}
       {golfers.length > 1 && (
@@ -191,7 +171,7 @@ const HomeScreen: React.FC = () => {
           
           <TouchableOpacity
             style={styles.viewAllButton}
-            onPress={() => (navigation as any).navigate('Stats')}
+            onPress={() => navigation.navigate('Stats')}
             accessibilityRole="button"
             accessibilityLabel="View all statistics"
           >
@@ -216,7 +196,7 @@ const HomeScreen: React.FC = () => {
 
         <TouchableOpacity
           style={styles.actionItem}
-          onPress={() => (navigation as any).navigate('Stats')}
+          onPress={() => navigation.navigate('Stats')}
           accessibilityRole="button"
           accessibilityLabel="Go to Statistics"
         >
@@ -258,39 +238,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: 30,
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  menuButton: {
-    padding: 5,
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  headerContent: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  logo: {
-    width: 80,
-    height: 80,
-    marginBottom: 10,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 5,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
   },
   golferSwitcher: {
     paddingHorizontal: 15,

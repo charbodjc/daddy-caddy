@@ -11,6 +11,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { AppNavigationProp } from '../types/navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { database } from '../database/watermelon/database';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 import Round from '../database/watermelon/models/Round';
 import { LoadingScreen } from '../components/common/LoadingScreen';
 import { ErrorScreen } from '../components/common/ErrorScreen';
@@ -130,43 +131,33 @@ Played with Daddy Caddy ⛳
   return (
     <ScrollView style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityLabel="Go back"
-          accessibilityRole="button"
-        >
-          <Icon name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>Round Summary</Text>
-          <Text style={styles.headerSubtitle}>{round.courseName}</Text>
-        </View>
-
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.headerActionButton}
-            onPress={handleEditRound}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel="Edit round"
-            accessibilityRole="button"
-          >
-            <Icon name="edit" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerActionButton}
-            onPress={handleShare}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel="Share round"
-            accessibilityRole="button"
-          >
-            <Icon name="share" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <ScreenHeader
+        title="Round Summary"
+        subtitle={round.courseName}
+        leftAction="back"
+        rightContent={
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={handleEditRound}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Edit round"
+              accessibilityRole="button"
+            >
+              <Icon name="edit" size={24} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={handleShare}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Share round"
+              accessibilityRole="button"
+            >
+              <Icon name="share" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        }
+      />
       
       {/* Score Card */}
       <View style={styles.scoreCard}>
@@ -339,32 +330,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  backButton: {
-    marginRight: 15,
-    padding: 5,
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
   },
   headerActions: {
     flexDirection: 'row',
