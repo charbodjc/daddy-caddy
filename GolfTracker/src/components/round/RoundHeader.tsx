@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -15,14 +15,26 @@ interface RoundHeaderProps {
 
 export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, totalPar: totalParProp, golferName, onMenuPress }) => {
   const insets = useSafeAreaInsets();
-  // Score relative to par for played holes only (no 72 fallback)
+  const [showTotalScore, setShowTotalScore] = useState(false);
+
+  const toggleScoreDisplay = useCallback(() => {
+    setShowTotalScore((prev) => !prev);
+  }, []);
+
+  const hasScore = round.totalScore != null && round.totalScore > 0 && totalParProp;
+
   const toPar = (() => {
     if (!round.totalScore || !totalParProp || totalParProp <= 0) return 0;
     return round.totalScore - totalParProp;
   })();
 
-  const scoreDisplay = round.totalScore != null && round.totalScore > 0 && totalParProp
-    ? formatScoreVsPar(toPar) : '--';
+  const scoreDisplay = hasScore
+    ? (showTotalScore ? String(round.totalScore) : formatScoreVsPar(toPar))
+    : '--';
+
+  const scoreLabel = hasScore
+    ? (showTotalScore ? 'total' : 'to par')
+    : undefined;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
@@ -38,12 +50,6 @@ export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, tota
         </TouchableOpacity>
       )}
       <View style={styles.courseInfo}>
-        {golferName && (
-          <View style={styles.golferRow}>
-            <Text style={styles.golferEmoji}>🏌️</Text>
-            <Text style={styles.golferText}>{golferName}</Text>
-          </View>
-        )}
         <Text style={styles.courseName}>{round.courseName}</Text>
         {round.tournamentName && (
           <Text style={styles.tournamentName}>{round.tournamentName}</Text>
@@ -53,9 +59,23 @@ export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, tota
         </Text>
       </View>
 
-      <View style={styles.scoreInfo}>
+      <TouchableOpacity
+        style={styles.scoreInfo}
+        onPress={toggleScoreDisplay}
+        disabled={!hasScore}
+        activeOpacity={0.7}
+        accessibilityLabel={
+          hasScore
+            ? `Score: ${scoreDisplay} ${scoreLabel}. Tap to show ${showTotalScore ? 'relative to par' : 'total score'}`
+            : 'Score: not available'
+        }
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !hasScore }}
+      >
         <Text style={styles.scoreValue}>{scoreDisplay}</Text>
-      </View>
+        {scoreLabel && <Text style={styles.scoreLabel}>{scoreLabel}</Text>}
+        {golferName && <Text style={styles.golferName}>{golferName}</Text>}
+      </TouchableOpacity>
     </View>
   );
 });
@@ -80,20 +100,6 @@ const styles = StyleSheet.create({
   courseInfo: {
     flex: 1,
   },
-  golferRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
-  golferEmoji: {
-    fontSize: 18,
-  },
-  golferText: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '500',
-  },
   courseName: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -116,10 +122,22 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     minWidth: 80,
+    minHeight: 44,
   },
   scoreValue: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  scoreLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 2,
+  },
+  golferName: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '500',
+    marginTop: 4,
   },
 });
