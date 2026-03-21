@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 3,
+  version: 4,
   tables: [
     tableSchema({
       name: 'golfers',
@@ -10,6 +10,7 @@ export const schema = appSchema({
         { name: 'handicap', type: 'number', isOptional: true },
         { name: 'color', type: 'string' },
         { name: 'is_default', type: 'boolean' },
+        { name: 'emoji', type: 'string', isOptional: true },
         { name: 'sms_contacts', type: 'string', isOptional: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },

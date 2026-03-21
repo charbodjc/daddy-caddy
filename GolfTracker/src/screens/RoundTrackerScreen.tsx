@@ -209,8 +209,11 @@ const RoundTrackerScreen: React.FC = () => {
     } );
   };
   
-  const totalPar = useMemo(() => {
-    const sum = holes.reduce((s, h) => s + (h.par || 0), 0);
+  // Sum par only for played holes so score shows relative to par for holes completed
+  const playedPar = useMemo(() => {
+    const sum = holes
+      .filter(h => h.strokes > 0)
+      .reduce((s, h) => s + (h.par || 0), 0);
     return sum || undefined;
   }, [holes]);
 
@@ -286,7 +289,7 @@ const RoundTrackerScreen: React.FC = () => {
       {/* Header with score */}
       <RoundHeader
         round={round}
-        totalPar={totalPar}
+        totalPar={playedPar}
         golferName={golfers.find((g) => g.id === round.golferId)?.name}
         onMenuPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
       />

@@ -12,6 +12,7 @@ export const golferSchema = z.object({
   name: z.string().min(1, 'Name is required').max(50),
   handicap: z.number().min(0).max(54).optional(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid color format').optional(),
+  emoji: z.string().max(10).optional(),
   smsContacts: z.array(smsContactSchema).optional(),
 });
 

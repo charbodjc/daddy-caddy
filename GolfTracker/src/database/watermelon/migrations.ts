@@ -46,5 +46,16 @@ export const migrations = schemaMigrations({
         unsafeExecuteSql('DROP TABLE IF EXISTS contacts;'),
       ],
     },
+    {
+      toVersion: 4,
+      steps: [
+        addColumns({
+          table: 'golfers',
+          columns: [
+            { name: 'emoji', type: 'string', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

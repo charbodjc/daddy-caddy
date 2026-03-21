@@ -1,12 +1,12 @@
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, ImageBackground } from 'react-native';
+import { useNavigation, DrawerActions } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppNavigationProp } from '../types/navigation';
 import { useRound } from '../hooks/useRound';
 import { useRoundStore } from '../stores/roundStore';
 import { useStats } from '../hooks/useStats';
 import { LoadingScreen } from '../components/common/LoadingScreen';
-import { ScreenHeader } from '../components/common/ScreenHeader';
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
@@ -16,7 +16,10 @@ import { GolferPicker } from '../components/golfer/GolferPicker';
 import { useGolfers } from '../hooks/useGolfers';
 import { useStatsStore } from '../stores/statsStore';
 
+const bannerImage = require('../../assets/daddy-caddy-banner.jpg');
+
 const HomeScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<AppNavigationProp>();
   const { round: activeRound, loading: roundLoading, reload: reloadRound } = useRound();
   const { stats, loading: statsLoading, refresh: refreshStats } = useStats();
@@ -76,12 +79,28 @@ const HomeScreen: React.FC = () => {
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
       }
     >
-      <ScreenHeader
-        title="Daddy Caddy"
-        subtitle="Your Golf Companion"
-        leftAction="menu"
-        centered
-      />
+      {/* Banner Header */}
+      <ImageBackground
+        source={bannerImage}
+        style={styles.banner}
+        resizeMode="cover"
+      >
+        <View style={[styles.bannerOverlay, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity
+            style={[styles.bannerMenuBtn, { top: insets.top + 4 }]}
+            onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Open menu"
+            accessibilityRole="button"
+          >
+            <Icon name="menu" size={28} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.bannerTitleArea}>
+            <Text style={styles.bannerTitle}>Daddy Caddy</Text>
+            <Text style={styles.bannerSubtitle}>Your Golf Companion</Text>
+          </View>
+        </View>
+      </ImageBackground>
       
       {/* Golfer Switcher */}
       {golfers.length > 1 && (
@@ -105,7 +124,7 @@ const HomeScreen: React.FC = () => {
           </View>
           {activeGolfer && (
             <View style={styles.golferRow}>
-              <GolferAvatar name={activeGolfer.name} color={activeGolfer.color} size={24} />
+              <GolferAvatar name={activeGolfer.name} color={activeGolfer.color} emoji={activeGolfer.emoji} size={24} />
               <Text style={styles.golferName}>{activeGolfer.name}</Text>
             </View>
           )}
@@ -228,6 +247,45 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: 30,
+  },
+  banner: {
+    width: '100%',
+    height: 200,
+  },
+  bannerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    justifyContent: 'flex-end',
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+  },
+  bannerMenuBtn: {
+    position: 'absolute',
+    top: 0,
+    left: 12,
+    padding: 8,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  bannerTitleArea: {
+    alignItems: 'center',
+  },
+  bannerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  bannerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   golferSwitcher: {
     paddingHorizontal: 15,

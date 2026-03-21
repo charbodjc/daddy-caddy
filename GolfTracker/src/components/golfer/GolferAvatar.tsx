@@ -4,6 +4,7 @@ import { View, Text, StyleSheet } from 'react-native';
 interface GolferAvatarProps {
   name: string;
   color: string;
+  emoji?: string;
   size?: number;
 }
 
@@ -19,17 +20,20 @@ function getContrastTextColor(hex: string): string {
 
 /** Two-character initials: first + last initial, or first two letters if single word. */
 function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
+  const trimmed = name.trim();
+  if (trimmed.length === 0) return '?';
+  const parts = trimmed.split(/\s+/);
   if (parts.length >= 2) {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
-  return name.slice(0, 2).toUpperCase();
+  return trimmed.slice(0, 2).toUpperCase();
 }
 
-export const GolferAvatar: React.FC<GolferAvatarProps> = React.memo(({ name, color, size = 32 }) => {
+export const GolferAvatar: React.FC<GolferAvatarProps> = React.memo(({ name, color, emoji, size = 32 }) => {
   const initials = getInitials(name);
   const textColor = getContrastTextColor(color);
   const fontSize = size * 0.4;
+  const emojiSize = size * 0.55;
 
   return (
     <View
@@ -40,9 +44,13 @@ export const GolferAvatar: React.FC<GolferAvatarProps> = React.memo(({ name, col
       accessibilityLabel={name}
       accessibilityRole="image"
     >
-      <Text style={[styles.initials, { fontSize, color: textColor }]}>
-        {initials}
-      </Text>
+      {emoji ? (
+        <Text style={{ fontSize: emojiSize, lineHeight: emojiSize * 1.15 }}>{emoji}</Text>
+      ) : (
+        <Text style={[styles.initials, { fontSize, color: textColor }]}>
+          {initials}
+        </Text>
+      )}
     </View>
   );
 });

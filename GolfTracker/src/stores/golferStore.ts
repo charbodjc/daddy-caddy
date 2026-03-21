@@ -31,8 +31,8 @@ interface GolferState {
   error: Error | null;
 
   loadGolfers: () => Promise<void>;
-  createGolfer: (data: { name: string; handicap?: number; color?: string }) => Promise<Golfer>;
-  updateGolfer: (id: string, data: { name?: string; handicap?: number; color?: string }) => Promise<void>;
+  createGolfer: (data: { name: string; handicap?: number; color?: string; emoji?: string }) => Promise<Golfer>;
+  updateGolfer: (id: string, data: { name?: string; handicap?: number; color?: string; emoji?: string }) => Promise<void>;
   deleteGolfer: (id: string) => Promise<{ reassignedCount: number }>;
   setActiveGolfer: (id: string) => Promise<void>;
   ensureDefaultGolfer: () => Promise<void>;
@@ -76,6 +76,7 @@ export const useGolferStore = create<GolferState>()(
             return database.collections.get<Golfer>('golfers').create((g) => {
               g.name = data.name;
               if (data.handicap !== undefined) g.handicap = data.handicap;
+              if (data.emoji !== undefined) g.emoji = data.emoji;
               g.color = color;
               g.isDefault = false;
             });
@@ -99,6 +100,7 @@ export const useGolferStore = create<GolferState>()(
               if (data.name !== undefined) g.name = data.name;
               if (data.handicap !== undefined) g.handicap = data.handicap;
               if (data.color !== undefined) g.color = data.color;
+              if (data.emoji !== undefined) g.emoji = data.emoji || undefined;
             });
           });
           await get().loadGolfers();
