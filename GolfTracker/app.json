@@ -50,7 +50,8 @@
     "plugins": [
       "expo-dev-client",
       "expo-image-picker",
-      "expo-speech-recognition"
+      "expo-speech-recognition",
+      "expo-system-ui"
     ],
     "extra": {
       "eas": {
