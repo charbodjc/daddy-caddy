@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   Modal,
   TextInput,
   Alert,
@@ -98,6 +99,10 @@ const GolfersScreen: React.FC = () => {
 
   const handleSaveEdit = async () => {
     if (!editingGolfer || !name.trim()) return;
+    if (handicap && isNaN(parseFloat(handicap))) {
+      Alert.alert('Invalid Handicap', 'Please enter a valid number');
+      return;
+    }
     setSaving(true);
     try {
       const parsedHandicap = handicap ? parseFloat(handicap) : undefined;
@@ -118,6 +123,10 @@ const GolfersScreen: React.FC = () => {
   const handleAddGolfer = async () => {
     if (!name.trim()) {
       Alert.alert('Error', 'Please enter a name');
+      return;
+    }
+    if (handicap && isNaN(parseFloat(handicap))) {
+      Alert.alert('Invalid Handicap', 'Please enter a valid number');
       return;
     }
     setSaving(true);
@@ -187,17 +196,28 @@ const GolfersScreen: React.FC = () => {
     return <LoadingScreen message="Loading golfers..." />;
   }
 
+  const dismissModal = () => {
+    setEditModalVisible(false);
+    setAddModalVisible(false);
+    setName('');
+    setHandicap('');
+  };
+
   const renderGolferForm = (onSave: () => void, title: string) => (
-    <KeyboardAvoidingView
-      style={styles.modalOverlay}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
-        style={styles.modalContent}
-        contentContainerStyle={styles.modalContentInner}
-        keyboardShouldPersistTaps="handled"
-        bounces={false}
+    <View style={styles.modalOverlay}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={dismissModal}>
+        <View style={styles.modalBackdrop} />
+      </Pressable>
+      <KeyboardAvoidingView
+        style={styles.modalOverlayInner}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
+        <ScrollView
+          style={styles.modalContent}
+          contentContainerStyle={styles.modalContentInner}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
         <Text style={styles.modalTitle}>{title}</Text>
 
         <Text style={styles.fieldLabel}>Name</Text>
@@ -296,8 +316,9 @@ const GolfersScreen: React.FC = () => {
             style={styles.modalButton}
           />
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 
   return (
@@ -455,7 +476,13 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
+  },
+  modalBackdrop: {
+    flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalOverlayInner: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
