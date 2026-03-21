@@ -46,7 +46,7 @@ const StatsScreen: React.FC = () => {
   if (!stats || stats.totalRounds === 0) {
     return (
       <View style={styles.container}>
-        <ScreenHeader title="Statistics" leftAction="menu" />
+        <ScreenHeader title="Statistics" leftAction="back" />
         <View style={styles.emptyState}>
           <FontAwesome5 name="chart-line" size={80} color="#ddd" />
           <Text style={styles.emptyTitle}>No Statistics Yet</Text>
@@ -65,7 +65,7 @@ const StatsScreen: React.FC = () => {
           ? `${activeGolfer.name}'s Statistics`
           : 'Statistics'}
         subtitle={`${stats.totalRounds} Rounds Played`}
-        leftAction="menu"
+        leftAction="back"
       />
 
       {/* Golfer filter */}
@@ -142,7 +142,7 @@ const StatsScreen: React.FC = () => {
               icon="🦅"
               label="Eagles or Better"
               value={stats.eaglesOrBetter}
-              color="#FFD700"
+              color="#B8860B"
             />
             <PerformanceItem
               icon="🐦"
@@ -160,7 +160,7 @@ const StatsScreen: React.FC = () => {
               icon="😐"
               label="Bogeys"
               value={stats.bogeys}
-              color="#FFA500"
+              color="#E65100"
             />
             <PerformanceItem
               icon="😔"

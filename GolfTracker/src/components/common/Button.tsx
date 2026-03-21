@@ -37,6 +37,7 @@ export const Button: React.FC<ButtonProps> = React.memo(({
       ]}
       activeOpacity={0.7}
       accessibilityRole="button"
+      accessibilityLabel={loading ? `${title}, loading` : title}
     >
       {loading ? (
         <ActivityIndicator color={variant === 'secondary' ? '#2E7D32' : '#fff'} />

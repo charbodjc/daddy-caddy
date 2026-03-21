@@ -15,13 +15,14 @@ interface RoundHeaderProps {
 
 export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, totalPar: totalParProp, golferName, onMenuPress }) => {
   const insets = useSafeAreaInsets();
+  // Score relative to par for played holes only (no 72 fallback)
   const toPar = (() => {
-    if (!round.totalScore) return 0;
-    const totalPar = totalParProp && totalParProp > 0 ? totalParProp : 72;
-    return round.totalScore - totalPar;
+    if (!round.totalScore || !totalParProp || totalParProp <= 0) return 0;
+    return round.totalScore - totalParProp;
   })();
 
-  const scoreDisplay = round.totalScore != null && round.totalScore > 0 ? formatScoreVsPar(toPar) : '--';
+  const scoreDisplay = round.totalScore != null && round.totalScore > 0 && totalParProp
+    ? formatScoreVsPar(toPar) : '--';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 10 }]}>

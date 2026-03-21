@@ -30,6 +30,7 @@ import { ErrorScreen } from '../components/common/ErrorScreen';
 import { database } from '../database/watermelon/database';
 import Hole from '../database/watermelon/models/Hole';
 import Round from '../database/watermelon/models/Round';
+import Golfer from '../database/watermelon/models/Golfer';
 import {
   TrackedShot,
   ShotData,
@@ -76,6 +77,8 @@ const HoleScoringScreen: React.FC = () => {
   const { updateHole } = useRoundStore();
 
   const [hole, setHole] = useState<Hole | null>(null);
+  const [golfer, setGolfer] = useState<Golfer | null>(null);
+  const [roundScoreToPar, setRoundScoreToPar] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [saving, setSaving] = useState(false);
@@ -115,6 +118,23 @@ const HoleScoringScreen: React.FC = () => {
         else if (h.par === 4) setStep('tee_par4');
         else setStep('tee_par5');
 
+        // Load golfer info and round score-to-par for played holes
+        const r = await database.collections.get<Round>('rounds').find(roundId);
+        if (r.golferId) {
+          try {
+            const g = await database.collections.get<Golfer>('golfers').find(r.golferId);
+            setGolfer(g);
+          } catch {
+            // Golfer may have been deleted
+          }
+        }
+        const allHoles = await r.holes.fetch();
+        const playedHoles = allHoles.filter(rh => rh.strokes > 0);
+        const totalScore = playedHoles.reduce((sum, rh) => sum + rh.strokes, 0);
+        const playedPar = playedHoles.reduce((sum, rh) => sum + rh.par, 0);
+        setRoundScoreToPar(totalScore - playedPar);
+        prevHoleStrokes.current = h.strokes;
+
         // Load SMS recipients (service handles missing golfer gracefully)
         const contacts = await smsService.getRecipientsForRound(roundId);
         setRecipients(contacts);
@@ -128,6 +148,9 @@ const HoleScoringScreen: React.FC = () => {
   }, [holeId, roundId]);
 
   // ── Persist shots to DB after each shot ─────────────────────
+
+  // Track the previous strokes for this hole so we can update roundScoreToPar incrementally
+  const prevHoleStrokes = React.useRef(0);
 
   const persistShots = useCallback(async (updatedShots: TrackedShot[], nextStroke: number) => {
     if (!hole || !roundId) return;
@@ -145,6 +168,15 @@ const HoleScoringScreen: React.FC = () => {
         putts: stats?.puttsCount,
         shotData: JSON.stringify(shotData),
       });
+
+      // Update round score-to-par: adjust by the change in this hole's strokes
+      const delta = strokes - prevHoleStrokes.current;
+      if (delta !== 0) {
+        // If the hole was previously unplayed, also account for the par being added
+        const parDelta = prevHoleStrokes.current === 0 ? hole.par : 0;
+        setRoundScoreToPar(prev => prev + delta - parDelta);
+        prevHoleStrokes.current = strokes;
+      }
     } catch {
       // Silent persist failure — data still in state
     }
@@ -453,9 +485,21 @@ const HoleScoringScreen: React.FC = () => {
             <Icon name="undo" size={22} color="#fff" />
           </TouchableOpacity>
         )}
-        <View style={styles.strokeBadge} accessibilityLabel={`${totalStrokes} strokes`}>
-          <Text style={styles.strokeNum}>{totalStrokes}</Text>
-          <Text style={styles.strokeLabel}>strokes</Text>
+        <View style={styles.scoreColumn}>
+          <View style={styles.roundScoreBadge} accessibilityLabel={`Round score: ${formatScoreVsPar(roundScoreToPar)}`}>
+            <Text style={styles.roundScoreValue}>{formatScoreVsPar(roundScoreToPar)}</Text>
+            <Text style={styles.roundScoreLabel}>round</Text>
+          </View>
+          <View style={styles.strokeBadge} accessibilityLabel={`${totalStrokes} strokes`}>
+            <Text style={styles.strokeNum}>{totalStrokes}</Text>
+            <Text style={styles.strokeLabel}>strokes</Text>
+          </View>
+          {golfer && (
+            <View style={styles.golferTag} accessibilityLabel={`Golfer: ${golfer.name}`}>
+              <View style={[styles.golferDot, { backgroundColor: golfer.color }]} />
+              <Text style={styles.golferName} numberOfLines={1}>{golfer.name}</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -934,7 +978,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  backBtn: { padding: 8, marginRight: 8 },
+  backBtn: { padding: 8, marginRight: 8, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   headerCenter: { flex: 1 },
   headerTitle: { fontSize: 28, fontWeight: 'bold', color: S.white },
   headerSub: { fontSize: 14, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
@@ -943,16 +987,50 @@ const styles = StyleSheet.create({
     marginRight: 8,
     backgroundColor: 'rgba(0,0,0,0.15)',
     borderRadius: 8,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
   },
-  strokeBadge: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 12,
+  scoreColumn: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  roundScoreBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingVertical: 4,
     alignItems: 'center',
   },
-  strokeNum: { fontSize: 22, fontWeight: 'bold', color: S.white },
-  strokeLabel: { fontSize: 12, color: 'rgba(255,255,255,0.9)' },
+  roundScoreValue: { fontSize: 20, fontWeight: 'bold', color: S.white },
+  roundScoreLabel: { fontSize: 10, color: 'rgba(255,255,255,0.8)' },
+  strokeBadge: {
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    alignItems: 'center',
+  },
+  strokeNum: { fontSize: 20, fontWeight: 'bold', color: S.white },
+  strokeLabel: { fontSize: 10, color: 'rgba(255,255,255,0.9)' },
+  golferTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  golferDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  golferName: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '500',
+    maxWidth: 70,
+  },
   shotLogBar: {
     backgroundColor: '#fff',
     paddingVertical: 8,

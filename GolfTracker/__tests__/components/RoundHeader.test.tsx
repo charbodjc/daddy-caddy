@@ -34,23 +34,31 @@ describe('RoundHeader Component', () => {
     expect(getByText(/Jan/)).toBeTruthy();
   });
   
-  it('should display score relative to par', () => {
-    const { getByText } = render(<RoundHeader round={testRound} />);
+  it('should display score relative to par for played holes', () => {
+    // totalPar represents par for played holes only (e.g. 72 for 18 holes played)
+    const { getByText } = render(<RoundHeader round={testRound} totalPar={72} />);
 
-    // 85 - 72 (default par) = +13 — header only shows relative-to-par
+    // 85 - 72 = +13
     expect(getByText('+13')).toBeTruthy();
   });
-  
+
   it('should display E for even par', async () => {
     await database.write(async () => {
       await testRound.update((r) => {
         r.totalScore = 72;
       });
     });
-    
-    const { getByText } = render(<RoundHeader round={testRound} />);
-    
+
+    const { getByText } = render(<RoundHeader round={testRound} totalPar={72} />);
+
     expect(getByText('E')).toBeTruthy();
+  });
+
+  it('should display -- when totalPar not provided', () => {
+    const { getByText } = render(<RoundHeader round={testRound} />);
+
+    // Without totalPar, score cannot be calculated
+    expect(getByText('--')).toBeTruthy();
   });
   
   it('should display tournament name when present', async () => {
@@ -75,7 +83,7 @@ describe('RoundHeader Component', () => {
   it('should display -- when no score', async () => {
     await database.write(async () => {
       await testRound.update((r) => {
-        r.totalScore = undefined as any;
+        r.totalScore = undefined;
       });
     });
     

@@ -26,6 +26,14 @@ import { database } from '../database/watermelon/database';
 import Round from '../database/watermelon/models/Round';
 import { Q } from '@nozbe/watermelondb';
 
+const EMOJI_OPTIONS = [
+  '', // No emoji (use initials)
+  '🏌️', '🏌️‍♀️', '⛳', '🏆', '🎯', '🦅', '🐦',
+  '🧔', '👨', '👩', '👴', '👵', '🧑', '👦', '👧',
+  '🤠', '😎', '🧢', '🎩', '🌞', '🔥', '💪', '🍀',
+  '🐯', '🦁', '🐻', '🐺', '🦊', '🐸', '🦈', '🐊',
+];
+
 const COLORS = [
   { hex: '#2E7D32', name: 'Green' },
   { hex: '#1565C0', name: 'Blue' },
@@ -56,6 +64,7 @@ const GolfersScreen: React.FC = () => {
   const [name, setName] = useState('');
   const [handicap, setHandicap] = useState('');
   const [selectedColor, setSelectedColor] = useState(COLORS[0].hex);
+  const [selectedEmoji, setSelectedEmoji] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -81,8 +90,9 @@ const GolfersScreen: React.FC = () => {
   const handleEditGolfer = (golfer: Golfer) => {
     setEditingGolfer(golfer);
     setName(golfer.name);
-    setHandicap(golfer.handicap !== undefined ? String(golfer.handicap) : '');
+    setHandicap(golfer.handicap != null ? String(golfer.handicap) : '');
     setSelectedColor(golfer.color);
+    setSelectedEmoji(golfer.emoji || '');
     setEditModalVisible(true);
   };
 
@@ -95,6 +105,7 @@ const GolfersScreen: React.FC = () => {
         name: name.trim(),
         handicap: parsedHandicap,
         color: selectedColor,
+        emoji: selectedEmoji,
       });
       setEditModalVisible(false);
     } catch {
@@ -116,10 +127,12 @@ const GolfersScreen: React.FC = () => {
         name: name.trim(),
         handicap: parsedHandicap,
         color: selectedColor,
+        emoji: selectedEmoji || undefined,
       });
       setName('');
       setHandicap('');
       setSelectedColor(COLORS[0].hex);
+      setSelectedEmoji('');
       setAddModalVisible(false);
     } catch {
       Alert.alert('Error', 'Failed to add golfer');
@@ -209,6 +222,25 @@ const GolfersScreen: React.FC = () => {
           accessibilityLabel="Handicap"
         />
 
+        <Text style={styles.fieldLabel}>Emoji (optional)</Text>
+        <View style={styles.emojiGrid}>
+          {EMOJI_OPTIONS.map((emoji, idx) => (
+            <TouchableOpacity
+              key={idx}
+              style={[
+                styles.emojiSwatch,
+                selectedEmoji === emoji && styles.emojiSwatchSelected,
+              ]}
+              onPress={() => setSelectedEmoji(emoji)}
+              accessibilityRole="button"
+              accessibilityLabel={emoji || 'No emoji (use initials)'}
+              accessibilityState={{ selected: selectedEmoji === emoji }}
+            >
+              <Text style={styles.emojiText}>{emoji || '–'}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <Text style={styles.fieldLabel}>Color</Text>
         <View style={styles.colorGrid}>
           {COLORS.map(({ hex, name: colorName }) => (
@@ -290,14 +322,14 @@ const GolfersScreen: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel={`Edit ${golfer.name}`}
           >
-            <GolferAvatar name={golfer.name} color={golfer.color} size={44} />
+            <GolferAvatar name={golfer.name} color={golfer.color} emoji={golfer.emoji} size={44} />
             <View style={styles.golferInfo}>
               <Text style={styles.golferName}>
                 {golfer.name}
                 {golfer.isDefault && <Text style={styles.defaultBadge}> (Default)</Text>}
               </Text>
               <Text style={styles.golferMeta}>
-                {golfer.handicap !== undefined ? `Handicap: ${golfer.handicap}` : 'No handicap set'}
+                {golfer.handicap != null ? `Handicap: ${golfer.handicap}` : 'No handicap set'}
                 {' · '}
                 {roundCounts[golfer.id] ?? 0} round{(roundCounts[golfer.id] ?? 0) !== 1 ? 's' : ''}
               </Text>
@@ -332,6 +364,7 @@ const GolfersScreen: React.FC = () => {
             setName('');
             setHandicap('');
             setSelectedColor(COLORS[0].hex);
+            setSelectedEmoji('');
             setAddModalVisible(true);
           }}
         />
@@ -459,6 +492,29 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#ddd',
+  },
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  emojiSwatch: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  emojiSwatchSelected: {
+    borderColor: '#2E7D32',
+    backgroundColor: '#f0f9f0',
+  },
+  emojiText: {
+    fontSize: 24,
   },
   colorGrid: {
     flexDirection: 'row',
