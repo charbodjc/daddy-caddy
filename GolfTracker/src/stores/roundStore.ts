@@ -66,7 +66,7 @@ export const useRoundStore = create<RoundState>()(
 
       // Create a new round
       createRound: async (data: CreateRoundData) => {
-        set({ loading: true, error: null });
+        set({ error: null });
 
         try {
           // Validate input before touching the database
@@ -75,6 +75,23 @@ export const useRoundStore = create<RoundState>()(
           // Create round and all 18 holes in a single write transaction
           const round = await database.write(async () => {
             const golferId = data.golferId || useGolferStore.getState().getActiveGolferId();
+
+            // Auto-finish any existing unfinished round for this golfer to prevent orphans
+            if (golferId) {
+              const existing = await database.collections
+                .get<Round>('rounds')
+                .query(
+                  Q.where('is_finished', false),
+                  Q.where('golfer_id', golferId),
+                )
+                .fetch();
+              if (existing.length > 0) {
+                await database.batch(
+                  ...existing.map((r) => r.prepareUpdate((rec) => { rec.isFinished = true; })),
+                );
+              }
+            }
+
             const newRound = await database.collections.get<Round>('rounds').create((r) => {
               r.courseName = data.courseName;
               r.date = data.date || new Date();
@@ -85,25 +102,26 @@ export const useRoundStore = create<RoundState>()(
             });
 
             const standardPars = [4, 4, 3, 5, 4, 4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 5];
-            for (let i = 1; i <= 18; i++) {
-              await database.collections.get<Hole>('holes').create((h) => {
+            const holeBatch = standardPars.map((par, idx) =>
+              database.collections.get<Hole>('holes').prepareCreate((h) => {
                 h.roundId = newRound.id;
-                h.holeNumber = i;
-                h.par = standardPars[i - 1];
+                h.holeNumber = idx + 1;
+                h.par = par;
                 h.strokes = 0;
-              });
-            }
+              }),
+            );
+            await database.batch(...holeBatch);
 
             return newRound;
           });
 
           // Round is unfinished, so it becomes the active round automatically
-          set({ activeRound: round, loading: false });
+          set({ activeRound: round });
 
           return round;
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
-          set({ error, loading: false });
+          set({ error });
           throw error;
         }
       },
@@ -177,8 +195,6 @@ export const useRoundStore = create<RoundState>()(
 
       // Finish a round
       finishRound: async (roundId: string) => {
-        set({ loading: true });
-
         try {
           await database.write(async () => {
             const round = await database.collections.get<Round>('rounds').find(roundId);
@@ -188,18 +204,16 @@ export const useRoundStore = create<RoundState>()(
           });
 
           // Round is now finished — no longer the active round
-          set({ activeRound: null, loading: false });
+          set({ activeRound: null });
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
-          set({ error, loading: false });
+          set({ error });
           throw error;
         }
       },
 
       // Delete a round
       deleteRound: async (roundId: string) => {
-        set({ loading: true });
-
         try {
           await database.write(async () => {
             // Delete all holes for the round
@@ -208,13 +222,11 @@ export const useRoundStore = create<RoundState>()(
               .query(Q.where('round_id', roundId))
               .fetch();
 
-            for (const hole of holes) {
-              await hole.markAsDeleted();
-            }
-
-            // Delete the round
             const round = await database.collections.get<Round>('rounds').find(roundId);
-            await round.markAsDeleted();
+            await database.batch(
+              ...holes.map((hole) => hole.prepareMarkAsDeleted()),
+              round.prepareMarkAsDeleted(),
+            );
           });
 
           const { activeRound } = get();
@@ -224,12 +236,11 @@ export const useRoundStore = create<RoundState>()(
             set({ activeRound: null });
           }
 
-          // Reload all rounds
-          await get().loadAllRounds();
-          set({ loading: false });
+          // Remove deleted round from in-memory list instead of re-querying the DB
+          set({ rounds: get().rounds.filter((r) => r.id !== roundId) });
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
-          set({ error, loading: false });
+          set({ error });
           throw error;
         }
       },
@@ -243,7 +254,7 @@ export const useRoundStore = create<RoundState>()(
 
       // Load all rounds, optionally filtered by golfer
       loadAllRounds: async (golferId?: string) => {
-        set({ loading: true, error: null });
+        set({ error: null });
 
         try {
           const clauses = [
@@ -256,10 +267,10 @@ export const useRoundStore = create<RoundState>()(
             .query(...clauses)
             .fetch();
 
-          set({ rounds, loading: false });
+          set({ rounds });
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
-          set({ error, loading: false });
+          set({ error });
         }
       },
 
