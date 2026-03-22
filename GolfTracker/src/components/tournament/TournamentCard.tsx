@@ -3,27 +3,35 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Tournament from '../../database/watermelon/models/Tournament';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { formatDateRange } from '../../utils/dateFormatting';
+import { GolferAvatar } from '../golfer/GolferAvatar';
+import type { GolferInfo } from '../../types';
 
 interface TournamentCardProps {
   tournament: Tournament;
   onPress: () => void;
   roundCount?: number;
+  golfers?: GolferInfo[];
 }
+
+const MAX_VISIBLE_AVATARS = 4;
 
 export const TournamentCard: React.FC<TournamentCardProps> = React.memo(({
   tournament,
   onPress,
   roundCount = 0,
+  golfers,
 }) => {
   const dateRange = formatDateRange(tournament.startDate, tournament.endDate);
-  
+  const visibleGolfers = golfers?.slice(0, MAX_VISIBLE_AVATARS) ?? [];
+  const overflowCount = (golfers?.length ?? 0) - MAX_VISIBLE_AVATARS;
+
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={`${tournament.name} at ${tournament.courseName}, ${roundCount} ${roundCount === 1 ? 'round' : 'rounds'}`}
+      accessibilityLabel={`${tournament.name} at ${tournament.courseName}, ${roundCount} ${roundCount === 1 ? 'round' : 'rounds'}${golfers?.length ? `, ${golfers.length} golfers` : ''}`}
     >
       <View style={styles.header}>
         <View style={styles.iconContainer}>
@@ -34,13 +42,39 @@ export const TournamentCard: React.FC<TournamentCardProps> = React.memo(({
           <Text style={styles.courseName}>{tournament.courseName}</Text>
         </View>
       </View>
-      
+
+      {visibleGolfers.length > 0 && (
+        <View style={styles.golferAvatars}>
+          {visibleGolfers.map((golfer, index) => (
+            <View
+              key={golfer.id}
+              style={[styles.avatarWrapper, index > 0 && { marginLeft: -8 }]}
+            >
+              <GolferAvatar
+                name={golfer.name}
+                color={golfer.color}
+                emoji={golfer.emoji}
+                size={28}
+              />
+            </View>
+          ))}
+          {overflowCount > 0 && (
+            <View
+              style={styles.overflowBadge}
+              accessibilityLabel={`${overflowCount} more ${overflowCount === 1 ? 'golfer' : 'golfers'}`}
+            >
+              <Text style={styles.overflowText}>+{overflowCount}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
       <View style={styles.footer}>
         <View style={styles.dateContainer}>
           <Icon name="calendar-today" size={14} color="#666" />
           <Text style={styles.dateText}>{dateRange}</Text>
         </View>
-        
+
         <View style={styles.roundsContainer}>
           <Icon name="golf-course" size={14} color="#666" />
           <Text style={styles.roundsText}>
@@ -91,6 +125,31 @@ const styles = StyleSheet.create({
   },
   courseName: {
     fontSize: 14,
+    color: '#666',
+  },
+  golferAvatars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingLeft: 4,
+  },
+  avatarWrapper: {
+    borderWidth: 2,
+    borderColor: '#fff',
+    borderRadius: 16,
+  },
+  overflowBadge: {
+    marginLeft: 4,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 14,
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  overflowText: {
+    fontSize: 11,
+    fontWeight: '700',
     color: '#666',
   },
   footer: {

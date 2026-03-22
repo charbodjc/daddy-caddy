@@ -4,7 +4,12 @@ import { Alert } from 'react-native';
 import { database } from '../database/watermelon/database';
 import Golfer from '../database/watermelon/models/Golfer';
 import Round from '../database/watermelon/models/Round';
+import Tournament from '../database/watermelon/models/Tournament';
 import { Q } from '@nozbe/watermelondb';
+import {
+  parseTournamentGolferIds,
+  serializeTournamentGolferIds,
+} from '../utils/tournamentGolfers';
 import { validateCreateGolfer } from '../validators/golferValidator';
 import { getPreference, setPreference, removePreference } from '../services/preferenceService';
 import type { SmsContact } from '../types';
@@ -140,8 +145,29 @@ export const useGolferStore = create<GolferState>()(
                 r.golferId = defaultGolfer.id;
               }),
             );
+
+            // Scrub deleted golfer from all tournament golfer_ids
+            const allTournaments = await database.collections
+              .get<Tournament>('tournaments')
+              .query()
+              .fetch();
+            const tournamentOps = allTournaments
+              .filter((t) => {
+                const ids = parseTournamentGolferIds(t.golferIdsRaw);
+                return ids.includes(id);
+              })
+              .map((t) =>
+                t.prepareUpdate((rec) => {
+                  const ids = parseTournamentGolferIds(rec.golferIdsRaw);
+                  rec.golferIdsRaw = serializeTournamentGolferIds(
+                    ids.filter((gid) => gid !== id),
+                  );
+                }),
+              );
+
             await database.batch(
               ...batchOps,
+              ...tournamentOps,
               golfer.prepareMarkAsDeleted(),
             );
 

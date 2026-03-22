@@ -3,13 +3,19 @@ import { devtools } from 'zustand/middleware';
 import { database } from '../database/watermelon/database';
 import Tournament from '../database/watermelon/models/Tournament';
 import Round from '../database/watermelon/models/Round';
+import Golfer from '../database/watermelon/models/Golfer';
 import { Q } from '@nozbe/watermelondb';
+import {
+  parseTournamentGolferIds,
+  serializeTournamentGolferIds,
+} from '../utils/tournamentGolfers';
 
 interface CreateTournamentData {
   name: string;
   courseName: string;
   startDate: Date;
   endDate: Date;
+  golferIds: string[];
 }
 
 interface TournamentState {
@@ -17,13 +23,15 @@ interface TournamentState {
   selectedTournament: Tournament | null;
   loading: boolean;
   error: Error | null;
-  
+
   // Actions
   loadTournaments: () => Promise<void>;
   createTournament: (data: CreateTournamentData) => Promise<Tournament>;
   deleteTournament: (id: string) => Promise<void>;
   selectTournament: (id: string) => Promise<void>;
   getTournamentRounds: (tournamentId: string) => Promise<Round[]>;
+  getTournamentGolfers: (tournamentId: string) => Promise<Golfer[]>;
+  updateTournamentGolfers: (tournamentId: string, golferIds: string[]) => Promise<void>;
 }
 
 export const useTournamentStore = create<TournamentState>()(
@@ -62,13 +70,13 @@ export const useTournamentStore = create<TournamentState>()(
               t.courseName = data.courseName;
               t.startDate = data.startDate;
               t.endDate = data.endDate;
+              t.golferIdsRaw = serializeTournamentGolferIds(data.golferIds);
             });
           });
           
-          // Reload tournaments
+          // Reload tournaments (also sets loading: false)
           await get().loadTournaments();
-          set({ loading: false });
-          
+
           return tournament;
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
@@ -146,8 +154,47 @@ export const useTournamentStore = create<TournamentState>()(
               Q.sortBy('date', Q.desc)
             )
             .fetch();
-          
+
           return rounds;
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error });
+          throw error;
+        }
+      },
+
+      // Get golfers associated with a tournament (handles deleted golfers gracefully)
+      getTournamentGolfers: async (tournamentId: string) => {
+        try {
+          const tournament = await database.collections
+            .get<Tournament>('tournaments')
+            .find(tournamentId);
+          const golferIds = parseTournamentGolferIds(tournament.golferIdsRaw);
+          if (golferIds.length === 0) return [];
+
+          return await database.collections
+            .get<Golfer>('golfers')
+            .query(Q.where('id', Q.oneOf(golferIds)))
+            .fetch();
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error });
+          throw error;
+        }
+      },
+
+      // Update the golfer list for a tournament
+      updateTournamentGolfers: async (tournamentId: string, golferIds: string[]) => {
+        try {
+          await database.write(async () => {
+            const tournament = await database.collections
+              .get<Tournament>('tournaments')
+              .find(tournamentId);
+            await tournament.update((t) => {
+              t.golferIdsRaw = serializeTournamentGolferIds(golferIds);
+            });
+          });
+          await get().loadTournaments();
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
           set({ error });

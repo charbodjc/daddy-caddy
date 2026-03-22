@@ -68,6 +68,14 @@ export interface SmsContact {
   phoneNumber: string;
 }
 
+/** Lightweight golfer display info for UI components (avatars, labels). */
+export interface GolferInfo {
+  id: string;
+  name: string;
+  color: string;
+  emoji?: string;
+}
+
 export interface Golfer {
   id: string;
   name: string;
