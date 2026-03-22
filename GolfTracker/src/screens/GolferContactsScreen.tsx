@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -32,7 +32,7 @@ const GolferContactsScreen: React.FC = () => {
   const route = useRoute<RouteProp<GolferContactsRouteParams, 'GolferContacts'>>();
   const { golferId, golferName } = route.params;
 
-  const { contacts: deviceContacts, loading, hasPermission, loadContacts, requestPermission } =
+  const { contacts: deviceContacts, loading, hasPermission, accessPrivileges, loadContacts, requestPermission, expandAccess } =
     useDeviceContacts();
   const { golfers, updateGolferContacts } = useGolferStore();
 
@@ -88,22 +88,37 @@ const GolferContactsScreen: React.FC = () => {
     });
   }, []);
 
-  const selectAll = () => {
-    const filtered = getFilteredContacts();
-    setSelectedIds((prev) => new Set([...prev, ...filtered.map((c) => c.id)]));
-  };
-
-  const clearAll = () => {
-    setSelectedIds(new Set());
-  };
-
-  const getFilteredContacts = (): SmsContact[] => {
+  const filteredContacts = useMemo((): SmsContact[] => {
     if (!searchQuery) return deviceContacts;
     const query = searchQuery.toLowerCase();
     return deviceContacts.filter(
       (c) =>
         c.name.toLowerCase().includes(query) || c.phoneNumber.includes(searchQuery),
     );
+  }, [deviceContacts, searchQuery]);
+
+  const filteredIds = useMemo(
+    () => new Set(filteredContacts.map((c) => c.id)),
+    [filteredContacts],
+  );
+
+  const selectAll = () => {
+    setSelectedIds((prev) => new Set([...prev, ...filteredContacts.map((c) => c.id)]));
+  };
+
+  const clearAll = () => {
+    if (searchQuery) {
+      // When searching, only deselect the visible/filtered contacts
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of filteredIds) {
+          next.delete(id);
+        }
+        return next;
+      });
+    } else {
+      setSelectedIds(new Set());
+    }
   };
 
   const handleSave = async () => {
@@ -122,8 +137,6 @@ const GolferContactsScreen: React.FC = () => {
       setSaving(false);
     }
   };
-
-  const filteredContacts = getFilteredContacts();
 
   const header = (
     <ScreenHeader
@@ -183,6 +196,7 @@ const GolferContactsScreen: React.FC = () => {
           onChangeText={setSearchQuery}
           autoCapitalize="none"
           autoCorrect={false}
+          returnKeyType="search"
           accessibilityLabel="Search contacts"
         />
         {searchQuery.length > 0 && (
@@ -197,6 +211,22 @@ const GolferContactsScreen: React.FC = () => {
         )}
       </View>
 
+      {/* Limited Access Banner */}
+      {accessPrivileges === 'limited' && (
+        <TouchableOpacity
+          style={styles.limitedBanner}
+          onPress={expandAccess}
+          accessibilityRole="button"
+          accessibilityLabel="Not seeing all your contacts? Tap to grant access to more contacts"
+        >
+          <Icon name="info-outline" size={20} color="#1565C0" />
+          <Text style={styles.limitedBannerText}>
+            Not seeing all your contacts? Tap here to add more.
+          </Text>
+          <Icon name="chevron-right" size={20} color="#1565C0" />
+        </TouchableOpacity>
+      )}
+
       {/* Action Bar */}
       <View style={styles.actionBar}>
         <Text style={styles.countText}>
@@ -207,7 +237,7 @@ const GolferContactsScreen: React.FC = () => {
             onPress={selectAll}
             style={styles.actionButton}
             accessibilityRole="button"
-            accessibilityLabel="Select all contacts"
+            accessibilityLabel={searchQuery ? 'Select all visible contacts' : 'Select all contacts'}
           >
             <Text style={styles.actionButtonText}>Select All</Text>
           </TouchableOpacity>
@@ -215,7 +245,7 @@ const GolferContactsScreen: React.FC = () => {
             onPress={clearAll}
             style={styles.actionButton}
             accessibilityRole="button"
-            accessibilityLabel="Clear all selections"
+            accessibilityLabel={searchQuery ? 'Clear visible selections' : 'Clear all selections'}
           >
             <Text style={[styles.actionButtonText, styles.clearText]}>Clear</Text>
           </TouchableOpacity>
@@ -226,6 +256,7 @@ const GolferContactsScreen: React.FC = () => {
       <FlatList
         data={filteredContacts}
         keyExtractor={(item) => item.id}
+        keyboardDismissMode="on-drag"
         renderItem={({ item }) => {
           const isSelected = selectedIds.has(item.id);
           return (
@@ -348,6 +379,23 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#333',
+  },
+  limitedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+    minHeight: 48,
+  },
+  limitedBannerText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1565C0',
+    fontWeight: '500',
   },
   actionBar: {
     flexDirection: 'row',

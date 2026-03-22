@@ -1,29 +1,42 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import * as Contacts from 'expo-contacts';
-import { Alert } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import type { SmsContact } from '../types';
+import type { ContactsPermissionResponse } from 'expo-contacts';
+
+type AccessPrivileges = ContactsPermissionResponse['accessPrivileges'] | null;
 
 interface UseDeviceContactsResult {
   contacts: SmsContact[];
   loading: boolean;
   hasPermission: boolean | null;
+  accessPrivileges: AccessPrivileges;
   loadContacts: () => Promise<void>;
   requestPermission: () => Promise<boolean>;
+  expandAccess: () => Promise<void>;
 }
 
 export function useDeviceContacts(): UseDeviceContactsResult {
   const [contacts, setContacts] = useState<SmsContact[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [accessPrivileges, setAccessPrivileges] = useState<AccessPrivileges>(null);
+  const loadRequestId = useRef(0);
 
   const loadContacts = useCallback(async () => {
+    const requestId = ++loadRequestId.current;
+
     try {
       setLoading(true);
 
-      // Check existing permission without prompting — only requestPermission() prompts
-      const { status } = await Contacts.getPermissionsAsync();
-      const granted = status === 'granted';
+      const permissionResponse = await Contacts.getPermissionsAsync();
+      const granted = permissionResponse.status === 'granted';
+
+      // Bail if a newer request has started
+      if (requestId !== loadRequestId.current) return;
+
       setHasPermission(granted);
+      setAccessPrivileges(permissionResponse.accessPrivileges ?? null);
 
       if (!granted) {
         setLoading(false);
@@ -33,6 +46,9 @@ export function useDeviceContacts(): UseDeviceContactsResult {
       const { data } = await Contacts.getContactsAsync({
         fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
       });
+
+      // Bail if a newer request has started
+      if (requestId !== loadRequestId.current) return;
 
       const contactsWithPhones: SmsContact[] = data
         .filter(
@@ -53,7 +69,7 @@ export function useDeviceContacts(): UseDeviceContactsResult {
             mobileNumber?.number || contact.phoneNumbers?.[0]?.number || '';
 
           return {
-            id: contact.id!,
+            id: contact.id ?? '',
             name: contact.name || 'Unknown',
             phoneNumber,
           };
@@ -62,17 +78,20 @@ export function useDeviceContacts(): UseDeviceContactsResult {
         .sort((a, b) => a.name.localeCompare(b.name));
 
       setContacts(contactsWithPhones);
-    } catch (e) {
+    } catch {
       Alert.alert('Error', 'Failed to load contacts from your phone');
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestId.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
   const requestPermission = useCallback(async (): Promise<boolean> => {
-    const { status } = await Contacts.requestPermissionsAsync();
-    const granted = status === 'granted';
+    const permissionResponse = await Contacts.requestPermissionsAsync();
+    const granted = permissionResponse.status === 'granted';
     setHasPermission(granted);
+    setAccessPrivileges(permissionResponse.accessPrivileges ?? null);
 
     if (granted) {
       await loadContacts();
@@ -87,5 +106,24 @@ export function useDeviceContacts(): UseDeviceContactsResult {
     return granted;
   }, [loadContacts]);
 
-  return { contacts, loading, hasPermission, loadContacts, requestPermission };
+  const expandAccess = useCallback(async () => {
+    try {
+      // iOS 18+: present the native picker to grant access to additional contacts
+      await Contacts.presentAccessPickerAsync();
+      // Reload contacts after the picker is dismissed (user may have added more)
+      await loadContacts();
+    } catch {
+      // Fallback for iOS < 18, Android, or if the picker is unavailable
+      Alert.alert(
+        'Update Contact Access',
+        'Open Settings to change which contacts this app can access.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ],
+      );
+    }
+  }, [loadContacts]);
+
+  return { contacts, loading, hasPermission, accessPrivileges, loadContacts, requestPermission, expandAccess };
 }
