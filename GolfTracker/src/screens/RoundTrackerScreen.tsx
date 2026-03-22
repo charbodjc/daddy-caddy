@@ -56,7 +56,10 @@ const RoundTrackerScreen: React.FC = () => {
   const params = (route.params as RouteParams) || {};
 
   const { round, loading, error } = useRound(params.roundId);
-  const { createRound, updateHole, finishRound, deleteRound } = useRoundStore();
+  const createRound = useRoundStore((s) => s.createRound);
+  const updateHole = useRoundStore((s) => s.updateHole);
+  const finishRound = useRoundStore((s) => s.finishRound);
+  const deleteRound = useRoundStore((s) => s.deleteRound);
   const { golfers, activeGolferId, loading: golfersLoading, createGolfer } = useGolfers();
   const [selectedGolferId, setSelectedGolferId] = useState<string | null>(null);
 
@@ -130,18 +133,20 @@ const RoundTrackerScreen: React.FC = () => {
     }
   };
   
-  const handleParSelect = (par: number) => {
+  const handleParSelect = async (par: number) => {
     setParModalVisible(false);
-    
+
     if (selectedHole && round) {
-      // Update hole par first, then navigate
-      updateHole(round.id, {
-        holeNumber: selectedHole.holeNumber,
-        par,
-        strokes: 0,
-      }).then(() => {
+      try {
+        await updateHole(round.id, {
+          holeNumber: selectedHole.holeNumber,
+          par,
+          strokes: 0,
+        });
         navigateToShotTracking({ id: selectedHole.id, par });
-      });
+      } catch {
+        Alert.alert('Error', 'Failed to update hole par');
+      }
     }
   };
   
@@ -154,7 +159,10 @@ const RoundTrackerScreen: React.FC = () => {
   
   const handleFinishRound = () => {
     if (!round) return;
-    
+    // Capture the ID now so the Alert callback can't act on a stale round
+    // if the active round changes while the dialog is open.
+    const targetId = round.id;
+
     Alert.alert(
       'Finish Round?',
       'Are you sure you want to finish this round?',
@@ -164,9 +172,9 @@ const RoundTrackerScreen: React.FC = () => {
           text: 'Finish',
           onPress: async () => {
             try {
-              await finishRound(round.id);
+              await finishRound(targetId);
               navigation.navigate('RoundSummary', {
-                roundId: round.id,
+                roundId: targetId,
               } );
             } catch (_err) {
               Alert.alert('Error', 'Failed to finish round');
@@ -176,10 +184,11 @@ const RoundTrackerScreen: React.FC = () => {
       ]
     );
   };
-  
+
   const handleDeleteRound = () => {
     if (!round) return;
-    
+    const targetId = round.id;
+
     Alert.alert(
       'Delete Round?',
       'Are you sure you want to delete this round? This cannot be undone.',
@@ -190,7 +199,7 @@ const RoundTrackerScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteRound(round.id);
+              await deleteRound(targetId);
               navigation.goBack();
             } catch (_err) {
               Alert.alert('Error', 'Failed to delete round');
@@ -313,7 +322,7 @@ const RoundTrackerScreen: React.FC = () => {
       </View>
       
       {/* Hole Grid - using .map() instead of HoleGrid/FlatList to avoid nested scrolling */}
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} accessibilityRole="list" accessibilityLabel="Hole scores">
         <View style={styles.holeGrid}>
           {holes.map((hole) => (
             <HoleCard
@@ -335,7 +344,7 @@ const RoundTrackerScreen: React.FC = () => {
         onRequestClose={() => setParModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.parModal}>
+          <View style={styles.parModal} accessibilityViewIsModal>
             <Text style={styles.parModalTitle}>
               Select Par for Hole {selectedHole?.holeNumber}
             </Text>
