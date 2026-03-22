@@ -32,6 +32,7 @@ describe('tournamentStore', () => {
           courseName: 'Test Course',
           startDate: new Date('2025-01-01'),
           endDate: new Date('2025-01-03'),
+          golferIds: [],
         });
       });
       
@@ -49,6 +50,7 @@ describe('tournamentStore', () => {
           courseName: 'Test Course',
           startDate: new Date(),
           endDate: new Date(),
+          golferIds: [],
         });
       });
       

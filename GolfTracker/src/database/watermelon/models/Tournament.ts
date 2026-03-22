@@ -6,6 +6,7 @@ export default class Tournament extends Model {
 
   @field('name') name!: string;
   @field('course_name') courseName!: string;
+  @field('golfer_ids') golferIdsRaw?: string;
   @date('start_date') startDate!: Date;
   @date('end_date') endDate!: Date;
   @readonly @date('created_at') createdAt!: Date;

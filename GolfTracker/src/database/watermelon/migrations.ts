@@ -57,5 +57,16 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 5,
+      steps: [
+        addColumns({
+          table: 'tournaments',
+          columns: [
+            { name: 'golfer_ids', type: 'string', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });
