@@ -59,6 +59,7 @@ type WorkflowStep =
   | 'trouble'         // After left/right on par 4/5: rough, bunker, lost, OB, hazard
   | 'chip'            // Chip shot: on green or not on green (icons)
   | 'approach_par3'   // Approach shot with par 3 buttons
+  | 'approach_lie'    // After approach miss: where did it end up (fairway, rough, bunker, etc.)
   | 'putt_distance'   // Numeric keypad for feet
   | 'sms_preview'     // Show SMS preview before sending
   | 'made_missed'     // Made it / Missed it buttons
@@ -86,6 +87,13 @@ const HoleScoringScreen: React.FC = () => {
   // Shot tracking
   const [shots, setShots] = useState<TrackedShot[]>([]);
   const [currentStroke, setCurrentStroke] = useState(1);
+  const [saveError, setSaveError] = useState(false);
+  const retryTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCount = React.useRef(0);
+  const MAX_RETRIES = 3;
+
+  // BBD (Big Beautiful Drive) toggle for par 4/5 tee shots
+  const [bbdChecked, setBbdChecked] = useState(false);
 
   // Workflow state
   const [step, setStep] = useState<WorkflowStep>('tee_par3');
@@ -93,6 +101,13 @@ const HoleScoringScreen: React.FC = () => {
   const [puttDistance, setPuttDistance] = useState('');
   const [smsMessage, setSmsMessage] = useState('');
   const [recipients, setRecipients] = useState<SmsContact[]>([]);
+
+  // Clean up retry timer on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+    };
+  }, []);
 
   // Load hole data
   useEffect(() => {
@@ -169,6 +184,9 @@ const HoleScoringScreen: React.FC = () => {
         shotData: JSON.stringify(shotData),
       });
 
+      setSaveError(false);
+      retryCount.current = 0;
+
       // Update round score-to-par: adjust by the change in this hole's strokes
       const delta = strokes - prevHoleStrokes.current;
       if (delta !== 0) {
@@ -178,7 +196,15 @@ const HoleScoringScreen: React.FC = () => {
         prevHoleStrokes.current = strokes;
       }
     } catch {
-      // Silent persist failure — data still in state
+      setSaveError(true);
+      // Auto-retry with limit
+      if (retryCount.current < MAX_RETRIES) {
+        retryCount.current += 1;
+        if (retryTimer.current) clearTimeout(retryTimer.current);
+        retryTimer.current = setTimeout(() => {
+          persistShots(updatedShots, nextStroke);
+        }, 2000);
+      }
     }
   }, [hole, roundId, updateHole]);
 
@@ -227,6 +253,7 @@ const HoleScoringScreen: React.FC = () => {
     const prevStroke = currentStroke - 1;
     setShots(updatedShots);
     setCurrentStroke(prevStroke);
+    setBbdChecked(false);
     persistShots(updatedShots, prevStroke);
 
     // Go back to previous step
@@ -287,7 +314,22 @@ const HoleScoringScreen: React.FC = () => {
   }, [addShot, goToStep]);
 
   const handlePar4Tee = useCallback((result: string) => {
-    addShot(SHOT_TYPES.TEE_SHOT, result);
+    if (bbdChecked) {
+      // Record BBD as an additional result on the tee shot
+      const newShot: TrackedShot = {
+        stroke: currentStroke,
+        type: SHOT_TYPES.TEE_SHOT,
+        results: [result, SHOT_RESULTS.BBD],
+      };
+      const updatedShots = [...shots, newShot];
+      const nextStroke = currentStroke + 1;
+      setShots(updatedShots);
+      setCurrentStroke(nextStroke);
+      persistShots(updatedShots, nextStroke);
+      setBbdChecked(false);
+    } else {
+      addShot(SHOT_TYPES.TEE_SHOT, result);
+    }
     if (result === SHOT_RESULTS.GREEN) {
       goToStep('putt_distance');
     } else if (result === SHOT_RESULTS.CENTER) {
@@ -295,16 +337,30 @@ const HoleScoringScreen: React.FC = () => {
     } else {
       goToStep('trouble');
     }
-  }, [addShot, goToStep]);
+  }, [addShot, goToStep, bbdChecked, currentStroke, shots, persistShots]);
 
   const handlePar5Tee = useCallback((result: string) => {
-    addShot(SHOT_TYPES.TEE_SHOT, result);
+    if (bbdChecked) {
+      const newShot: TrackedShot = {
+        stroke: currentStroke,
+        type: SHOT_TYPES.TEE_SHOT,
+        results: [result, SHOT_RESULTS.BBD],
+      };
+      const updatedShots = [...shots, newShot];
+      const nextStroke = currentStroke + 1;
+      setShots(updatedShots);
+      setCurrentStroke(nextStroke);
+      persistShots(updatedShots, nextStroke);
+      setBbdChecked(false);
+    } else {
+      addShot(SHOT_TYPES.TEE_SHOT, result);
+    }
     if (result === SHOT_RESULTS.CENTER) {
       goToStep('tee_par4');
     } else {
       goToStep('trouble');
     }
-  }, [addShot, goToStep]);
+  }, [addShot, goToStep, bbdChecked, currentStroke, shots, persistShots]);
 
   // ── Trouble handlers ────────────────────────────────────────
 
@@ -333,9 +389,29 @@ const HoleScoringScreen: React.FC = () => {
     if (result === SHOT_RESULTS.GREEN) {
       goToStep('putt_distance');
     } else {
-      goToStep('chip');
+      goToStep('approach_lie');
     }
   }, [addShot, goToStep]);
+
+  const handleApproachLie = useCallback((lie: string) => {
+    // Record the lie as an additional result on the last shot
+    if (shots.length > 0) {
+      const updatedShots = [...shots];
+      const lastShot = { ...updatedShots[updatedShots.length - 1] };
+      lastShot.results = [...lastShot.results, lie];
+      updatedShots[updatedShots.length - 1] = lastShot;
+      setShots(updatedShots);
+      persistShots(updatedShots, currentStroke);
+    }
+
+    // Water, Hazard, and OB incur a penalty stroke and return to approach
+    if (lie === SHOT_RESULTS.WATER || lie === SHOT_RESULTS.HAZARD || lie === SHOT_RESULTS.OB) {
+      addShot(SHOT_TYPES.PENALTY, lie, 1);
+      goToStep('approach_par3');
+    } else {
+      goToStep('chip');
+    }
+  }, [shots, currentStroke, persistShots, addShot, goToStep]);
 
   // ── Chip handlers ───────────────────────────────────────────
 
@@ -419,10 +495,16 @@ const HoleScoringScreen: React.FC = () => {
       const holesPlayed = runningStats.totalHolesPlayed;
       const totalScoreVsPar = await calculateTotalScoreVsPar(roundId);
 
+      // Check if tee shot was marked as BBD
+      const hasBBD = updatedShots.some(
+        s => s.type === SHOT_TYPES.TEE_SHOT && s.results.includes(SHOT_RESULTS.BBD)
+      );
+
       const summaryMsg = `Hole ${hole.holeNumber} Complete!\n` +
         `Score: ${strokes} (${finalScoreName})\n` +
-        `${formatScoreVsPar(finalScoreVsPar)} on the hole\n\n` +
-        `After ${holesPlayed} holes: ${formatScoreVsPar(totalScoreVsPar)}`;
+        `${formatScoreVsPar(finalScoreVsPar)} on the hole\n` +
+        (hasBBD ? `Big Beautiful Drive\n` : '') +
+        `\nAfter ${holesPlayed} holes: ${formatScoreVsPar(totalScoreVsPar)}`;
 
       // SMS is best-effort — don't block navigation or show error for SMS failures
       try {
@@ -459,6 +541,14 @@ const HoleScoringScreen: React.FC = () => {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      {/* Save error banner */}
+      {saveError && (
+        <View style={styles.saveErrorBanner} accessibilityRole="alert">
+          <Icon name="warning" size={16} color="#fff" />
+          <Text style={styles.saveErrorText}>Save failed — retrying...</Text>
+        </View>
+      )}
+
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity
@@ -519,9 +609,10 @@ const HoleScoringScreen: React.FC = () => {
         keyboardShouldPersistTaps="handled"
       >
         {step === 'tee_par3' && renderPar3Tee(handlePar3Tee)}
-        {step === 'tee_par4' && renderPar4Tee(handlePar4Tee)}
-        {step === 'tee_par5' && renderPar5Tee(handlePar5Tee)}
-        {step === 'approach_par3' && renderPar3Tee(handleApproach)}
+        {step === 'tee_par4' && renderPar4Tee(handlePar4Tee, bbdChecked, setBbdChecked)}
+        {step === 'tee_par5' && renderPar5Tee(handlePar5Tee, bbdChecked, setBbdChecked)}
+        {step === 'approach_par3' && renderApproachShot(handleApproach)}
+        {step === 'approach_lie' && renderApproachLie(handleApproachLie)}
         {step === 'trouble' && renderTrouble(handleTrouble)}
         {step === 'chip' && renderChip(handleChip)}
         {step === 'putt_distance' && renderPuttDistance(puttDistance, setPuttDistance, handlePuttDistanceSubmit)}
@@ -543,12 +634,19 @@ function shotResultEmoji(result: string): string {
     case SHOT_RESULTS.RIGHT: return '\u27A1\uFE0F';
     case SHOT_RESULTS.SHORT: return '\u2B07\uFE0F';
     case SHOT_RESULTS.LONG: return '\u2B06\uFE0F';
+    case SHOT_RESULTS.LONG_LEFT: return '\u2196\uFE0F';
+    case SHOT_RESULTS.LONG_RIGHT: return '\u2197\uFE0F';
+    case SHOT_RESULTS.SHORT_LEFT: return '\u2199\uFE0F';
+    case SHOT_RESULTS.SHORT_RIGHT: return '\u2198\uFE0F';
     case SHOT_RESULTS.ROUGH: return '\u{1F33F}';
     case SHOT_RESULTS.SAND: return '\u{1F3D6}\uFE0F';
-    case SHOT_RESULTS.HAZARD: return '\u{1F4A7}';
+    case SHOT_RESULTS.FAIRWAY: return '\u26F3';
+    case SHOT_RESULTS.WATER: return '\u{1F4A7}';
+    case SHOT_RESULTS.HAZARD: return '\u26A0\uFE0F';
     case SHOT_RESULTS.OB: return '\u{1F6AB}';
     case SHOT_RESULTS.LOST: return '\u{1F50D}';
     case SHOT_RESULTS.MISSED: return '\u274C';
+    case SHOT_RESULTS.BBD: return '\u{1F4AA}';
     default: return '\u26AA';
   }
 }
@@ -646,9 +744,176 @@ function renderPar3Tee(onSelect: (result: string) => void) {
   );
 }
 
+// ── Approach shot buttons (8-arrow compass + center green) ──────
+
+function renderApproachShot(onSelect: (result: string) => void) {
+  return (
+    <View style={styles.buttonContainer}>
+      <Text style={styles.stepLabel}>Where did it go?</Text>
+      <View style={styles.crossLayout}>
+        {/* Row 1: Long-Left, Long, Long-Right */}
+        <View style={styles.crossRow}>
+          <TouchableOpacity
+            style={[styles.diagButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.LONG_LEFT)}
+            accessibilityLabel="Long left"
+            accessibilityRole="button"
+          >
+            <Icon name="north-west" size={28} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dirButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.LONG)}
+            accessibilityLabel="Long"
+            accessibilityRole="button"
+          >
+            <Icon name="arrow-upward" size={36} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.diagButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.LONG_RIGHT)}
+            accessibilityLabel="Long right"
+            accessibilityRole="button"
+          >
+            <Icon name="north-east" size={28} color="#fff" />
+          </TouchableOpacity>
+        </View>
+        {/* Row 2: Left, Center (green), Right */}
+        <View style={styles.crossRow}>
+          <TouchableOpacity
+            style={[styles.dirButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.LEFT)}
+            accessibilityLabel="Missed left"
+            accessibilityRole="button"
+          >
+            <Icon name="arrow-back" size={36} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dirButton, styles.goodButton]}
+            onPress={() => onSelect(SHOT_RESULTS.GREEN)}
+            accessibilityLabel="On green"
+            accessibilityRole="button"
+          >
+            <Icon name="adjust" size={36} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dirButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.RIGHT)}
+            accessibilityLabel="Missed right"
+            accessibilityRole="button"
+          >
+            <Icon name="arrow-forward" size={36} color="#fff" />
+          </TouchableOpacity>
+        </View>
+        {/* Row 3: Short-Left, Short, Short-Right */}
+        <View style={styles.crossRow}>
+          <TouchableOpacity
+            style={[styles.diagButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.SHORT_LEFT)}
+            accessibilityLabel="Short left"
+            accessibilityRole="button"
+          >
+            <Icon name="south-west" size={28} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dirButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.SHORT)}
+            accessibilityLabel="Short"
+            accessibilityRole="button"
+          >
+            <Icon name="arrow-downward" size={36} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.diagButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.SHORT_RIGHT)}
+            accessibilityLabel="Short right"
+            accessibilityRole="button"
+          >
+            <Icon name="south-east" size={28} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ── Approach lie buttons (after missing the green) ──────────────
+
+function renderApproachLie(onSelect: (lie: string) => void) {
+  return (
+    <View style={styles.buttonContainer}>
+      <Text style={styles.stepLabel}>Where did it end up?</Text>
+      {/* Row 1: Fairway, Rough, Bunker */}
+      <View style={styles.troubleRow}>
+        <TouchableOpacity
+          style={[styles.troubleButton, styles.troubleFairway]}
+          onPress={() => onSelect(SHOT_RESULTS.FAIRWAY)}
+          accessibilityLabel="Fairway"
+          accessibilityRole="button"
+        >
+          <Icon name="landscape" size={28} color="#fff" />
+          <Text style={styles.troubleButtonText}>Fairway</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.troubleButton, styles.troubleRough]}
+          onPress={() => onSelect(SHOT_RESULTS.ROUGH)}
+          accessibilityLabel="Rough"
+          accessibilityRole="button"
+        >
+          <Icon name="grass" size={28} color="#fff" />
+          <Text style={styles.troubleButtonText}>Rough</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.troubleButton, styles.troubleBunker]}
+          onPress={() => onSelect(SHOT_RESULTS.SAND)}
+          accessibilityLabel="Bunker"
+          accessibilityRole="button"
+        >
+          <Icon name="beach-access" size={28} color="#fff" />
+          <Text style={styles.troubleButtonText}>Bunker</Text>
+        </TouchableOpacity>
+      </View>
+      {/* Row 2: Water, Hazard, OB */}
+      <View style={styles.troubleRow}>
+        <TouchableOpacity
+          style={[styles.troubleButton, styles.troubleWater]}
+          onPress={() => onSelect(SHOT_RESULTS.WATER)}
+          accessibilityLabel="Water"
+          accessibilityRole="button"
+        >
+          <Icon name="water-drop" size={28} color="#fff" />
+          <Text style={styles.troubleButtonText}>Water</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.troubleButton, styles.troubleHazard]}
+          onPress={() => onSelect(SHOT_RESULTS.HAZARD)}
+          accessibilityLabel="Hazard"
+          accessibilityRole="button"
+        >
+          <Icon name="warning" size={28} color="#fff" />
+          <Text style={styles.troubleButtonText}>Hazard</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.troubleButton, styles.troubleOB]}
+          onPress={() => onSelect(SHOT_RESULTS.OB)}
+          accessibilityLabel="Out of bounds"
+          accessibilityRole="button"
+        >
+          <Icon name="block" size={28} color="#fff" />
+          <Text style={styles.troubleButtonText}>OB</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ── Par 4 Tee buttons (Fairway row + On Green above) ──────────
 
-function renderPar4Tee(onSelect: (result: string) => void) {
+function renderPar4Tee(
+  onSelect: (result: string) => void,
+  bbdChecked: boolean,
+  setBbdChecked: (val: boolean) => void,
+) {
   return (
     <View style={styles.buttonContainer}>
       <Text style={styles.stepLabel}>Tee Shot</Text>
@@ -692,13 +957,32 @@ function renderPar4Tee(onSelect: (result: string) => void) {
           <Icon name="arrow-forward" size={36} color="#fff" />
         </TouchableOpacity>
       </View>
+      {/* BBD checkbox */}
+      <TouchableOpacity
+        style={styles.bbdRow}
+        onPress={() => setBbdChecked(!bbdChecked)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: bbdChecked }}
+        accessibilityLabel="Big Beautiful Drive"
+      >
+        <Icon
+          name={bbdChecked ? 'check-box' : 'check-box-outline-blank'}
+          size={24}
+          color={bbdChecked ? '#2E7D32' : '#999'}
+        />
+        <Text style={[styles.bbdLabel, bbdChecked && styles.bbdLabelChecked]}>BBD</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 // ── Par 5 Tee buttons (same as par 4 without On Green) ────────
 
-function renderPar5Tee(onSelect: (result: string) => void) {
+function renderPar5Tee(
+  onSelect: (result: string) => void,
+  bbdChecked: boolean,
+  setBbdChecked: (val: boolean) => void,
+) {
   return (
     <View style={styles.buttonContainer}>
       <Text style={styles.stepLabel}>Tee Shot</Text>
@@ -730,6 +1014,21 @@ function renderPar5Tee(onSelect: (result: string) => void) {
           <Icon name="arrow-forward" size={36} color="#fff" />
         </TouchableOpacity>
       </View>
+      {/* BBD checkbox */}
+      <TouchableOpacity
+        style={styles.bbdRow}
+        onPress={() => setBbdChecked(!bbdChecked)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: bbdChecked }}
+        accessibilityLabel="Big Beautiful Drive"
+      >
+        <Icon
+          name={bbdChecked ? 'check-box' : 'check-box-outline-blank'}
+          size={24}
+          color={bbdChecked ? '#2E7D32' : '#999'}
+        />
+        <Text style={[styles.bbdLabel, bbdChecked && styles.bbdLabelChecked]}>BBD</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -971,6 +1270,20 @@ const S = { green: '#2E7D32', red: '#F44336', white: '#fff', bg: '#f5f5f5' } as 
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: S.bg },
+  saveErrorBanner: {
+    backgroundColor: '#d32f2f',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  saveErrorText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   header: {
     backgroundColor: S.green,
     paddingBottom: 16,
@@ -1066,6 +1379,35 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
+  diagButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  bbdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 16,
+    paddingVertical: 8,
+    minHeight: 44,
+  },
+  bbdLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#999',
+  },
+  bbdLabelChecked: {
+    color: '#2E7D32',
+  },
   goodButton: { backgroundColor: S.green },
   badButton: { backgroundColor: S.red },
   disabledButton: { opacity: 0.5 },
@@ -1127,11 +1469,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 3,
   },
+  troubleFairway: { backgroundColor: S.green },
   troubleRough: { backgroundColor: '#8BC34A' },
   troubleBunker: { backgroundColor: '#F4B400' },
+  troubleWater: { backgroundColor: '#0288D1' },
   troubleLost: { backgroundColor: '#9E9E9E' },
   troubleOB: { backgroundColor: S.red },
-  troubleHazard: { backgroundColor: '#2196F3' },
+  troubleHazard: { backgroundColor: '#FF9800' },
   troubleButtonText: { fontSize: 13, fontWeight: '600', color: S.white },
 
   // Chip buttons

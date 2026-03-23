@@ -14,7 +14,7 @@ import { AppNavigationProp } from '../types/navigation';
 import { ScreenHeader } from '../components/common/ScreenHeader';
 import { useTournamentStore } from '../stores/tournamentStore';
 import { useGolferStore } from '../stores/golferStore';
-import { useRoundStore } from '../stores/roundStore';
+import { useRoundStore, getUnfinishedRoundSummary } from '../stores/roundStore';
 import { LoadingScreen } from '../components/common/LoadingScreen';
 import { ErrorScreen } from '../components/common/ErrorScreen';
 import { Button } from '../components/common/Button';
@@ -183,7 +183,7 @@ const TournamentRoundsScreen: React.FC = () => {
     await startRound(selectedGolferId);
   };
 
-  const startRound = async (golferId?: string) => {
+  const createAndNavigateToRound = async (golferId?: string) => {
     if (!tournament) return;
     setCreating(true);
 
@@ -204,6 +204,34 @@ const TournamentRoundsScreen: React.FC = () => {
     } finally {
       setCreating(false);
     }
+  };
+
+  const startRound = async (golferId?: string) => {
+    if (!golferId) {
+      await createAndNavigateToRound(golferId);
+      return;
+    }
+
+    const existing = await getUnfinishedRoundSummary(golferId);
+    if (!existing) {
+      await createAndNavigateToRound(golferId);
+      return;
+    }
+
+    const scoreDiff = existing.totalScore - existing.playedPar;
+    const scoreStr = scoreDiff === 0 ? 'E' : scoreDiff > 0 ? `+${scoreDiff}` : `${scoreDiff}`;
+
+    Alert.alert(
+      'Round In Progress',
+      `This golfer has an active round at ${existing.courseName} with ${existing.holesPlayed} of 18 holes played (${scoreStr}). Finish that round and start a new one?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Finish & Start New',
+          onPress: () => createAndNavigateToRound(golferId),
+        },
+      ],
+    );
   };
 
   const handleRoundPress = useCallback((round: Round) => {

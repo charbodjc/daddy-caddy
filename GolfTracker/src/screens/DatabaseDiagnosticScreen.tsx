@@ -10,7 +10,10 @@ import {
   RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { database } from '../database/watermelon/database';
+import { useGolferStore } from '../stores/golferStore';
+import { removePreference } from '../services/preferenceService';
 import { ScreenHeader } from '../components/common/ScreenHeader';
 
 interface TableInfo {
@@ -98,28 +101,49 @@ const DatabaseDiagnosticScreen = () => {
     setExpandedTables(newExpanded);
   };
 
-  const clearDatabase = async () => {
+  const executeClearDatabase = async () => {
+    try {
+      await database.write(async () => {
+        await database.unsafeResetDatabase();
+      });
+
+      await AsyncStorage.removeItem('active_round_id');
+      await removePreference('active_golfer_id');
+      await useGolferStore.getState().ensureDefaultGolfer();
+      await useGolferStore.getState().loadGolfers();
+
+      Alert.alert('Success', 'Database cleared successfully');
+      loadDiagnostics();
+    } catch {
+      Alert.alert('Error', 'Failed to clear database');
+    }
+  };
+
+  const clearDatabase = () => {
     Alert.alert(
-      'Clear Database',
-      'Are you sure you want to clear all data? This cannot be undone.',
+      'Clear Database?',
+      'This will permanently delete all data in the database.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Clear All',
+          text: 'Continue',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await database.write(async () => {
-                await database.unsafeResetDatabase();
-              });
-              Alert.alert('Success', 'Database cleared successfully');
-              loadDiagnostics();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to clear database');
-            }
+          onPress: () => {
+            Alert.alert(
+              'Are you absolutely sure?',
+              'This cannot be undone.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete Everything',
+                  style: 'destructive',
+                  onPress: executeClearDatabase,
+                },
+              ],
+            );
           },
         },
-      ]
+      ],
     );
   };
 

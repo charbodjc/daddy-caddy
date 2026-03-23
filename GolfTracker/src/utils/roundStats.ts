@@ -170,16 +170,26 @@ export async function calculateRunningRoundStats(
     if (holeStats.isOnePutt) stats.totalOnePutts += 1;
     if (holeStats.isThreePutt) stats.totalThreePutts += 1;
 
-    // Birdie/par putt distances (first putt distance on birdie/par holes)
-    const holeScore = hole.strokes;
-    const scoreToPar = holeScore - hole.par;
+    // Birdie/par putt distances based on what the golfer was PUTTING FOR,
+    // not the final hole score. A birdie putt is the first putt when on
+    // the green in regulation (GIR). A par putt is the first putt when
+    // reaching the green one stroke over regulation.
     if (holeStats.firstPuttDistanceFeet !== undefined) {
-      if (scoreToPar === -1) {
-        stats.totalBirdiePuttFeet += holeStats.firstPuttDistanceFeet;
-        stats.birdiePuttCount += 1;
-      } else if (scoreToPar === 0) {
-        stats.totalParPuttFeet += holeStats.firstPuttDistanceFeet;
-        stats.parPuttCount += 1;
+      const puttShots = shotData.shots.filter(
+        s => s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase()
+      );
+      if (puttShots.length > 0) {
+        const firstPuttStroke = puttShots[0].stroke;
+        const girStroke = hole.par - 1; // on green in regulation
+        if (firstPuttStroke <= girStroke) {
+          // Putting for birdie (or better) — reached green in regulation
+          stats.totalBirdiePuttFeet += holeStats.firstPuttDistanceFeet;
+          stats.birdiePuttCount += 1;
+        } else if (firstPuttStroke === girStroke + 1) {
+          // Putting for par — reached green one stroke over regulation
+          stats.totalParPuttFeet += holeStats.firstPuttDistanceFeet;
+          stats.parPuttCount += 1;
+        }
       }
     }
 
@@ -219,8 +229,13 @@ export async function calculateRunningRoundStats(
       if (par3TeeShot) approachShots.push(par3TeeShot);
     }
     for (const approach of approachShots) {
-      if (approach.results.includes(SHOT_RESULTS.LEFT)) stats.approachMissedLeft += 1;
-      if (approach.results.includes(SHOT_RESULTS.RIGHT)) stats.approachMissedRight += 1;
+      const r = approach.results;
+      if (r.includes(SHOT_RESULTS.LEFT) || r.includes(SHOT_RESULTS.LONG_LEFT) || r.includes(SHOT_RESULTS.SHORT_LEFT)) {
+        stats.approachMissedLeft += 1;
+      }
+      if (r.includes(SHOT_RESULTS.RIGHT) || r.includes(SHOT_RESULTS.LONG_RIGHT) || r.includes(SHOT_RESULTS.SHORT_RIGHT)) {
+        stats.approachMissedRight += 1;
+      }
     }
 
     // Penalty strokes

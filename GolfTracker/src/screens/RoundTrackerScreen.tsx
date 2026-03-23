@@ -30,7 +30,7 @@ import {
 import { useNavigation, useRoute, DrawerActions } from '@react-navigation/native';
 import { AppNavigationProp } from '../types/navigation';
 import { useRound } from '../hooks/useRound';
-import { useRoundStore } from '../stores/roundStore';
+import { useRoundStore, getUnfinishedRoundSummary } from '../stores/roundStore';
 import { LoadingScreen } from '../components/common/LoadingScreen';
 import { ErrorScreen } from '../components/common/ErrorScreen';
 import { RoundHeader } from '../components/round/RoundHeader';
@@ -96,14 +96,8 @@ const RoundTrackerScreen: React.FC = () => {
     setSetupVisible(!params.roundId && !round);
   }, [params.roundId, round]);
   
-  const handleStartRound = async () => {
-    if (!courseName.trim()) {
-      Alert.alert('Error', 'Please enter a course name');
-      return;
-    }
-    
+  const startRoundAfterConfirmation = async () => {
     setSaving(true);
-    
     try {
       await createRound({
         courseName: courseName.trim(),
@@ -111,7 +105,6 @@ const RoundTrackerScreen: React.FC = () => {
         tournamentId: params.tournamentId,
         tournamentName: params.tournamentName,
       });
-      
       setSetupVisible(false);
       setCourseName('');
     } catch (_err) {
@@ -119,6 +112,41 @@ const RoundTrackerScreen: React.FC = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleStartRound = async () => {
+    if (!courseName.trim()) {
+      Alert.alert('Error', 'Please enter a course name');
+      return;
+    }
+
+    const golferId = selectedGolferId || activeGolferId;
+    if (!golferId) {
+      await startRoundAfterConfirmation();
+      return;
+    }
+
+    // Check if this golfer has an unfinished round with data
+    const existing = await getUnfinishedRoundSummary(golferId);
+    if (!existing) {
+      await startRoundAfterConfirmation();
+      return;
+    }
+
+    const scoreDiff = existing.totalScore - existing.playedPar;
+    const scoreStr = scoreDiff === 0 ? 'E' : scoreDiff > 0 ? `+${scoreDiff}` : `${scoreDiff}`;
+
+    Alert.alert(
+      'Round In Progress',
+      `There's an active round at ${existing.courseName} with ${existing.holesPlayed} of 18 holes played (${scoreStr}). Finish that round and start a new one?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Finish & Start New',
+          onPress: () => startRoundAfterConfirmation(),
+        },
+      ],
+    );
   };
   
   const handleHolePress = async (hole: Hole) => {
@@ -159,13 +187,16 @@ const RoundTrackerScreen: React.FC = () => {
   
   const handleFinishRound = () => {
     if (!round) return;
-    // Capture the ID now so the Alert callback can't act on a stale round
-    // if the active round changes while the dialog is open.
     const targetId = round.id;
+    const holesPlayed = holes.filter((h) => h.strokes > 0).length;
+
+    const message = holesPlayed === 18
+      ? `Finish your round at ${round.courseName}?`
+      : `Finish round at ${round.courseName}? You've played ${holesPlayed} of 18 holes.`;
 
     Alert.alert(
       'Finish Round?',
-      'Are you sure you want to finish this round?',
+      message,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -173,25 +204,32 @@ const RoundTrackerScreen: React.FC = () => {
           onPress: async () => {
             try {
               await finishRound(targetId);
-              navigation.navigate('RoundSummary', {
-                roundId: targetId,
-              } );
+              navigation.navigate('RoundSummary', { roundId: targetId });
             } catch (_err) {
               Alert.alert('Error', 'Failed to finish round');
             }
           },
         },
-      ]
+      ],
     );
   };
 
   const handleDeleteRound = () => {
     if (!round) return;
     const targetId = round.id;
+    const holesPlayed = holes.filter((h) => h.strokes > 0).length;
+
+    const scoreInfo = holesPlayed > 0 && playedPar !== undefined
+      ? (() => {
+          const diff = (round.totalScore ?? 0) - playedPar;
+          const scoreStr = diff === 0 ? 'E' : diff > 0 ? `+${diff}` : `${diff}`;
+          return ` You've played ${holesPlayed} hole${holesPlayed === 1 ? '' : 's'} (${scoreStr}).`;
+        })()
+      : '';
 
     Alert.alert(
       'Delete Round?',
-      'Are you sure you want to delete this round? This cannot be undone.',
+      `Delete round at ${round.courseName}?${scoreInfo} This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -206,7 +244,7 @@ const RoundTrackerScreen: React.FC = () => {
             }
           },
         },
-      ]
+      ],
     );
   };
   
