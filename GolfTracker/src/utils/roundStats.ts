@@ -3,14 +3,12 @@ import { database } from '../database/watermelon/database';
 import Round from '../database/watermelon/models/Round';
 import Hole from '../database/watermelon/models/Hole';
 
-type StoredShotData = ShotData;
-
 /**
  * Calculate total strokes for a set of tracked shots.
  * Total = number of shots + any extra penalty strokes.
  * Penalty shots record the shot itself (1 entry) plus additional penaltyStrokes (1 or 2).
  */
-export function calculateTotalStrokes(shots: StoredShotData['shots']): number {
+export function calculateTotalStrokes(shots: ShotData['shots']): number {
   const penaltyExtra = shots.reduce((sum, s) => sum + (s.penaltyStrokes || 0), 0);
   return shots.length + penaltyExtra;
 }
@@ -38,17 +36,21 @@ export interface RunningRoundStats {
   approachMissedLeft: number;
   approachMissedRight: number;
   totalPenaltyStrokes: number;
+  totalSandSaves: number;
+  totalSandSaveAttempts: number;
+  totalUpAndDowns: number;
+  totalUpAndDownAttempts: number;
 }
 
 /**
  * Parse the JSON shotData string into the stored format.
  */
-export function parseShotData(shotData: unknown): StoredShotData | null {
+export function parseShotData(shotData: unknown): ShotData | null {
   if (!shotData) return null;
   try {
     const data = typeof shotData === 'string' ? JSON.parse(shotData) : shotData;
     if (data && Array.isArray(data.shots)) {
-      return data as StoredShotData;
+      return data as ShotData;
     }
   } catch (e) {
     console.error('Error parsing shot data:', e);
@@ -59,7 +61,7 @@ export function parseShotData(shotData: unknown): StoredShotData | null {
 /**
  * Derive hole-level stats from parsed shot data.
  */
-export function deriveHoleStats(shotData: StoredShotData, par: number) {
+export function deriveHoleStats(shotData: ShotData, par: number) {
   // Match putts case-insensitively for backward compat with historical data
   const puttShots = shotData.shots.filter(s => s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase());
   const puttsCount = puttShots.length;
@@ -130,6 +132,10 @@ export async function calculateRunningRoundStats(
     approachMissedLeft: 0,
     approachMissedRight: 0,
     totalPenaltyStrokes: 0,
+    totalSandSaves: 0,
+    totalSandSaveAttempts: 0,
+    totalUpAndDowns: 0,
+    totalUpAndDownAttempts: 0,
   };
 
   let round: Round;
@@ -170,33 +176,30 @@ export async function calculateRunningRoundStats(
     if (holeStats.isOnePutt) stats.totalOnePutts += 1;
     if (holeStats.isThreePutt) stats.totalThreePutts += 1;
 
+    // Putt analysis: birdie/par putt distances and total feet made
+    const puttShots = shotData.shots.filter(
+      s => s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase()
+    );
+
     // Birdie/par putt distances based on what the golfer was PUTTING FOR,
     // not the final hole score. A birdie putt is the first putt when on
     // the green in regulation (GIR). A par putt is the first putt when
     // reaching the green one stroke over regulation.
-    if (holeStats.firstPuttDistanceFeet !== undefined) {
-      const puttShots = shotData.shots.filter(
-        s => s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase()
-      );
-      if (puttShots.length > 0) {
-        const firstPuttStroke = puttShots[0].stroke;
-        const girStroke = hole.par - 1; // on green in regulation
-        if (firstPuttStroke <= girStroke) {
-          // Putting for birdie (or better) — reached green in regulation
-          stats.totalBirdiePuttFeet += holeStats.firstPuttDistanceFeet;
-          stats.birdiePuttCount += 1;
-        } else if (firstPuttStroke === girStroke + 1) {
-          // Putting for par — reached green one stroke over regulation
-          stats.totalParPuttFeet += holeStats.firstPuttDistanceFeet;
-          stats.parPuttCount += 1;
-        }
+    if (holeStats.firstPuttDistanceFeet !== undefined && puttShots.length > 0) {
+      const firstPuttStroke = puttShots[0].stroke;
+      const girStroke = hole.par - 1; // on green in regulation
+      if (firstPuttStroke <= girStroke) {
+        // Putting for birdie (or better) — reached green in regulation
+        stats.totalBirdiePuttFeet += holeStats.firstPuttDistanceFeet;
+        stats.birdiePuttCount += 1;
+      } else if (firstPuttStroke === girStroke + 1) {
+        // Putting for par — reached green one stroke over regulation
+        stats.totalParPuttFeet += holeStats.firstPuttDistanceFeet;
+        stats.parPuttCount += 1;
       }
     }
 
     // Total feet of putts made
-    const puttShots = shotData.shots.filter(
-      s => s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase()
-    );
     for (const putt of puttShots) {
       if (putt.results.includes(SHOT_RESULTS.MADE) && putt.puttDistance) {
         const distStr = putt.puttDistance.replace(/\s*(ft|feet)\s*$/i, '').trim();
@@ -242,6 +245,29 @@ export async function calculateRunningRoundStats(
     for (const shot of shotData.shots) {
       if (shot.penaltyStrokes) {
         stats.totalPenaltyStrokes += shot.penaltyStrokes;
+      }
+    }
+
+    // Up & down: missed GIR but made par or better
+    if (!holeStats.greenInRegulation) {
+      stats.totalUpAndDownAttempts += 1;
+      if (hole.strokes <= hole.par) {
+        stats.totalUpAndDowns += 1;
+      }
+    }
+
+    // Sand save: ended up in a greenside bunker and made par or better.
+    // On par 3, the tee shot IS the approach, so include tee shots for par 3.
+    // On par 4/5, exclude tee shots (those would be fairway bunkers).
+    const wasInSand = shotData.shots.some(s => {
+      if (!s.results.includes(SHOT_RESULTS.SAND)) return false;
+      if (s.type === SHOT_TYPES.TEE_SHOT) return hole.par === 3;
+      return true;
+    });
+    if (wasInSand) {
+      stats.totalSandSaveAttempts += 1;
+      if (hole.strokes <= hole.par) {
+        stats.totalSandSaves += 1;
       }
     }
   }
@@ -291,6 +317,12 @@ export function formatRunningStatsForSMS(stats: RunningRoundStats): string {
   }
   text += `1-Putts: ${stats.totalOnePutts}\n`;
   text += `3-Putts: ${stats.totalThreePutts}\n`;
+  if (stats.totalUpAndDownAttempts > 0) {
+    text += `Up & Downs: ${stats.totalUpAndDowns}/${stats.totalUpAndDownAttempts}\n`;
+  }
+  if (stats.totalSandSaveAttempts > 0) {
+    text += `Sand Saves: ${stats.totalSandSaves}/${stats.totalSandSaveAttempts}\n`;
+  }
   text += `Tee Missed L/R: ${stats.teeShotsMissedLeft}/${stats.teeShotsMissedRight}\n`;
   text += `Approach Missed L/R: ${stats.approachMissedLeft}/${stats.approachMissedRight}\n`;
   text += `Penalty Strokes: ${stats.totalPenaltyStrokes}`;
