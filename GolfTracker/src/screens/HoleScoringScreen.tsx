@@ -90,6 +90,9 @@ const HoleScoringScreen: React.FC = () => {
   const [saveError, setSaveError] = useState(false);
   const retryTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // BBD (Big Beautiful Drive) toggle for par 4/5 tee shots
+  const [bbdChecked, setBbdChecked] = useState(false);
+
   // Workflow state
   const [step, setStep] = useState<WorkflowStep>('tee_par3');
   const [stepHistory, setStepHistory] = useState<WorkflowStep[]>([]);
@@ -304,7 +307,22 @@ const HoleScoringScreen: React.FC = () => {
   }, [addShot, goToStep]);
 
   const handlePar4Tee = useCallback((result: string) => {
-    addShot(SHOT_TYPES.TEE_SHOT, result);
+    if (bbdChecked) {
+      // Record BBD as an additional result on the tee shot
+      const newShot: TrackedShot = {
+        stroke: currentStroke,
+        type: SHOT_TYPES.TEE_SHOT,
+        results: [result, 'bbd'],
+      };
+      const updatedShots = [...shots, newShot];
+      const nextStroke = currentStroke + 1;
+      setShots(updatedShots);
+      setCurrentStroke(nextStroke);
+      persistShots(updatedShots, nextStroke);
+      setBbdChecked(false);
+    } else {
+      addShot(SHOT_TYPES.TEE_SHOT, result);
+    }
     if (result === SHOT_RESULTS.GREEN) {
       goToStep('putt_distance');
     } else if (result === SHOT_RESULTS.CENTER) {
@@ -312,16 +330,30 @@ const HoleScoringScreen: React.FC = () => {
     } else {
       goToStep('trouble');
     }
-  }, [addShot, goToStep]);
+  }, [addShot, goToStep, bbdChecked, currentStroke, shots, persistShots]);
 
   const handlePar5Tee = useCallback((result: string) => {
-    addShot(SHOT_TYPES.TEE_SHOT, result);
+    if (bbdChecked) {
+      const newShot: TrackedShot = {
+        stroke: currentStroke,
+        type: SHOT_TYPES.TEE_SHOT,
+        results: [result, 'bbd'],
+      };
+      const updatedShots = [...shots, newShot];
+      const nextStroke = currentStroke + 1;
+      setShots(updatedShots);
+      setCurrentStroke(nextStroke);
+      persistShots(updatedShots, nextStroke);
+      setBbdChecked(false);
+    } else {
+      addShot(SHOT_TYPES.TEE_SHOT, result);
+    }
     if (result === SHOT_RESULTS.CENTER) {
       goToStep('tee_par4');
     } else {
       goToStep('trouble');
     }
-  }, [addShot, goToStep]);
+  }, [addShot, goToStep, bbdChecked, currentStroke, shots, persistShots]);
 
   // ── Trouble handlers ────────────────────────────────────────
 
@@ -449,10 +481,16 @@ const HoleScoringScreen: React.FC = () => {
       const holesPlayed = runningStats.totalHolesPlayed;
       const totalScoreVsPar = await calculateTotalScoreVsPar(roundId);
 
+      // Check if tee shot was marked as BBD
+      const hasBBD = updatedShots.some(
+        s => s.type === SHOT_TYPES.TEE_SHOT && s.results.includes('bbd')
+      );
+
       const summaryMsg = `Hole ${hole.holeNumber} Complete!\n` +
         `Score: ${strokes} (${finalScoreName})\n` +
-        `${formatScoreVsPar(finalScoreVsPar)} on the hole\n\n` +
-        `After ${holesPlayed} holes: ${formatScoreVsPar(totalScoreVsPar)}`;
+        `${formatScoreVsPar(finalScoreVsPar)} on the hole\n` +
+        (hasBBD ? `Big Beautiful Drive\n` : '') +
+        `\nAfter ${holesPlayed} holes: ${formatScoreVsPar(totalScoreVsPar)}`;
 
       // SMS is best-effort — don't block navigation or show error for SMS failures
       try {
@@ -557,8 +595,8 @@ const HoleScoringScreen: React.FC = () => {
         keyboardShouldPersistTaps="handled"
       >
         {step === 'tee_par3' && renderPar3Tee(handlePar3Tee)}
-        {step === 'tee_par4' && renderPar4Tee(handlePar4Tee)}
-        {step === 'tee_par5' && renderPar5Tee(handlePar5Tee)}
+        {step === 'tee_par4' && renderPar4Tee(handlePar4Tee, bbdChecked, setBbdChecked)}
+        {step === 'tee_par5' && renderPar5Tee(handlePar5Tee, bbdChecked, setBbdChecked)}
         {step === 'approach_par3' && renderApproachShot(handleApproach)}
         {step === 'approach_lie' && renderApproachLie(handleApproachLie)}
         {step === 'trouble' && renderTrouble(handleTrouble)}
@@ -850,7 +888,11 @@ function renderApproachLie(onSelect: (lie: string) => void) {
 
 // ── Par 4 Tee buttons (Fairway row + On Green above) ──────────
 
-function renderPar4Tee(onSelect: (result: string) => void) {
+function renderPar4Tee(
+  onSelect: (result: string) => void,
+  bbdChecked: boolean,
+  setBbdChecked: (val: boolean) => void,
+) {
   return (
     <View style={styles.buttonContainer}>
       <Text style={styles.stepLabel}>Tee Shot</Text>
@@ -894,13 +936,32 @@ function renderPar4Tee(onSelect: (result: string) => void) {
           <Icon name="arrow-forward" size={36} color="#fff" />
         </TouchableOpacity>
       </View>
+      {/* BBD checkbox */}
+      <TouchableOpacity
+        style={styles.bbdRow}
+        onPress={() => setBbdChecked(!bbdChecked)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: bbdChecked }}
+        accessibilityLabel="Big Beautiful Drive"
+      >
+        <Icon
+          name={bbdChecked ? 'check-box' : 'check-box-outline-blank'}
+          size={24}
+          color={bbdChecked ? '#2E7D32' : '#999'}
+        />
+        <Text style={[styles.bbdLabel, bbdChecked && styles.bbdLabelChecked]}>BBD</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 // ── Par 5 Tee buttons (same as par 4 without On Green) ────────
 
-function renderPar5Tee(onSelect: (result: string) => void) {
+function renderPar5Tee(
+  onSelect: (result: string) => void,
+  bbdChecked: boolean,
+  setBbdChecked: (val: boolean) => void,
+) {
   return (
     <View style={styles.buttonContainer}>
       <Text style={styles.stepLabel}>Tee Shot</Text>
@@ -932,6 +993,21 @@ function renderPar5Tee(onSelect: (result: string) => void) {
           <Icon name="arrow-forward" size={36} color="#fff" />
         </TouchableOpacity>
       </View>
+      {/* BBD checkbox */}
+      <TouchableOpacity
+        style={styles.bbdRow}
+        onPress={() => setBbdChecked(!bbdChecked)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: bbdChecked }}
+        accessibilityLabel="Big Beautiful Drive"
+      >
+        <Icon
+          name={bbdChecked ? 'check-box' : 'check-box-outline-blank'}
+          size={24}
+          color={bbdChecked ? '#2E7D32' : '#999'}
+        />
+        <Text style={[styles.bbdLabel, bbdChecked && styles.bbdLabelChecked]}>BBD</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -1293,6 +1369,23 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
+  },
+  bbdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 16,
+    paddingVertical: 8,
+    minHeight: 44,
+  },
+  bbdLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#999',
+  },
+  bbdLabelChecked: {
+    color: '#2E7D32',
   },
   goodButton: { backgroundColor: S.green },
   badButton: { backgroundColor: S.red },
