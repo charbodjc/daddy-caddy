@@ -10,7 +10,10 @@ import {
   RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { database } from '../database/watermelon/database';
+import { useGolferStore } from '../stores/golferStore';
+import { removePreference } from '../services/preferenceService';
 import { ScreenHeader } from '../components/common/ScreenHeader';
 
 interface TableInfo {
@@ -103,6 +106,12 @@ const DatabaseDiagnosticScreen = () => {
       await database.write(async () => {
         await database.unsafeResetDatabase();
       });
+
+      await AsyncStorage.removeItem('active_round_id');
+      await removePreference('active_golfer_id');
+      await useGolferStore.getState().ensureDefaultGolfer();
+      await useGolferStore.getState().loadGolfers();
+
       Alert.alert('Success', 'Database cleared successfully');
       loadDiagnostics();
     } catch {

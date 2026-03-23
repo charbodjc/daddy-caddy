@@ -229,8 +229,13 @@ export async function calculateRunningRoundStats(
       if (par3TeeShot) approachShots.push(par3TeeShot);
     }
     for (const approach of approachShots) {
-      if (approach.results.includes(SHOT_RESULTS.LEFT)) stats.approachMissedLeft += 1;
-      if (approach.results.includes(SHOT_RESULTS.RIGHT)) stats.approachMissedRight += 1;
+      const r = approach.results;
+      if (r.includes(SHOT_RESULTS.LEFT) || r.includes(SHOT_RESULTS.LONG_LEFT) || r.includes(SHOT_RESULTS.SHORT_LEFT)) {
+        stats.approachMissedLeft += 1;
+      }
+      if (r.includes(SHOT_RESULTS.RIGHT) || r.includes(SHOT_RESULTS.LONG_RIGHT) || r.includes(SHOT_RESULTS.SHORT_RIGHT)) {
+        stats.approachMissedRight += 1;
+      }
     }
 
     // Penalty strokes

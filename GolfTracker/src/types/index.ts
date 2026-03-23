@@ -32,6 +32,7 @@ export const SHOT_RESULTS = {
   SHORT_RIGHT: 'short_right',
   FAIRWAY: 'fairway',
   WATER: 'water',
+  BBD: 'bbd',
 } as const;
 
 export type ShotResult = typeof SHOT_RESULTS[keyof typeof SHOT_RESULTS];

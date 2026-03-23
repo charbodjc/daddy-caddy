@@ -89,6 +89,8 @@ const HoleScoringScreen: React.FC = () => {
   const [currentStroke, setCurrentStroke] = useState(1);
   const [saveError, setSaveError] = useState(false);
   const retryTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCount = React.useRef(0);
+  const MAX_RETRIES = 3;
 
   // BBD (Big Beautiful Drive) toggle for par 4/5 tee shots
   const [bbdChecked, setBbdChecked] = useState(false);
@@ -183,6 +185,7 @@ const HoleScoringScreen: React.FC = () => {
       });
 
       setSaveError(false);
+      retryCount.current = 0;
 
       // Update round score-to-par: adjust by the change in this hole's strokes
       const delta = strokes - prevHoleStrokes.current;
@@ -194,11 +197,14 @@ const HoleScoringScreen: React.FC = () => {
       }
     } catch {
       setSaveError(true);
-      // Auto-retry after 2 seconds
-      if (retryTimer.current) clearTimeout(retryTimer.current);
-      retryTimer.current = setTimeout(() => {
-        persistShots(updatedShots, nextStroke);
-      }, 2000);
+      // Auto-retry with limit
+      if (retryCount.current < MAX_RETRIES) {
+        retryCount.current += 1;
+        if (retryTimer.current) clearTimeout(retryTimer.current);
+        retryTimer.current = setTimeout(() => {
+          persistShots(updatedShots, nextStroke);
+        }, 2000);
+      }
     }
   }, [hole, roundId, updateHole]);
 
@@ -247,6 +253,7 @@ const HoleScoringScreen: React.FC = () => {
     const prevStroke = currentStroke - 1;
     setShots(updatedShots);
     setCurrentStroke(prevStroke);
+    setBbdChecked(false);
     persistShots(updatedShots, prevStroke);
 
     // Go back to previous step
@@ -312,7 +319,7 @@ const HoleScoringScreen: React.FC = () => {
       const newShot: TrackedShot = {
         stroke: currentStroke,
         type: SHOT_TYPES.TEE_SHOT,
-        results: [result, 'bbd'],
+        results: [result, SHOT_RESULTS.BBD],
       };
       const updatedShots = [...shots, newShot];
       const nextStroke = currentStroke + 1;
@@ -337,7 +344,7 @@ const HoleScoringScreen: React.FC = () => {
       const newShot: TrackedShot = {
         stroke: currentStroke,
         type: SHOT_TYPES.TEE_SHOT,
-        results: [result, 'bbd'],
+        results: [result, SHOT_RESULTS.BBD],
       };
       const updatedShots = [...shots, newShot];
       const nextStroke = currentStroke + 1;
@@ -396,8 +403,15 @@ const HoleScoringScreen: React.FC = () => {
       setShots(updatedShots);
       persistShots(updatedShots, currentStroke);
     }
-    goToStep('chip');
-  }, [shots, currentStroke, persistShots, goToStep]);
+
+    // Water, Hazard, and OB incur a penalty stroke and return to approach
+    if (lie === SHOT_RESULTS.WATER || lie === SHOT_RESULTS.HAZARD || lie === SHOT_RESULTS.OB) {
+      addShot(SHOT_TYPES.PENALTY, lie, 1);
+      goToStep('approach_par3');
+    } else {
+      goToStep('chip');
+    }
+  }, [shots, currentStroke, persistShots, addShot, goToStep]);
 
   // ── Chip handlers ───────────────────────────────────────────
 
@@ -483,7 +497,7 @@ const HoleScoringScreen: React.FC = () => {
 
       // Check if tee shot was marked as BBD
       const hasBBD = updatedShots.some(
-        s => s.type === SHOT_TYPES.TEE_SHOT && s.results.includes('bbd')
+        s => s.type === SHOT_TYPES.TEE_SHOT && s.results.includes(SHOT_RESULTS.BBD)
       );
 
       const summaryMsg = `Hole ${hole.holeNumber} Complete!\n` +
@@ -620,12 +634,19 @@ function shotResultEmoji(result: string): string {
     case SHOT_RESULTS.RIGHT: return '\u27A1\uFE0F';
     case SHOT_RESULTS.SHORT: return '\u2B07\uFE0F';
     case SHOT_RESULTS.LONG: return '\u2B06\uFE0F';
+    case SHOT_RESULTS.LONG_LEFT: return '\u2196\uFE0F';
+    case SHOT_RESULTS.LONG_RIGHT: return '\u2197\uFE0F';
+    case SHOT_RESULTS.SHORT_LEFT: return '\u2199\uFE0F';
+    case SHOT_RESULTS.SHORT_RIGHT: return '\u2198\uFE0F';
     case SHOT_RESULTS.ROUGH: return '\u{1F33F}';
     case SHOT_RESULTS.SAND: return '\u{1F3D6}\uFE0F';
-    case SHOT_RESULTS.HAZARD: return '\u{1F4A7}';
+    case SHOT_RESULTS.FAIRWAY: return '\u26F3';
+    case SHOT_RESULTS.WATER: return '\u{1F4A7}';
+    case SHOT_RESULTS.HAZARD: return '\u26A0\uFE0F';
     case SHOT_RESULTS.OB: return '\u{1F6AB}';
     case SHOT_RESULTS.LOST: return '\u{1F50D}';
     case SHOT_RESULTS.MISSED: return '\u274C';
+    case SHOT_RESULTS.BBD: return '\u{1F4AA}';
     default: return '\u26AA';
   }
 }
