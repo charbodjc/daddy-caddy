@@ -26,6 +26,12 @@ export const SHOT_RESULTS = {
   MISSED: 'missed',
   SHORT: 'short',
   LONG: 'long',
+  LONG_LEFT: 'long_left',
+  LONG_RIGHT: 'long_right',
+  SHORT_LEFT: 'short_left',
+  SHORT_RIGHT: 'short_right',
+  FAIRWAY: 'fairway',
+  WATER: 'water',
 } as const;
 
 export type ShotResult = typeof SHOT_RESULTS[keyof typeof SHOT_RESULTS];

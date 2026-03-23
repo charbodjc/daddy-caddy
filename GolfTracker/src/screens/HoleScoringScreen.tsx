@@ -59,6 +59,7 @@ type WorkflowStep =
   | 'trouble'         // After left/right on par 4/5: rough, bunker, lost, OB, hazard
   | 'chip'            // Chip shot: on green or not on green (icons)
   | 'approach_par3'   // Approach shot with par 3 buttons
+  | 'approach_lie'    // After approach miss: where did it end up (fairway, rough, bunker, etc.)
   | 'putt_distance'   // Numeric keypad for feet
   | 'sms_preview'     // Show SMS preview before sending
   | 'made_missed'     // Made it / Missed it buttons
@@ -349,9 +350,22 @@ const HoleScoringScreen: React.FC = () => {
     if (result === SHOT_RESULTS.GREEN) {
       goToStep('putt_distance');
     } else {
-      goToStep('chip');
+      goToStep('approach_lie');
     }
   }, [addShot, goToStep]);
+
+  const handleApproachLie = useCallback((lie: string) => {
+    // Record the lie as an additional result on the last shot
+    if (shots.length > 0) {
+      const updatedShots = [...shots];
+      const lastShot = { ...updatedShots[updatedShots.length - 1] };
+      lastShot.results = [...lastShot.results, lie];
+      updatedShots[updatedShots.length - 1] = lastShot;
+      setShots(updatedShots);
+      persistShots(updatedShots, currentStroke);
+    }
+    goToStep('chip');
+  }, [shots, currentStroke, persistShots, goToStep]);
 
   // ── Chip handlers ───────────────────────────────────────────
 
@@ -545,7 +559,8 @@ const HoleScoringScreen: React.FC = () => {
         {step === 'tee_par3' && renderPar3Tee(handlePar3Tee)}
         {step === 'tee_par4' && renderPar4Tee(handlePar4Tee)}
         {step === 'tee_par5' && renderPar5Tee(handlePar5Tee)}
-        {step === 'approach_par3' && renderPar3Tee(handleApproach)}
+        {step === 'approach_par3' && renderApproachShot(handleApproach)}
+        {step === 'approach_lie' && renderApproachLie(handleApproachLie)}
         {step === 'trouble' && renderTrouble(handleTrouble)}
         {step === 'chip' && renderChip(handleChip)}
         {step === 'putt_distance' && renderPuttDistance(puttDistance, setPuttDistance, handlePuttDistanceSubmit)}
@@ -665,6 +680,169 @@ function renderPar3Tee(onSelect: (result: string) => void) {
           </TouchableOpacity>
           <View style={styles.crossSpacer} />
         </View>
+      </View>
+    </View>
+  );
+}
+
+// ── Approach shot buttons (8-arrow compass + center green) ──────
+
+function renderApproachShot(onSelect: (result: string) => void) {
+  return (
+    <View style={styles.buttonContainer}>
+      <Text style={styles.stepLabel}>Where did it go?</Text>
+      <View style={styles.crossLayout}>
+        {/* Row 1: Long-Left, Long, Long-Right */}
+        <View style={styles.crossRow}>
+          <TouchableOpacity
+            style={[styles.diagButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.LONG_LEFT)}
+            accessibilityLabel="Long left"
+            accessibilityRole="button"
+          >
+            <Icon name="north-west" size={28} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dirButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.LONG)}
+            accessibilityLabel="Long"
+            accessibilityRole="button"
+          >
+            <Icon name="arrow-upward" size={36} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.diagButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.LONG_RIGHT)}
+            accessibilityLabel="Long right"
+            accessibilityRole="button"
+          >
+            <Icon name="north-east" size={28} color="#fff" />
+          </TouchableOpacity>
+        </View>
+        {/* Row 2: Left, Center (green), Right */}
+        <View style={styles.crossRow}>
+          <TouchableOpacity
+            style={[styles.dirButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.LEFT)}
+            accessibilityLabel="Missed left"
+            accessibilityRole="button"
+          >
+            <Icon name="arrow-back" size={36} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dirButton, styles.goodButton]}
+            onPress={() => onSelect(SHOT_RESULTS.GREEN)}
+            accessibilityLabel="On green"
+            accessibilityRole="button"
+          >
+            <Icon name="adjust" size={36} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dirButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.RIGHT)}
+            accessibilityLabel="Missed right"
+            accessibilityRole="button"
+          >
+            <Icon name="arrow-forward" size={36} color="#fff" />
+          </TouchableOpacity>
+        </View>
+        {/* Row 3: Short-Left, Short, Short-Right */}
+        <View style={styles.crossRow}>
+          <TouchableOpacity
+            style={[styles.diagButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.SHORT_LEFT)}
+            accessibilityLabel="Short left"
+            accessibilityRole="button"
+          >
+            <Icon name="south-west" size={28} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dirButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.SHORT)}
+            accessibilityLabel="Short"
+            accessibilityRole="button"
+          >
+            <Icon name="arrow-downward" size={36} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.diagButton, styles.badButton]}
+            onPress={() => onSelect(SHOT_RESULTS.SHORT_RIGHT)}
+            accessibilityLabel="Short right"
+            accessibilityRole="button"
+          >
+            <Icon name="south-east" size={28} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ── Approach lie buttons (after missing the green) ──────────────
+
+function renderApproachLie(onSelect: (lie: string) => void) {
+  return (
+    <View style={styles.buttonContainer}>
+      <Text style={styles.stepLabel}>Where did it end up?</Text>
+      {/* Row 1: Fairway, Rough, Bunker */}
+      <View style={styles.troubleRow}>
+        <TouchableOpacity
+          style={[styles.troubleButton, styles.troubleFairway]}
+          onPress={() => onSelect(SHOT_RESULTS.FAIRWAY)}
+          accessibilityLabel="Fairway"
+          accessibilityRole="button"
+        >
+          <Icon name="landscape" size={28} color="#fff" />
+          <Text style={styles.troubleButtonText}>Fairway</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.troubleButton, styles.troubleRough]}
+          onPress={() => onSelect(SHOT_RESULTS.ROUGH)}
+          accessibilityLabel="Rough"
+          accessibilityRole="button"
+        >
+          <Icon name="grass" size={28} color="#fff" />
+          <Text style={styles.troubleButtonText}>Rough</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.troubleButton, styles.troubleBunker]}
+          onPress={() => onSelect(SHOT_RESULTS.SAND)}
+          accessibilityLabel="Bunker"
+          accessibilityRole="button"
+        >
+          <Icon name="beach-access" size={28} color="#fff" />
+          <Text style={styles.troubleButtonText}>Bunker</Text>
+        </TouchableOpacity>
+      </View>
+      {/* Row 2: Water, Hazard, OB */}
+      <View style={styles.troubleRow}>
+        <TouchableOpacity
+          style={[styles.troubleButton, styles.troubleWater]}
+          onPress={() => onSelect(SHOT_RESULTS.WATER)}
+          accessibilityLabel="Water"
+          accessibilityRole="button"
+        >
+          <Icon name="water-drop" size={28} color="#fff" />
+          <Text style={styles.troubleButtonText}>Water</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.troubleButton, styles.troubleHazard]}
+          onPress={() => onSelect(SHOT_RESULTS.HAZARD)}
+          accessibilityLabel="Hazard"
+          accessibilityRole="button"
+        >
+          <Icon name="warning" size={28} color="#fff" />
+          <Text style={styles.troubleButtonText}>Hazard</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.troubleButton, styles.troubleOB]}
+          onPress={() => onSelect(SHOT_RESULTS.OB)}
+          accessibilityLabel="Out of bounds"
+          accessibilityRole="button"
+        >
+          <Icon name="block" size={28} color="#fff" />
+          <Text style={styles.troubleButtonText}>OB</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -1104,6 +1282,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
+  diagButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
   goodButton: { backgroundColor: S.green },
   badButton: { backgroundColor: S.red },
   disabledButton: { opacity: 0.5 },
@@ -1165,11 +1355,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 3,
   },
+  troubleFairway: { backgroundColor: S.green },
   troubleRough: { backgroundColor: '#8BC34A' },
   troubleBunker: { backgroundColor: '#F4B400' },
+  troubleWater: { backgroundColor: '#0288D1' },
   troubleLost: { backgroundColor: '#9E9E9E' },
   troubleOB: { backgroundColor: S.red },
-  troubleHazard: { backgroundColor: '#2196F3' },
+  troubleHazard: { backgroundColor: '#FF9800' },
   troubleButtonText: { fontSize: 13, fontWeight: '600', color: S.white },
 
   // Chip buttons
