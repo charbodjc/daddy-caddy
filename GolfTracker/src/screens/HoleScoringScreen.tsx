@@ -19,10 +19,12 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import * as SMS from 'expo-sms';
 import { useRoundStore } from '../stores/roundStore';
 import { LoadingScreen } from '../components/common/LoadingScreen';
@@ -42,6 +44,7 @@ import { parseShotData, deriveHoleStats, calculateTotalStrokes, calculateRunning
 import { getScoreName } from '../utils/scoreColors';
 import { formatScoreVsPar } from '../utils/scoreCalculations';
 import smsService from '../services/sms';
+import MediaService from '../services/media';
 import { generateHoleCommentary } from '../utils/holeCommentary';
 import type { ScoringStackParamList } from '../types/navigation';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -91,6 +94,11 @@ const HoleScoringScreen: React.FC = () => {
   const retryTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCount = React.useRef(0);
   const MAX_RETRIES = 3;
+
+  // Media capture
+  const [mediaCount, setMediaCount] = useState({ photos: 0, videos: 0 });
+  const [isCapturing, setIsCapturing] = useState(false);
+  const capturingRef = React.useRef(false);
 
   // BBD (Big Beautiful Drive) toggle for par 4/5 tee shots
   const [bbdChecked, setBbdChecked] = useState(false);
@@ -153,6 +161,10 @@ const HoleScoringScreen: React.FC = () => {
         // Load SMS recipients (service handles missing golfer gracefully)
         const contacts = await smsService.getRecipientsForRound(roundId);
         setRecipients(contacts);
+
+        // Load media counts for this hole
+        const counts = await MediaService.getMediaCount(roundId, h.holeNumber);
+        setMediaCount(counts);
       } catch (err) {
         setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
@@ -187,14 +199,8 @@ const HoleScoringScreen: React.FC = () => {
       setSaveError(false);
       retryCount.current = 0;
 
-      // Update round score-to-par: adjust by the change in this hole's strokes
-      const delta = strokes - prevHoleStrokes.current;
-      if (delta !== 0) {
-        // If the hole was previously unplayed, also account for the par being added
-        const parDelta = prevHoleStrokes.current === 0 ? hole.par : 0;
-        setRoundScoreToPar(prev => prev + delta - parDelta);
-        prevHoleStrokes.current = strokes;
-      }
+      // Round score-to-par only updates when a hole is finished (in handleMade)
+      prevHoleStrokes.current = strokes;
     } catch {
       setSaveError(true);
       // Auto-retry with limit
@@ -457,6 +463,47 @@ const HoleScoringScreen: React.FC = () => {
     setStep('made_missed');
   }, [step]);
 
+  // ── Media capture handlers ─────────────────────────────────
+
+  const handleMediaCapture = useCallback(async (type: 'photo' | 'video') => {
+    if (!roundId || !hole || capturingRef.current) return;
+    capturingRef.current = true;
+    setIsCapturing(true);
+    try {
+      const captured = await MediaService.captureMedia(type);
+      if (captured) {
+        await MediaService.saveMedia(captured, roundId, hole.holeNumber);
+        const counts = await MediaService.getMediaCount(roundId, hole.holeNumber);
+        setMediaCount(counts);
+      }
+    } catch (err) {
+      Alert.alert('Media Capture Error', `Failed to capture ${type}. Please check app permissions in Settings.`);
+    } finally {
+      capturingRef.current = false;
+      setIsCapturing(false);
+    }
+  }, [roundId, hole]);
+
+  const handleMediaFromLibrary = useCallback(async () => {
+    if (!roundId || !hole || capturingRef.current) return;
+    capturingRef.current = true;
+    setIsCapturing(true);
+    try {
+      const media = await MediaService.selectFromLibrary('mixed');
+      if (media) {
+        await MediaService.saveMedia(media, roundId, hole.holeNumber);
+        const counts = await MediaService.getMediaCount(roundId, hole.holeNumber);
+        setMediaCount(counts);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to select media from library';
+      Alert.alert('Error', message);
+    } finally {
+      capturingRef.current = false;
+      setIsCapturing(false);
+    }
+  }, [roundId, hole]);
+
   // ── Made / Missed handlers ──────────────────────────────────
 
   const handleMade = useCallback(async () => {
@@ -487,6 +534,12 @@ const HoleScoringScreen: React.FC = () => {
         putts: stats?.puttsCount,
         shotData: JSON.stringify(shotData),
       });
+
+      // Update round score now that the hole is complete.
+      // Use prevHoleStrokes ref (not hole.strokes) since hole is a stale state snapshot.
+      const prior = prevHoleStrokes.current;
+      const parDelta = prior === 0 ? hole.par : 0;
+      setRoundScoreToPar(prev => prev + (strokes - prior) - parDelta);
 
       // Build summary SMS
       const finalScoreVsPar = strokes - hole.par;
@@ -575,14 +628,65 @@ const HoleScoringScreen: React.FC = () => {
             <Icon name="undo" size={22} color="#fff" />
           </TouchableOpacity>
         )}
+        <View style={styles.mediaButtons}>
+          <TouchableOpacity
+            onPress={() => handleMediaCapture('photo')}
+            style={styles.mediaButtonCompact}
+            disabled={isCapturing}
+            accessibilityLabel={mediaCount.photos > 0 ? `Take photo, ${mediaCount.photos} attached` : 'Take photo'}
+            accessibilityRole="button"
+          >
+            {isCapturing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="camera" size={22} color="#fff" />
+                {mediaCount.photos > 0 && (
+                  <View style={styles.mediaBadge}>
+                    <Text style={styles.mediaBadgeText}>{mediaCount.photos}</Text>
+                  </View>
+                )}
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => handleMediaCapture('video')}
+            style={styles.mediaButtonCompact}
+            disabled={isCapturing}
+            accessibilityLabel={mediaCount.videos > 0 ? `Record video, ${mediaCount.videos} attached` : 'Record video'}
+            accessibilityRole="button"
+          >
+            {isCapturing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="videocam" size={22} color="#fff" />
+                {mediaCount.videos > 0 && (
+                  <View style={styles.mediaBadge}>
+                    <Text style={styles.mediaBadgeText}>{mediaCount.videos}</Text>
+                  </View>
+                )}
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleMediaFromLibrary}
+            style={styles.mediaButtonCompact}
+            disabled={isCapturing}
+            accessibilityLabel="Select from library"
+            accessibilityRole="button"
+          >
+            {isCapturing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="images" size={22} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </View>
         <View style={styles.scoreColumn}>
           <View style={styles.roundScoreBadge} accessibilityLabel={`Round score: ${formatScoreVsPar(roundScoreToPar)}`}>
             <Text style={styles.roundScoreValue}>{formatScoreVsPar(roundScoreToPar)}</Text>
             <Text style={styles.roundScoreLabel}>round</Text>
-          </View>
-          <View style={styles.strokeBadge} accessibilityLabel={`${totalStrokes} strokes`}>
-            <Text style={styles.strokeNum}>{totalStrokes}</Text>
-            <Text style={styles.strokeLabel}>strokes</Text>
           </View>
           {golfer && (
             <View style={styles.golferTag} accessibilityLabel={`Golfer: ${golfer.name}`}>
@@ -1305,6 +1409,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
   },
+  mediaButtons: {
+    flexDirection: 'row',
+    gap: 6,
+    marginRight: 8,
+  },
+  mediaButtonCompact: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 10,
+    borderRadius: 22,
+    position: 'relative' as const,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  mediaBadge: {
+    position: 'absolute' as const,
+    top: -4,
+    right: -4,
+    backgroundColor: '#ff6b6b',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  mediaBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
   scoreColumn: {
     alignItems: 'center',
     gap: 4,
@@ -1318,15 +1453,6 @@ const styles = StyleSheet.create({
   },
   roundScoreValue: { fontSize: 20, fontWeight: 'bold', color: S.white },
   roundScoreLabel: { fontSize: 10, color: 'rgba(255,255,255,0.8)' },
-  strokeBadge: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    alignItems: 'center',
-  },
-  strokeNum: { fontSize: 20, fontWeight: 'bold', color: S.white },
-  strokeLabel: { fontSize: 10, color: 'rgba(255,255,255,0.9)' },
   golferTag: {
     flexDirection: 'row',
     alignItems: 'center',
