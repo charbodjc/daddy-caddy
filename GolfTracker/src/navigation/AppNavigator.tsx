@@ -18,7 +18,6 @@ import HomeScreen from '../screens/HomeScreen';
 import StatsScreen from '../screens/StatsScreen';
 import RoundTrackerScreen from '../screens/RoundTrackerScreen';
 import HoleDetailsScreen from '../screens/HoleDetailsScreen';
-import ShotTrackingScreen from '../screens/ShotTrackingScreen';
 import HoleScoringScreen from '../screens/HoleScoringScreen';
 import HoleSummaryScreen from '../screens/HoleSummaryScreen';
 import RoundSummaryScreen from '../screens/RoundSummaryScreen';
@@ -60,7 +59,6 @@ const ScoringStack = () => {
     >
       <ScoringStackNav.Screen name="RoundTracker" component={RoundTrackerScreen} />
       <ScoringStackNav.Screen name="HoleDetails" component={HoleDetailsScreen} />
-      <ScoringStackNav.Screen name="ShotTracking" component={ShotTrackingScreen} />
       <ScoringStackNav.Screen name="HoleScoring" component={HoleScoringScreen} />
       <ScoringStackNav.Screen name="HoleSummary" component={HoleSummaryScreen} />
       <ScoringStackNav.Screen name="RoundSummary" component={RoundSummaryScreen} />

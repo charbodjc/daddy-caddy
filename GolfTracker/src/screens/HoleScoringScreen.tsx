@@ -86,6 +86,8 @@ const HoleScoringScreen: React.FC = () => {
   // Shot tracking
   const [shots, setShots] = useState<TrackedShot[]>([]);
   const [currentStroke, setCurrentStroke] = useState(1);
+  const [saveError, setSaveError] = useState(false);
+  const retryTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Workflow state
   const [step, setStep] = useState<WorkflowStep>('tee_par3');
@@ -93,6 +95,13 @@ const HoleScoringScreen: React.FC = () => {
   const [puttDistance, setPuttDistance] = useState('');
   const [smsMessage, setSmsMessage] = useState('');
   const [recipients, setRecipients] = useState<SmsContact[]>([]);
+
+  // Clean up retry timer on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+    };
+  }, []);
 
   // Load hole data
   useEffect(() => {
@@ -169,6 +178,8 @@ const HoleScoringScreen: React.FC = () => {
         shotData: JSON.stringify(shotData),
       });
 
+      setSaveError(false);
+
       // Update round score-to-par: adjust by the change in this hole's strokes
       const delta = strokes - prevHoleStrokes.current;
       if (delta !== 0) {
@@ -178,7 +189,12 @@ const HoleScoringScreen: React.FC = () => {
         prevHoleStrokes.current = strokes;
       }
     } catch {
-      // Silent persist failure — data still in state
+      setSaveError(true);
+      // Auto-retry after 2 seconds
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+      retryTimer.current = setTimeout(() => {
+        persistShots(updatedShots, nextStroke);
+      }, 2000);
     }
   }, [hole, roundId, updateHole]);
 
@@ -459,6 +475,14 @@ const HoleScoringScreen: React.FC = () => {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      {/* Save error banner */}
+      {saveError && (
+        <View style={styles.saveErrorBanner} accessibilityRole="alert">
+          <Icon name="warning" size={16} color="#fff" />
+          <Text style={styles.saveErrorText}>Save failed — retrying...</Text>
+        </View>
+      )}
+
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity
@@ -971,6 +995,20 @@ const S = { green: '#2E7D32', red: '#F44336', white: '#fff', bg: '#f5f5f5' } as 
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: S.bg },
+  saveErrorBanner: {
+    backgroundColor: '#d32f2f',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  saveErrorText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   header: {
     backgroundColor: S.green,
     paddingBottom: 16,

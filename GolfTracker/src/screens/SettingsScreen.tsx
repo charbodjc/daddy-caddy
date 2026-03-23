@@ -12,6 +12,8 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { ScreenHeader } from '../components/common/ScreenHeader';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { database } from '../database/watermelon/database';
+import Round from '../database/watermelon/models/Round';
+import Tournament from '../database/watermelon/models/Tournament';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { resetOnboarding } from '../utils/onboarding';
 import { useGolferStore } from '../stores/golferStore';
@@ -21,7 +23,7 @@ import type { SettingsStackParamList } from '../types/navigation';
 const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<SettingsStackParamList>>();
   const [exporting, setExporting] = useState(false);
-  
+
   const handleExportData = async () => {
     setExporting(true);
     try {
@@ -30,37 +32,63 @@ const SettingsScreen: React.FC = () => {
       setExporting(false);
     }
   };
-  
-  const handleClearAllData = () => {
+
+  const executeClearAllData = async () => {
+    try {
+      await database.write(async () => {
+        await database.unsafeResetDatabase();
+      });
+
+      await AsyncStorage.removeItem('active_round_id');
+      await removePreference('active_golfer_id');
+
+      await useGolferStore.getState().ensureDefaultGolfer();
+      await useGolferStore.getState().loadGolfers();
+
+      Alert.alert('Success', 'All data has been cleared');
+    } catch {
+      Alert.alert('Error', 'Failed to clear data');
+    }
+  };
+
+  const handleClearAllData = async () => {
+    // Query data counts for an informative first confirmation
+    const roundCount = await database.collections.get<Round>('rounds').query().fetchCount();
+    const tournamentCount = await database.collections.get<Tournament>('tournaments').query().fetchCount();
+
+    const dataDescription = [
+      roundCount > 0 ? `${roundCount} round${roundCount === 1 ? '' : 's'}` : '',
+      tournamentCount > 0 ? `${tournamentCount} tournament${tournamentCount === 1 ? '' : 's'}` : '',
+    ].filter(Boolean).join(' and ');
+
+    const details = dataDescription
+      ? `This will permanently delete ${dataDescription} and all associated data.`
+      : 'This will permanently delete all your golf data.';
+
     Alert.alert(
-      'Clear All Data',
-      'This will permanently delete ALL your golf data. This cannot be undone. Are you sure?',
+      'Clear All Data?',
+      details,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Clear All Data',
+          text: 'Continue',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await database.write(async () => {
-                await database.unsafeResetDatabase();
-              });
-
-              // Clean up AsyncStorage keys
-              await AsyncStorage.removeItem('active_round_id');
-              await removePreference('active_golfer_id');
-
-              // Re-bootstrap default golfer immediately
-              await useGolferStore.getState().ensureDefaultGolfer();
-              await useGolferStore.getState().loadGolfers();
-
-              Alert.alert('Success', 'All data has been cleared');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to clear data');
-            }
+          onPress: () => {
+            Alert.alert(
+              'Are you absolutely sure?',
+              'This cannot be undone.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete Everything',
+                  style: 'destructive',
+                  onPress: executeClearAllData,
+                },
+              ],
+            );
           },
         },
-      ]
+      ],
     );
   };
   

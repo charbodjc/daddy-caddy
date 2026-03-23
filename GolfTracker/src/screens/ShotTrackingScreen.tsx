@@ -34,12 +34,17 @@ import { getResultLabel } from '../utils/shotLabels';
 import { formatScoreVsPar } from '../utils/scoreCalculations';
 import { getNextShotOptions, getResultsForType } from '../utils/shotStateMachine';
 import { FloatingMicButton } from '../components/voice/FloatingMicButton';
-import type { ScoringStackParamList } from '../types/navigation';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RouteProp } from '@react-navigation/native';
 
-type NavProp = StackNavigationProp<ScoringStackParamList, 'ShotTracking'>;
-type RoutePropT = RouteProp<ScoringStackParamList, 'ShotTracking'>;
+// This screen is no longer registered in the navigation stack (removed in favor of HoleScoringScreen).
+// Local type kept so the file still compiles as reference code.
+type ShotTrackingParams = {
+  ShotTracking: { holeId: string; roundId: string; preselectedShotType?: string };
+  HoleSummary: { holeId: string; roundId: string };
+};
+type NavProp = StackNavigationProp<ShotTrackingParams, 'ShotTracking'>;
+type RoutePropT = RouteProp<ShotTrackingParams, 'ShotTracking'>;
 
 // No more static RESULT_OPTIONS — context-aware options come from shotStateMachine
 

@@ -10,11 +10,6 @@ export type HomeStackParamList = {
 export type ScoringStackParamList = {
   RoundTracker: { tournamentId?: string; tournamentName?: string; roundId?: string; quickStart?: boolean } | undefined;
   HoleDetails: { holeId: string; roundId: string };
-  ShotTracking: {
-    holeId: string;
-    roundId: string;
-    preselectedShotType?: string;
-  };
   HoleScoring: {
     holeId: string;
     roundId: string;

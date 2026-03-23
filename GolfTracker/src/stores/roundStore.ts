@@ -12,6 +12,51 @@ import {
 } from '../validators/roundValidator';
 import { useGolferStore } from './golferStore';
 
+export interface UnfinishedRoundSummary {
+  roundId: string;
+  courseName: string;
+  holesPlayed: number;
+  totalScore: number;
+  playedPar: number;
+}
+
+/**
+ * Check if a golfer has an unfinished round with played holes.
+ * Used by UI to warn before silently auto-finishing via createRound().
+ */
+export async function getUnfinishedRoundSummary(
+  golferId: string,
+): Promise<UnfinishedRoundSummary | null> {
+  const unfinished = await database.collections
+    .get<Round>('rounds')
+    .query(
+      Q.where('is_finished', false),
+      Q.where('golfer_id', golferId),
+      Q.sortBy('created_at', Q.desc),
+      Q.take(1),
+    )
+    .fetch();
+
+  if (unfinished.length === 0) return null;
+
+  const round = unfinished[0];
+  const holes: Hole[] = await round.holes.fetch();
+  const played = holes.filter((h) => h.strokes > 0);
+
+  if (played.length === 0) return null; // No data to lose
+
+  const totalScore = played.reduce((sum, h) => sum + h.strokes, 0);
+  const playedPar = played.reduce((sum, h) => sum + h.par, 0);
+
+  return {
+    roundId: round.id,
+    courseName: round.courseName,
+    holesPlayed: played.length,
+    totalScore,
+    playedPar,
+  };
+}
+
 interface RoundState {
   activeRound: Round | null;
   rounds: Round[];
