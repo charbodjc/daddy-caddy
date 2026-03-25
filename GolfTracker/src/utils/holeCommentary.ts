@@ -1,7 +1,8 @@
 /**
  * holeCommentary.ts
  *
- * Generates random, entertaining commentary for hole SMS updates.
+ * Generates random, non-repeating commentary for hole SMS updates.
+ * Each category cycles through all messages before any can repeat.
  */
 
 const BIRDIE_COMMENTARY = [
@@ -59,12 +60,38 @@ const GENERAL_HYPE = [
   "All eyes on the green!",
 ];
 
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+/**
+ * Shuffle-bag picker: cycles through every item before any repeats.
+ * Each array gets its own bag, so "par" commentary and "hype" lines
+ * are independently non-repeating.
+ */
+const usedIndices = new Map<ReadonlyArray<string>, Set<number>>();
+
+function pickWithoutRepeat(arr: ReadonlyArray<string>): string {
+  let used = usedIndices.get(arr);
+  if (!used || used.size >= arr.length) {
+    used = new Set();
+    usedIndices.set(arr, used);
+  }
+
+  const available = arr
+    .map((_, i) => i)
+    .filter(i => !used.has(i));
+
+  const idx = available[Math.floor(Math.random() * available.length)];
+  used.add(idx);
+  return arr[idx];
 }
 
 /**
- * Generate entertaining commentary for a hole update SMS.
+ * Reset all tracking (e.g., when starting a new round).
+ */
+export function resetCommentaryHistory(): void {
+  usedIndices.clear();
+}
+
+/**
+ * Generate entertaining, non-repeating commentary for a hole update SMS.
  */
 export function generateHoleCommentary(
   holeNumber: number,
@@ -76,18 +103,18 @@ export function generateHoleCommentary(
   let commentary: string;
 
   if (scoreVsPar <= -2) {
-    commentary = pickRandom(EAGLE_COMMENTARY);
+    commentary = pickWithoutRepeat(EAGLE_COMMENTARY);
   } else if (scoreVsPar === -1) {
-    commentary = pickRandom(BIRDIE_COMMENTARY);
+    commentary = pickWithoutRepeat(BIRDIE_COMMENTARY);
   } else if (scoreVsPar === 0) {
-    commentary = pickRandom(PAR_COMMENTARY);
+    commentary = pickWithoutRepeat(PAR_COMMENTARY);
   } else if (scoreVsPar === 1) {
-    commentary = pickRandom(BOGEY_COMMENTARY);
+    commentary = pickWithoutRepeat(BOGEY_COMMENTARY);
   } else {
-    commentary = pickRandom(DOUBLE_COMMENTARY);
+    commentary = pickWithoutRepeat(DOUBLE_COMMENTARY);
   }
 
-  const hype = pickRandom(GENERAL_HYPE);
+  const hype = pickWithoutRepeat(GENERAL_HYPE);
 
   return `Hole ${holeNumber} live update:\n${commentary}\n${hype}`;
 }
