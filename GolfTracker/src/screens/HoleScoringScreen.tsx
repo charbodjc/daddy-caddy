@@ -19,7 +19,6 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -94,9 +93,10 @@ const HoleScoringScreen: React.FC = () => {
   const retryTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCount = React.useRef(0);
   const MAX_RETRIES = 3;
+  // Parallel to stepHistory — tracks whether each step transition was an annotation (vs. a new shot)
+  const annotationFlags = React.useRef<boolean[]>([]);
 
   // Media capture
-  const [mediaCount, setMediaCount] = useState({ photos: 0, videos: 0 });
   const [isCapturing, setIsCapturing] = useState(false);
   const capturingRef = React.useRef(false);
 
@@ -162,9 +162,6 @@ const HoleScoringScreen: React.FC = () => {
         const contacts = await smsService.getRecipientsForRound(roundId);
         setRecipients(contacts);
 
-        // Load media counts for this hole
-        const counts = await MediaService.getMediaCount(roundId, h.holeNumber);
-        setMediaCount(counts);
       } catch (err) {
         setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
@@ -247,6 +244,7 @@ const HoleScoringScreen: React.FC = () => {
   // ── Step transition with history ────────────────────────────
 
   const goToStep = useCallback((nextStep: WorkflowStep) => {
+    annotationFlags.current.push(false);
     setStepHistory(prev => [...prev, step]);
     setStep(nextStep);
   }, [step]);
@@ -255,12 +253,25 @@ const HoleScoringScreen: React.FC = () => {
 
   const undoLastShot = useCallback(() => {
     if (shots.length === 0) return;
-    const updatedShots = shots.slice(0, -1);
-    const prevStroke = currentStroke - 1;
-    setShots(updatedShots);
-    setCurrentStroke(prevStroke);
-    setBbdChecked(false);
-    persistShots(updatedShots, prevStroke);
+
+    const wasAnnotation = annotationFlags.current.pop() ?? false;
+
+    if (wasAnnotation) {
+      // Last step only appended a result to the existing shot — strip it instead of removing the shot
+      const updatedShots = [...shots];
+      const lastShot = { ...updatedShots[updatedShots.length - 1] };
+      lastShot.results = lastShot.results.slice(0, -1);
+      updatedShots[updatedShots.length - 1] = lastShot;
+      setShots(updatedShots);
+      persistShots(updatedShots, currentStroke);
+    } else {
+      const updatedShots = shots.slice(0, -1);
+      const prevStroke = currentStroke - 1;
+      setShots(updatedShots);
+      setCurrentStroke(prevStroke);
+      setBbdChecked(false);
+      persistShots(updatedShots, prevStroke);
+    }
 
     // Go back to previous step
     if (stepHistory.length > 0) {
@@ -308,6 +319,26 @@ const HoleScoringScreen: React.FC = () => {
 
   const totalStrokes = useMemo(() => calculateTotalStrokes(shots), [shots]);
 
+  // ── Media capture handler ─────────────────────────────────
+
+  const handleMediaFromLibrary = useCallback(async () => {
+    if (!roundId || !hole || capturingRef.current) return;
+    capturingRef.current = true;
+    setIsCapturing(true);
+    try {
+      const media = await MediaService.selectFromLibrary('mixed');
+      if (media) {
+        await MediaService.saveMedia(media, roundId, hole.holeNumber);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to select media from library';
+      Alert.alert('Error', message);
+    } finally {
+      capturingRef.current = false;
+      setIsCapturing(false);
+    }
+  }, [roundId, hole]);
+
   // ── Tee shot handlers ───────────────────────────────────────
 
   const handlePar3Tee = useCallback((result: string) => {
@@ -315,7 +346,7 @@ const HoleScoringScreen: React.FC = () => {
     if (result === SHOT_RESULTS.GREEN) {
       goToStep('putt_distance');
     } else {
-      goToStep('chip');
+      goToStep('approach_lie');
     }
   }, [addShot, goToStep]);
 
@@ -382,11 +413,19 @@ const HoleScoringScreen: React.FC = () => {
       addShot(SHOT_TYPES.PENALTY, result, 1);
       goToStep('approach_par3');
     } else {
-      // Rough or bunker
-      addShot(SHOT_TYPES.APPROACH, result);
+      // Rough or bunker — classify where the tee shot ended up (no extra stroke)
+      if (shots.length > 0) {
+        const updatedShots = [...shots];
+        const lastShot = { ...updatedShots[updatedShots.length - 1] };
+        lastShot.results = [...lastShot.results, result];
+        updatedShots[updatedShots.length - 1] = lastShot;
+        setShots(updatedShots);
+        persistShots(updatedShots, currentStroke);
+      }
       goToStep('approach_par3');
+      annotationFlags.current[annotationFlags.current.length - 1] = true;
     }
-  }, [addShot, goToStep, hole]);
+  }, [addShot, goToStep, hole, shots, currentStroke, persistShots]);
 
   // ── Approach (par 3 style) handler ──────────────────────────
 
@@ -400,22 +439,22 @@ const HoleScoringScreen: React.FC = () => {
   }, [addShot, goToStep]);
 
   const handleApproachLie = useCallback((lie: string) => {
-    // Record the lie as an additional result on the last shot
-    if (shots.length > 0) {
-      const updatedShots = [...shots];
-      const lastShot = { ...updatedShots[updatedShots.length - 1] };
-      lastShot.results = [...lastShot.results, lie];
-      updatedShots[updatedShots.length - 1] = lastShot;
-      setShots(updatedShots);
-      persistShots(updatedShots, currentStroke);
-    }
-
     // Water, Hazard, and OB incur a penalty stroke and return to approach
     if (lie === SHOT_RESULTS.WATER || lie === SHOT_RESULTS.HAZARD || lie === SHOT_RESULTS.OB) {
       addShot(SHOT_TYPES.PENALTY, lie, 1);
       goToStep('approach_par3');
     } else {
+      // Non-penalty lie — annotate the last shot's results (no extra stroke)
+      if (shots.length > 0) {
+        const updatedShots = [...shots];
+        const lastShot = { ...updatedShots[updatedShots.length - 1] };
+        lastShot.results = [...lastShot.results, lie];
+        updatedShots[updatedShots.length - 1] = lastShot;
+        setShots(updatedShots);
+        persistShots(updatedShots, currentStroke);
+      }
       goToStep('chip');
+      annotationFlags.current[annotationFlags.current.length - 1] = true;
     }
   }, [shots, currentStroke, persistShots, addShot, goToStep]);
 
@@ -462,47 +501,6 @@ const HoleScoringScreen: React.FC = () => {
     setStepHistory(prev => [...prev, step]);
     setStep('made_missed');
   }, [step]);
-
-  // ── Media capture handlers ─────────────────────────────────
-
-  const handleMediaCapture = useCallback(async (type: 'photo' | 'video') => {
-    if (!roundId || !hole || capturingRef.current) return;
-    capturingRef.current = true;
-    setIsCapturing(true);
-    try {
-      const captured = await MediaService.captureMedia(type);
-      if (captured) {
-        await MediaService.saveMedia(captured, roundId, hole.holeNumber);
-        const counts = await MediaService.getMediaCount(roundId, hole.holeNumber);
-        setMediaCount(counts);
-      }
-    } catch (err) {
-      Alert.alert('Media Capture Error', `Failed to capture ${type}. Please check app permissions in Settings.`);
-    } finally {
-      capturingRef.current = false;
-      setIsCapturing(false);
-    }
-  }, [roundId, hole]);
-
-  const handleMediaFromLibrary = useCallback(async () => {
-    if (!roundId || !hole || capturingRef.current) return;
-    capturingRef.current = true;
-    setIsCapturing(true);
-    try {
-      const media = await MediaService.selectFromLibrary('mixed');
-      if (media) {
-        await MediaService.saveMedia(media, roundId, hole.holeNumber);
-        const counts = await MediaService.getMediaCount(roundId, hole.holeNumber);
-        setMediaCount(counts);
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to select media from library';
-      Alert.alert('Error', message);
-    } finally {
-      capturingRef.current = false;
-      setIsCapturing(false);
-    }
-  }, [roundId, hole]);
 
   // ── Made / Missed handlers ──────────────────────────────────
 
@@ -628,61 +626,16 @@ const HoleScoringScreen: React.FC = () => {
             <Icon name="undo" size={22} color="#fff" />
           </TouchableOpacity>
         )}
-        <View style={styles.mediaButtons}>
-          <TouchableOpacity
-            onPress={() => handleMediaCapture('photo')}
-            style={styles.mediaButtonCompact}
-            disabled={isCapturing}
-            accessibilityLabel={mediaCount.photos > 0 ? `Take photo, ${mediaCount.photos} attached` : 'Take photo'}
-            accessibilityRole="button"
-          >
-            {isCapturing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="camera" size={22} color="#fff" />
-                {mediaCount.photos > 0 && (
-                  <View style={styles.mediaBadge}>
-                    <Text style={styles.mediaBadgeText}>{mediaCount.photos}</Text>
-                  </View>
-                )}
-              </>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => handleMediaCapture('video')}
-            style={styles.mediaButtonCompact}
-            disabled={isCapturing}
-            accessibilityLabel={mediaCount.videos > 0 ? `Record video, ${mediaCount.videos} attached` : 'Record video'}
-            accessibilityRole="button"
-          >
-            {isCapturing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="videocam" size={22} color="#fff" />
-                {mediaCount.videos > 0 && (
-                  <View style={styles.mediaBadge}>
-                    <Text style={styles.mediaBadgeText}>{mediaCount.videos}</Text>
-                  </View>
-                )}
-              </>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleMediaFromLibrary}
-            style={styles.mediaButtonCompact}
-            disabled={isCapturing}
-            accessibilityLabel="Select from library"
-            accessibilityRole="button"
-          >
-            {isCapturing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Ionicons name="images" size={22} color="#fff" />
-            )}
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.undoBtn}
+          onPress={handleMediaFromLibrary}
+          disabled={isCapturing}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityLabel="Select from library"
+          accessibilityRole="button"
+        >
+          <Ionicons name="images" size={22} color="#fff" />
+        </TouchableOpacity>
         <View style={styles.scoreColumn}>
           <View style={styles.roundScoreBadge} accessibilityLabel={`Round score: ${formatScoreVsPar(roundScoreToPar)}`}>
             <Text style={styles.roundScoreValue}>{formatScoreVsPar(roundScoreToPar)}</Text>
@@ -712,10 +665,10 @@ const HoleScoringScreen: React.FC = () => {
         contentContainerStyle={[styles.bodyContent, { paddingBottom: Math.max(insets.bottom, 20) }]}
         keyboardShouldPersistTaps="handled"
       >
-        {step === 'tee_par3' && renderPar3Tee(handlePar3Tee)}
+        {step === 'tee_par3' && renderCompassSelector(handlePar3Tee)}
         {step === 'tee_par4' && renderPar4Tee(handlePar4Tee, bbdChecked, setBbdChecked)}
         {step === 'tee_par5' && renderPar5Tee(handlePar5Tee, bbdChecked, setBbdChecked)}
-        {step === 'approach_par3' && renderApproachShot(handleApproach)}
+        {step === 'approach_par3' && renderCompassSelector(handleApproach)}
         {step === 'approach_lie' && renderApproachLie(handleApproachLie)}
         {step === 'trouble' && renderTrouble(handleTrouble)}
         {step === 'chip' && renderChip(handleChip)}
@@ -783,74 +736,9 @@ async function calculateTotalScoreVsPar(roundId: string): Promise<number> {
   }
 }
 
-// ── Par 3 Tee / Approach buttons (5-button cross) ─────────────
+// ── 8-direction compass layout (shared by par 3 tee and approach) ──
 
-function renderPar3Tee(onSelect: (result: string) => void) {
-  return (
-    <View style={styles.buttonContainer}>
-      <Text style={styles.stepLabel}>Where did it go?</Text>
-      <View style={styles.crossLayout}>
-        {/* Top: Long */}
-        <View style={styles.crossRow}>
-          <View style={styles.crossSpacer} />
-          <TouchableOpacity
-            style={[styles.dirButton, styles.badButton]}
-            onPress={() => onSelect(SHOT_RESULTS.LONG)}
-            accessibilityLabel="Long"
-            accessibilityRole="button"
-          >
-            <Icon name="arrow-upward" size={36} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.crossSpacer} />
-        </View>
-        {/* Middle: Left, Center (green), Right */}
-        <View style={styles.crossRow}>
-          <TouchableOpacity
-            style={[styles.dirButton, styles.badButton]}
-            onPress={() => onSelect(SHOT_RESULTS.LEFT)}
-            accessibilityLabel="Missed left"
-            accessibilityRole="button"
-          >
-            <Icon name="arrow-back" size={36} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.dirButton, styles.goodButton]}
-            onPress={() => onSelect(SHOT_RESULTS.GREEN)}
-            accessibilityLabel="On green"
-            accessibilityRole="button"
-          >
-            <Icon name="adjust" size={36} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.dirButton, styles.badButton]}
-            onPress={() => onSelect(SHOT_RESULTS.RIGHT)}
-            accessibilityLabel="Missed right"
-            accessibilityRole="button"
-          >
-            <Icon name="arrow-forward" size={36} color="#fff" />
-          </TouchableOpacity>
-        </View>
-        {/* Bottom: Short */}
-        <View style={styles.crossRow}>
-          <View style={styles.crossSpacer} />
-          <TouchableOpacity
-            style={[styles.dirButton, styles.badButton]}
-            onPress={() => onSelect(SHOT_RESULTS.SHORT)}
-            accessibilityLabel="Short"
-            accessibilityRole="button"
-          >
-            <Icon name="arrow-downward" size={36} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.crossSpacer} />
-        </View>
-      </View>
-    </View>
-  );
-}
-
-// ── Approach shot buttons (8-arrow compass + center green) ──────
-
-function renderApproachShot(onSelect: (result: string) => void) {
+function renderCompassSelector(onSelect: (result: string) => void) {
   return (
     <View style={styles.buttonContainer}>
       <Text style={styles.stepLabel}>Where did it go?</Text>
@@ -1397,7 +1285,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 8, marginRight: 8, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   headerCenter: { flex: 1 },
-  headerTitle: { fontSize: 28, fontWeight: 'bold', color: S.white },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: S.white },
   headerSub: { fontSize: 14, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
   undoBtn: {
     padding: 8,
@@ -1408,37 +1296,6 @@ const styles = StyleSheet.create({
     minHeight: 44,
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
-  },
-  mediaButtons: {
-    flexDirection: 'row',
-    gap: 6,
-    marginRight: 8,
-  },
-  mediaButtonCompact: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 10,
-    borderRadius: 22,
-    position: 'relative' as const,
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
-  mediaBadge: {
-    position: 'absolute' as const,
-    top: -4,
-    right: -4,
-    backgroundColor: '#ff6b6b',
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
-  },
-  mediaBadgeText: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: 'bold',
   },
   scoreColumn: {
     alignItems: 'center',
@@ -1492,7 +1349,6 @@ const styles = StyleSheet.create({
   // Cross layout (par 3)
   crossLayout: { gap: 8 },
   crossRow: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
-  crossSpacer: { width: 80, height: 80 },
   dirButton: {
     width: 80,
     height: 80,
