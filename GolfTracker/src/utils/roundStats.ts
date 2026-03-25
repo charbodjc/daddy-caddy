@@ -35,6 +35,10 @@ export interface RunningRoundStats {
   teeShotsMissedRight: number;
   approachMissedLeft: number;
   approachMissedRight: number;
+  chipMissedLeft: number;
+  chipMissedRight: number;
+  chipMissedShort: number;
+  chipMissedLong: number;
   totalPenaltyStrokes: number;
   totalSandSaves: number;
   totalSandSaveAttempts: number;
@@ -131,6 +135,10 @@ export async function calculateRunningRoundStats(
     teeShotsMissedRight: 0,
     approachMissedLeft: 0,
     approachMissedRight: 0,
+    chipMissedLeft: 0,
+    chipMissedRight: 0,
+    chipMissedShort: 0,
+    chipMissedLong: 0,
     totalPenaltyStrokes: 0,
     totalSandSaves: 0,
     totalSandSaveAttempts: 0,
@@ -241,6 +249,23 @@ export async function calculateRunningRoundStats(
       }
     }
 
+    // Chip miss direction — each miss counts in exactly one bucket.
+    // Diagonals are classified by their primary axis (short/long trumps left/right)
+    // since distance control is more actionable for chipping.
+    const chipShots = shotData.shots.filter(s => s.type === SHOT_TYPES.CHIP);
+    for (const chip of chipShots) {
+      const r = chip.results;
+      const isShort = r.includes(SHOT_RESULTS.SHORT) || r.includes(SHOT_RESULTS.SHORT_LEFT) || r.includes(SHOT_RESULTS.SHORT_RIGHT);
+      const isLong = r.includes(SHOT_RESULTS.LONG) || r.includes(SHOT_RESULTS.LONG_LEFT) || r.includes(SHOT_RESULTS.LONG_RIGHT);
+      const isLeft = r.includes(SHOT_RESULTS.LEFT);
+      const isRight = r.includes(SHOT_RESULTS.RIGHT);
+
+      if (isShort) stats.chipMissedShort += 1;
+      else if (isLong) stats.chipMissedLong += 1;
+      else if (isLeft) stats.chipMissedLeft += 1;
+      else if (isRight) stats.chipMissedRight += 1;
+    }
+
     // Penalty strokes
     for (const shot of shotData.shots) {
       if (shot.penaltyStrokes) {
@@ -325,6 +350,10 @@ export function formatRunningStatsForSMS(stats: RunningRoundStats): string {
   }
   text += `Tee Missed L/R: ${stats.teeShotsMissedLeft}/${stats.teeShotsMissedRight}\n`;
   text += `Approach Missed L/R: ${stats.approachMissedLeft}/${stats.approachMissedRight}\n`;
+  const chipTotal = stats.chipMissedLeft + stats.chipMissedRight + stats.chipMissedShort + stats.chipMissedLong;
+  if (chipTotal > 0) {
+    text += `Chip Missed Short/Left/Right/Long: ${stats.chipMissedShort}/${stats.chipMissedLeft}/${stats.chipMissedRight}/${stats.chipMissedLong}\n`;
+  }
   text += `Penalty Strokes: ${stats.totalPenaltyStrokes}`;
   return text;
 }

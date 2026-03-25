@@ -42,6 +42,7 @@ import { HoleCard } from '../components/round/HoleCard';
 import { GolferPicker } from '../components/golfer/GolferPicker';
 import { ScreenHeader } from '../components/common/ScreenHeader';
 import { useGolfers } from '../hooks/useGolfers';
+import { resetCommentaryHistory } from '../utils/holeCommentary';
 
 interface RouteParams {
   roundId?: string;
@@ -99,6 +100,7 @@ const RoundTrackerScreen: React.FC = () => {
   const startRoundAfterConfirmation = async () => {
     setSaving(true);
     try {
+      resetCommentaryHistory();
       await createRound({
         courseName: courseName.trim(),
         golferId: selectedGolferId || undefined,

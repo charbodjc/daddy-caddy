@@ -318,6 +318,10 @@ const HoleScoringScreen: React.FC = () => {
   // ── Computed values ─────────────────────────────────────────
 
   const totalStrokes = useMemo(() => calculateTotalStrokes(shots), [shots]);
+  const chipLabel = useMemo(() => {
+    const count = shots.filter(s => s.type === SHOT_TYPES.CHIP).length;
+    return count > 0 ? `Chip Shot #${count + 1}` : 'Chip Shot';
+  }, [shots]);
 
   // ── Media capture handler ─────────────────────────────────
 
@@ -460,12 +464,11 @@ const HoleScoringScreen: React.FC = () => {
 
   // ── Chip handlers ───────────────────────────────────────────
 
-  const handleChip = useCallback((onGreen: boolean) => {
-    if (onGreen) {
-      addShot(SHOT_TYPES.CHIP, SHOT_RESULTS.GREEN);
+  const handleChip = useCallback((result: string) => {
+    addShot(SHOT_TYPES.CHIP, result);
+    if (result === SHOT_RESULTS.GREEN) {
       goToStep('putt_distance');
     } else {
-      addShot(SHOT_TYPES.CHIP, SHOT_RESULTS.MISSED);
       goToStep('chip');
     }
   }, [addShot, goToStep]);
@@ -665,13 +668,13 @@ const HoleScoringScreen: React.FC = () => {
         contentContainerStyle={[styles.bodyContent, { paddingBottom: Math.max(insets.bottom, 20) }]}
         keyboardShouldPersistTaps="handled"
       >
-        {step === 'tee_par3' && renderCompassSelector(handlePar3Tee)}
+        {step === 'tee_par3' && renderCompassSelector(handlePar3Tee, 'Tee Shot')}
         {step === 'tee_par4' && renderPar4Tee(handlePar4Tee, bbdChecked, setBbdChecked)}
         {step === 'tee_par5' && renderPar5Tee(handlePar5Tee, bbdChecked, setBbdChecked)}
-        {step === 'approach_par3' && renderCompassSelector(handleApproach)}
+        {step === 'approach_par3' && renderCompassSelector(handleApproach, 'Approach Shot')}
         {step === 'approach_lie' && renderApproachLie(handleApproachLie)}
         {step === 'trouble' && renderTrouble(handleTrouble)}
-        {step === 'chip' && renderChip(handleChip)}
+        {step === 'chip' && renderCompassSelector(handleChip, chipLabel)}
         {step === 'putt_distance' && renderPuttDistance(puttDistance, setPuttDistance, handlePuttDistanceSubmit)}
         {step === 'sms_preview' && renderSMSPreview(smsMessage, recipients, handleSendSMS, handleSkipSMS)}
         {step === 'made_missed' && renderMadeMissed(puttDistance, handleMade, handleMissed, saving)}
@@ -738,10 +741,11 @@ async function calculateTotalScoreVsPar(roundId: string): Promise<number> {
 
 // ── 8-direction compass layout (shared by par 3 tee and approach) ──
 
-function renderCompassSelector(onSelect: (result: string) => void) {
+function renderCompassSelector(onSelect: (result: string) => void, context: string) {
   return (
     <View style={styles.buttonContainer}>
-      <Text style={styles.stepLabel}>Where did it go?</Text>
+      <Text style={styles.stepContext}>{context}</Text>
+      <Text style={styles.stepLabel}>Where did it land?</Text>
       <View style={styles.crossLayout}>
         {/* Row 1: Long-Left, Long, Long-Right */}
         <View style={styles.crossRow}>
@@ -834,7 +838,8 @@ function renderCompassSelector(onSelect: (result: string) => void) {
 function renderApproachLie(onSelect: (lie: string) => void) {
   return (
     <View style={styles.buttonContainer}>
-      <Text style={styles.stepLabel}>Where did it end up?</Text>
+      <Text style={styles.stepContext}>Approach Shot</Text>
+      <Text style={styles.stepLabel}>What's the lie?</Text>
       {/* Row 1: Fairway, Rough, Bunker */}
       <View style={styles.troubleRow}>
         <TouchableOpacity
@@ -908,7 +913,8 @@ function renderPar4Tee(
 ) {
   return (
     <View style={styles.buttonContainer}>
-      <Text style={styles.stepLabel}>Tee Shot</Text>
+      <Text style={styles.stepContext}>Tee Shot</Text>
+      <Text style={styles.stepLabel}>Where did it land?</Text>
       {/* On Green button above */}
       <View style={styles.onGreenRow}>
         <TouchableOpacity
@@ -977,7 +983,8 @@ function renderPar5Tee(
 ) {
   return (
     <View style={styles.buttonContainer}>
-      <Text style={styles.stepLabel}>Tee Shot</Text>
+      <Text style={styles.stepContext}>Tee Shot</Text>
+      <Text style={styles.stepLabel}>Where did it land?</Text>
       {/* Left / Fairway / Right row */}
       <View style={styles.fairwayRow}>
         <TouchableOpacity
@@ -1030,7 +1037,8 @@ function renderPar5Tee(
 function renderTrouble(onSelect: (result: string) => void) {
   return (
     <View style={styles.buttonContainer}>
-      <Text style={styles.stepLabel}>Where is it?</Text>
+      <Text style={styles.stepContext}>Off the Tee</Text>
+      <Text style={styles.stepLabel}>What's the lie?</Text>
       {/* Row 1: Rough, Bunker */}
       <View style={styles.troubleRow}>
         <TouchableOpacity
@@ -1086,36 +1094,6 @@ function renderTrouble(onSelect: (result: string) => void) {
   );
 }
 
-// ── Chip shot buttons (2 icons: on green / not on green) ──────
-
-function renderChip(onSelect: (onGreen: boolean) => void) {
-  return (
-    <View style={styles.buttonContainer}>
-      <Text style={styles.stepLabel}>Chip Shot</Text>
-      <View style={styles.chipRow}>
-        <TouchableOpacity
-          style={[styles.chipButton, styles.goodButton]}
-          onPress={() => onSelect(true)}
-          accessibilityLabel="On green"
-          accessibilityRole="button"
-        >
-          <Icon name="flag" size={40} color="#fff" />
-          <Icon name="check-circle" size={20} color="#fff" style={styles.chipBadge} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.chipButton, styles.badButton]}
-          onPress={() => onSelect(false)}
-          accessibilityLabel="Not on green"
-          accessibilityRole="button"
-        >
-          <Icon name="flag" size={40} color="#fff" />
-          <Icon name="cancel" size={20} color="#fff" style={styles.chipBadge} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
 // ── Putt distance keypad ──────────────────────────────────────
 
 function renderPuttDistance(
@@ -1133,7 +1111,8 @@ function renderPuttDistance(
 
   return (
     <View style={styles.buttonContainer}>
-      <Text style={styles.stepLabel}>Putt Distance (feet)</Text>
+      <Text style={styles.stepContext}>On the Green</Text>
+      <Text style={styles.stepLabel}>How far from the pin?</Text>
       <View style={styles.distanceDisplay} accessibilityLabel={`${value || '0'} feet`}>
         <Text style={styles.distanceText}>{value || '0'}</Text>
         <Text style={styles.distanceUnit}>ft</Text>
@@ -1229,7 +1208,8 @@ function renderMadeMissed(
 ) {
   return (
     <View style={styles.buttonContainer}>
-      <Text style={styles.stepLabel}>{distance} ft putt...</Text>
+      <Text style={styles.stepContext}>Putt</Text>
+      <Text style={styles.stepLabel}>{distance} ft — make it?</Text>
       <View style={styles.madeMissedRow}>
         <TouchableOpacity
           style={[styles.madeMissedBtn, styles.goodButton, saving && styles.disabledButton]}
@@ -1338,6 +1318,15 @@ const styles = StyleSheet.create({
   scrollBody: { flex: 1 },
   bodyContent: { flexGrow: 1, justifyContent: 'center', padding: 20 },
   buttonContainer: { alignItems: 'center' },
+  stepContext: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#555',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
   stepLabel: {
     fontSize: 20,
     fontWeight: '600',
@@ -1461,25 +1450,6 @@ const styles = StyleSheet.create({
   troubleButtonText: { fontSize: 13, fontWeight: '600', color: S.white },
 
   // Chip buttons
-  chipRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 24,
-  },
-  chipButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  chipBadge: { position: 'absolute', bottom: 14, right: 14 },
-
   // Putt distance keypad
   distanceDisplay: {
     flexDirection: 'row',
