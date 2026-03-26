@@ -331,8 +331,8 @@ function accumulateV2HoleStats(
       }
     }
 
-    // Pitch/chip (< 50 yds, non-green, non-penalty)
-    if (dist < 50 && shot.outcome !== SHOT_OUTCOMES.PENALTY) {
+    // Pitch/chip (< 50 yds, non-green, non-tee, non-penalty)
+    if (dist < 50 && shot.lie !== LIE_TYPES.TEE && shot.outcome !== SHOT_OUTCOMES.PENALTY) {
       if (shot.lie === LIE_TYPES.SAND) {
         stats.greensideBunkerAttempts += 1;
         if (shot.outcome === SHOT_OUTCOMES.ON_TARGET && shot.resultLie === LIE_TYPES.GREEN) {
@@ -345,13 +345,6 @@ function accumulateV2HoleStats(
           if (hasRightComponent(shot.missDirection)) stats.pitchChipMissedRight += 1;
           if (hasShortComponent(shot.missDirection)) stats.pitchChipMissedShort += 1;
           if (hasLongComponent(shot.missDirection)) stats.pitchChipMissedLong += 1;
-        }
-        // Also feed existing chip stats
-        if (shot.outcome === SHOT_OUTCOMES.MISSED && shot.missDirection) {
-          if (hasShortComponent(shot.missDirection)) stats.chipMissedShort += 1;
-          else if (hasLongComponent(shot.missDirection)) stats.chipMissedLong += 1;
-          else if (hasLeftComponent(shot.missDirection)) stats.chipMissedLeft += 1;
-          else if (hasRightComponent(shot.missDirection)) stats.chipMissedRight += 1;
         }
       }
     }
@@ -445,6 +438,7 @@ export async function calculateRunningRoundStats(
   const holes: Hole[] = await round.holes.fetch();
 
   for (const hole of holes) {
+   try {
     if (hole.strokes <= 0) continue;
 
     const shotData = parseShotData(hole.shotData);
@@ -575,6 +569,9 @@ export async function calculateRunningRoundStats(
         stats.totalSandSaves += 1;
       }
     }
+   } catch (e) {
+    console.warn(`Skipping hole ${hole.holeNumber} in stats: ${e}`);
+   }
   }
 
   if (stats.holesWithFirstPuttData > 0) {
@@ -633,9 +630,12 @@ export function formatRunningStatsForSMS(stats: RunningRoundStats): string {
   }
   text += `Tee Missed L/R: ${stats.teeShotsMissedLeft}/${stats.teeShotsMissedRight}\n`;
   text += `Approach Missed L/R: ${stats.approachMissedLeft}/${stats.approachMissedRight}\n`;
-  const chipTotal = stats.chipMissedLeft + stats.chipMissedRight + stats.chipMissedShort + stats.chipMissedLong;
-  if (chipTotal > 0) {
-    text += `Chip Missed Short/Left/Right/Long: ${stats.chipMissedShort}/${stats.chipMissedLeft}/${stats.chipMissedRight}/${stats.chipMissedLong}\n`;
+  const pitchMissTotal = stats.pitchChipMissedLeft + stats.pitchChipMissedRight + stats.pitchChipMissedShort + stats.pitchChipMissedLong;
+  const chipMissTotal = stats.chipMissedLeft + stats.chipMissedRight + stats.chipMissedShort + stats.chipMissedLong;
+  if (pitchMissTotal > 0) {
+    text += `Pitch Miss S/L/R/Lg: ${stats.pitchChipMissedShort}/${stats.pitchChipMissedLeft}/${stats.pitchChipMissedRight}/${stats.pitchChipMissedLong}\n`;
+  } else if (chipMissTotal > 0) {
+    text += `Chip Miss S/L/R/Lg: ${stats.chipMissedShort}/${stats.chipMissedLeft}/${stats.chipMissedRight}/${stats.chipMissedLong}\n`;
   }
   text += `Penalty Strokes: ${stats.totalPenaltyStrokes}`;
 
