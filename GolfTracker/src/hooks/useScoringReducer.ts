@@ -16,7 +16,6 @@ export type ScoringPhase =
   | 'awaiting_direction'      // Compass visible, clean slate
   | 'awaiting_action'         // Center button tapped → Commit / Describe
   | 'awaiting_classification' // Direction tapped (or Describe) → classification panel
-  | 'awaiting_distance'       // Distance button tapped → numeric keypad
   | 'awaiting_putt_distance'  // Auto-prompt after Green commit → ft keypad
   | 'hole_complete';          // In The Hole confirmed → SMS + navigate away
 
@@ -74,7 +73,6 @@ export interface ScoringState {
   pendingDirection: ShotResult | null;
   pendingCenterResult: CenterResult | null;
   pendingClassification: Classification | null;
-  pendingDistance: string;
 
   // Shot type
   derivedShotType: ShotType;
@@ -93,7 +91,6 @@ export type ScoringAction =
   | { type: 'TAP_CENTER'; result: CenterResult }
   | { type: 'TAP_DIRECTION'; direction: ShotResult }
   | { type: 'TAP_CLASSIFICATION'; classification: Classification }
-  | { type: 'TAP_DISTANCE' }
   | { type: 'SUBMIT_DISTANCE'; value: string }
   | { type: 'SKIP_DISTANCE' }
   | { type: 'COMMIT' }
@@ -112,7 +109,6 @@ function clearPending(state: ScoringState): ScoringState {
     pendingDirection: null,
     pendingCenterResult: null,
     pendingClassification: null,
-    pendingDistance: '',
     overriddenShotType: null,
   };
 }
@@ -162,13 +158,6 @@ function buildShotFromState(state: ScoringState): TrackedShot {
     results,
   };
 
-  // Distance
-  if (state.isOnGreen && state.pendingDistance) {
-    shot.puttDistance = `${state.pendingDistance} ft`;
-  } else if (!state.isOnGreen && state.pendingDistance) {
-    shot.distance = `${state.pendingDistance} yds`;
-  }
-
   // Attach first putt distance if this is the first putt and distance was auto-prompted
   if (state.firstPuttDistance && shotType === SHOT_TYPES.PUTT && !shot.puttDistance) {
     shot.puttDistance = `${state.firstPuttDistance} ft`;
@@ -180,6 +169,37 @@ function buildShotFromState(state: ScoringState): TrackedShot {
   }
 
   return shot;
+}
+
+// ── Shared commit logic ─────────────────────────────────────────
+
+function commitShot(state: ScoringState): ScoringState {
+  const shot = buildShotFromState(state);
+  const updatedShots = [...state.shots, shot];
+  const nextStroke = state.currentStroke + 1;
+
+  const landedOnGreen = state.pendingCenterResult === 'green';
+  const isOnGreen = deriveIsOnGreen(updatedShots);
+  const newDerived = deriveShotType(nextStroke, isOnGreen);
+
+  if (landedOnGreen) {
+    return {
+      ...clearPending({ ...state, shots: updatedShots, currentStroke: nextStroke }),
+      phase: 'awaiting_putt_distance',
+      isOnGreen: true,
+      derivedShotType: newDerived,
+    };
+  }
+
+  const consumedPuttDistance = state.firstPuttDistance && shot.puttDistance;
+
+  return {
+    ...clearPending({ ...state, shots: updatedShots, currentStroke: nextStroke }),
+    phase: 'awaiting_direction',
+    isOnGreen,
+    derivedShotType: newDerived,
+    ...(consumedPuttDistance ? { firstPuttDistance: null } : {}),
+  };
 }
 
 // ── Reducer ─────────────────────────────────────────────────────
@@ -195,6 +215,14 @@ function scoringReducer(state: ScoringState, action: ScoringAction): ScoringStat
           pendingCenterResult: 'hole',
         };
       }
+
+      if (action.result === 'fairway') {
+        // Fairway — auto-commit immediately, no Commit/Describe step needed
+        const withPending: ScoringState = { ...state, pendingCenterResult: 'fairway', pendingDirection: null };
+        return commitShot(withPending);
+      }
+
+      // Green — show Commit / Describe
       return {
         ...state,
         phase: 'awaiting_action',
@@ -219,16 +247,8 @@ function scoringReducer(state: ScoringState, action: ScoringAction): ScoringStat
       };
     }
 
-    case 'TAP_DISTANCE': {
-      return {
-        ...state,
-        phase: 'awaiting_distance',
-        pendingDistance: '',
-      };
-    }
-
     case 'SUBMIT_DISTANCE': {
-      // Return to classification phase with distance stored, or to awaiting_direction if from putt distance
+      // Return to awaiting_direction if from putt distance prompt
       if (state.phase === 'awaiting_putt_distance') {
         const isOnGreen = true;
         const newDerived = deriveShotType(state.currentStroke, isOnGreen);
@@ -241,11 +261,8 @@ function scoringReducer(state: ScoringState, action: ScoringAction): ScoringStat
           firstPuttDistance: action.value,
         };
       }
-      return {
-        ...state,
-        phase: 'awaiting_classification',
-        pendingDistance: action.value,
-      };
+      // SUBMIT_DISTANCE is now only used for putt distance
+      return state;
     }
 
     case 'SKIP_DISTANCE': {
@@ -259,13 +276,12 @@ function scoringReducer(state: ScoringState, action: ScoringAction): ScoringStat
           derivedShotType: newDerived,
         };
       }
-      return {
-        ...state,
-        phase: 'awaiting_classification',
-      };
+      return state;
     }
 
     case 'DESCRIBE': {
+      // Only valid from awaiting_action (after tapping a center button)
+      if (state.phase !== 'awaiting_action') return state;
       return {
         ...state,
         phase: 'awaiting_classification',
@@ -273,50 +289,11 @@ function scoringReducer(state: ScoringState, action: ScoringAction): ScoringStat
     }
 
     case 'COMMIT': {
-      const shot = buildShotFromState(state);
-      const updatedShots = [...state.shots, shot];
-      const nextStroke = state.currentStroke + 1;
-
       if (state.pendingCenterResult === 'hole') {
         // This is handled by CONFIRM_HOLE_COMPLETE, not COMMIT
         return state;
       }
-
-      // Derive isOnGreen from the actual shot data — handles missed putts rolling
-      // off the green, chip-ins, and all other edge cases consistently.
-      const landedOnGreen = state.pendingCenterResult === 'green';
-      const isOnGreen = deriveIsOnGreen(updatedShots);
-
-      const newDerived = deriveShotType(nextStroke, isOnGreen);
-
-      if (landedOnGreen) {
-        // Auto-prompt putt distance
-        return {
-          ...clearPending({
-            ...state,
-            shots: updatedShots,
-            currentStroke: nextStroke,
-          }),
-          phase: 'awaiting_putt_distance',
-          isOnGreen: true,
-          derivedShotType: newDerived,
-        };
-      }
-
-      // Clear firstPuttDistance if it was consumed by this putt
-      const consumedPuttDistance = state.firstPuttDistance && shot.puttDistance;
-
-      return {
-        ...clearPending({
-          ...state,
-          shots: updatedShots,
-          currentStroke: nextStroke,
-        }),
-        phase: 'awaiting_direction',
-        isOnGreen,
-        derivedShotType: newDerived,
-        ...(consumedPuttDistance ? { firstPuttDistance: null } : {}),
-      };
+      return commitShot(state);
     }
 
     case 'CONFIRM_HOLE_COMPLETE': {
@@ -420,7 +397,6 @@ export function createInitialState(par: number): ScoringState {
     pendingDirection: null,
     pendingCenterResult: null,
     pendingClassification: null,
-    pendingDistance: '',
     derivedShotType: SHOT_TYPES.TEE_SHOT,
     overriddenShotType: null,
     firstPuttDistance: null,
@@ -447,7 +423,6 @@ export function useScoringReducer(par: number) {
 
     if (state.pendingCenterResult) {
       const resultLabel =
-        state.pendingCenterResult === 'fairway' ? 'in the fairway' :
         state.pendingCenterResult === 'green' ? 'on the green' :
         'in the hole';
       return `${typeLabel} ${resultLabel}`;

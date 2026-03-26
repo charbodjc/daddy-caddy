@@ -33,7 +33,7 @@ import Golfer from '../database/watermelon/models/Golfer';
 import {
   SHOT_TYPES,
 } from '../types';
-import type { TrackedShot, ShotData, SmsContact, ShotType } from '../types';
+import type { TrackedShot, ShotData, SmsContact, ShotType, ShotResult } from '../types';
 import { parseShotData, deriveHoleStats, calculateTotalStrokes, calculateRunningRoundStats } from '../utils/roundStats';
 import { getScoreName } from '../utils/scoreColors';
 import { formatScoreVsPar } from '../utils/scoreCalculations';
@@ -45,6 +45,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RouteProp } from '@react-navigation/native';
 
 import { useScoringReducer } from '../hooks/useScoringReducer';
+import type { CenterResult, Classification } from '../hooks/useScoringReducer';
 import { ShotCompass } from '../components/scoring/ShotCompass';
 import { ClassificationPanel } from '../components/scoring/ClassificationPanel';
 import { CommitDescribeBar } from '../components/scoring/CommitDescribeBar';
@@ -89,6 +90,7 @@ const HoleScoringScreen: React.FC = () => {
   // Retry
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCount = useRef(0);
+  const persistGeneration = useRef(0);
   const MAX_RETRIES = 3;
   const prevHoleStrokes = useRef(0);
   const completingRef = useRef(false);
@@ -103,6 +105,28 @@ const HoleScoringScreen: React.FC = () => {
     canUndo,
     restore,
   } = useScoringReducer(hole?.par ?? 4);
+
+  // Stable dispatch callbacks — dispatch identity never changes (React guarantee)
+  const handleDirection = useCallback(
+    (d: ShotResult) => dispatch({ type: 'TAP_DIRECTION', direction: d }),
+    [dispatch],
+  );
+  const handleCenter = useCallback(
+    (r: CenterResult) => dispatch({ type: 'TAP_CENTER', result: r }),
+    [dispatch],
+  );
+  const handleClassify = useCallback(
+    (c: Classification) => dispatch({ type: 'TAP_CLASSIFICATION', classification: c }),
+    [dispatch],
+  );
+  const handleDescribe = useCallback(
+    () => dispatch({ type: 'DESCRIBE' }),
+    [dispatch],
+  );
+  const handleCommitClassification = useCallback(
+    () => dispatch({ type: 'COMMIT' }),
+    [dispatch],
+  );
 
   // Clean up retry timer on unmount
   useEffect(() => {
@@ -166,6 +190,10 @@ const HoleScoringScreen: React.FC = () => {
 
   const persistShots = useCallback(async (updatedShots: TrackedShot[], nextStroke: number) => {
     if (!hole || !roundId) return;
+
+    // Bump generation so any in-flight retries from prior calls bail out
+    const gen = ++persistGeneration.current;
+
     try {
       const shotData: ShotData = { par: hole.par, shots: updatedShots, currentStroke: nextStroke };
       const stats = updatedShots.length > 0 ? deriveHoleStats(shotData, hole.par) : null;
@@ -181,15 +209,20 @@ const HoleScoringScreen: React.FC = () => {
         shotData: JSON.stringify(shotData),
       });
 
+      // Only update state if this is still the latest persist
+      if (gen !== persistGeneration.current) return;
       setSaveError(false);
       retryCount.current = 0;
       prevHoleStrokes.current = strokes;
     } catch {
+      // Only retry if this is still the latest persist
+      if (gen !== persistGeneration.current) return;
       setSaveError(true);
       if (retryCount.current < MAX_RETRIES) {
         retryCount.current += 1;
         if (retryTimer.current) clearTimeout(retryTimer.current);
         retryTimer.current = setTimeout(() => {
+          if (gen !== persistGeneration.current) return;
           persistShots(updatedShots, nextStroke);
         }, 2000);
       }
@@ -524,8 +557,8 @@ const HoleScoringScreen: React.FC = () => {
         {scoringState.phase === 'awaiting_direction' && (
           <ShotCompass
             isOnGreen={scoringState.isOnGreen}
-            onDirection={(d) => dispatch({ type: 'TAP_DIRECTION', direction: d })}
-            onCenter={(r) => dispatch({ type: 'TAP_CENTER', result: r })}
+            onDirection={handleDirection}
+            onCenter={handleCenter}
           />
         )}
 
@@ -533,13 +566,13 @@ const HoleScoringScreen: React.FC = () => {
           <View style={styles.actionPhase}>
             <ShotCompass
               isOnGreen={scoringState.isOnGreen}
-              onDirection={(d) => dispatch({ type: 'TAP_DIRECTION', direction: d })}
-              onCenter={(r) => dispatch({ type: 'TAP_CENTER', result: r })}
+              onDirection={handleDirection}
+              onCenter={handleCenter}
               disabled
             />
             <CommitDescribeBar
               onCommit={handleCommitOrConfirm}
-              onDescribe={() => dispatch({ type: 'DESCRIBE' })}
+              onDescribe={handleDescribe}
               canCommit={canCommit}
               showDescribe={scoringState.pendingCenterResult !== 'hole'}
             />
@@ -550,32 +583,22 @@ const HoleScoringScreen: React.FC = () => {
           <View style={styles.classificationPhase}>
             <ShotCompass
               isOnGreen={scoringState.isOnGreen}
-              onDirection={(d) => dispatch({ type: 'TAP_DIRECTION', direction: d })}
-              onCenter={(r) => dispatch({ type: 'TAP_CENTER', result: r })}
+              onDirection={handleDirection}
+              onCenter={handleCenter}
               disabled
             />
             <ClassificationPanel
               isOnGreen={scoringState.isOnGreen}
               selected={scoringState.pendingClassification}
-              onClassify={(c) => dispatch({ type: 'TAP_CLASSIFICATION', classification: c })}
-              onDistance={() => dispatch({ type: 'TAP_DISTANCE' })}
+              onClassify={handleClassify}
             />
             <CommitDescribeBar
-              onCommit={() => dispatch({ type: 'COMMIT' })}
-              onDescribe={() => {}}
+              onCommit={handleCommitClassification}
               canCommit={canCommit}
               showDescribe={false}
               commitLabel="Commit"
             />
           </View>
-        )}
-
-        {scoringState.phase === 'awaiting_distance' && (
-          <DistanceKeypad
-            unit={scoringState.isOnGreen ? 'ft' : 'yds'}
-            onSubmit={(v) => dispatch({ type: 'SUBMIT_DISTANCE', value: v })}
-            onSkip={() => dispatch({ type: 'SKIP_DISTANCE' })}
-          />
         )}
 
         {scoringState.phase === 'awaiting_putt_distance' && (

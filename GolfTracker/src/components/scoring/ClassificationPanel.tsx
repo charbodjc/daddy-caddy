@@ -1,7 +1,7 @@
 /**
  * ClassificationPanel — Lie classification after a miss direction.
- * Off-green: Fairway | Rough | Bunker | Trouble | Hazard | Lost + Distance
- * On-green: Distance only (missed putt stays on green)
+ * Off-green: Fairway | Rough | Bunker | Trouble | Hazard | Lost
+ * Returns null when on green (no classification needed for putts).
  */
 
 import React from 'react';
@@ -15,7 +15,6 @@ interface ClassificationPanelProps {
   isOnGreen: boolean;
   selected: Classification | null;
   onClassify: (c: Classification) => void;
-  onDistance: () => void;
   disabled?: boolean;
 }
 
@@ -44,12 +43,13 @@ export const ClassificationPanel = React.memo(function ClassificationPanel({
   isOnGreen,
   selected,
   onClassify,
-  onDistance,
   disabled = false,
 }: ClassificationPanelProps) {
+  if (isOnGreen) return null;
+
   return (
     <View style={styles.panel}>
-      {!isOnGreen && CLASSIFICATIONS.map((row, rowIdx) => (
+      {CLASSIFICATIONS.map((row, rowIdx) => (
         <View key={rowIdx} style={styles.row}>
           {row.map((c) => (
             <TouchableOpacity
@@ -81,19 +81,6 @@ export const ClassificationPanel = React.memo(function ClassificationPanel({
         </View>
       ))}
 
-      <TouchableOpacity
-        style={[styles.distanceButton, disabled && styles.disabled]}
-        onPress={onDistance}
-        disabled={disabled}
-        accessibilityLabel={isOnGreen ? 'Enter distance in feet' : 'Enter distance in yards'}
-        accessibilityRole="button"
-        accessibilityState={{ disabled }}
-      >
-        <Icon name="straighten" size={20} color="#333" />
-        <Text style={styles.distanceText}>
-          Distance ({isOnGreen ? 'ft' : 'yds'})
-        </Text>
-      </TouchableOpacity>
     </View>
   );
 });
@@ -140,24 +127,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 1,
     overflow: 'hidden',
-  },
-  distanceButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    backgroundColor: SCORING_COLORS.disabled,
-    alignSelf: 'center',
-    minWidth: 160,
-    minHeight: 44,
-  },
-  distanceText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
   },
   disabled: {
     opacity: SCORING_COLORS.disabledOpacity,
