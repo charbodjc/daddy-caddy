@@ -22,6 +22,13 @@ export const SCORING_COLORS = {
   hazard: '#0288D1',
   lost: '#9E9E9E',
 
+  // Putt miss buttons (gradient for visual hierarchy)
+  puttMissLongHigh: '#BF360C',
+  puttMissLongLow: '#D84315',
+  puttMissShortHigh: '#E65100',
+  puttMissShortLow: '#EF6C00',
+  puttMissSide: '#546E7A',
+
   // Misc
   skip: '#9E9E9E',
   disabled: '#e0e0e0',

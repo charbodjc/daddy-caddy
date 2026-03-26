@@ -31,11 +31,12 @@ import aiService from '../services/aiHoleAnalysis';
 import SMSService from '../services/sms';
 import MediaService from '../services/media';
 import { holeToGolfHole } from '../services/adapters';
-import { parseShotData, deriveHoleStats, calculateRunningRoundStats, formatRunningStatsForSMS } from '../utils/roundStats';
+import { parseShotData, deriveHoleStats, deriveHoleStatsV2, calculateRunningRoundStats, formatRunningStatsForSMS } from '../utils/roundStats';
 import { getResultLabel } from '../utils/shotLabels';
+import { shotLabelV2, shotColorV2, shotIconV2 } from '../utils/shotDataV2Helpers';
 import { getScoreColor, getScoreName } from '../utils/scoreColors';
-import { SHOT_TYPES, SHOT_RESULTS } from '../types';
-import type { MediaItem } from '../types';
+import { SHOT_TYPES, SHOT_RESULTS, isShotDataV2 } from '../types';
+import type { TrackedShot, TrackedShotV2, MediaItem } from '../types';
 import type { ScoringStackParamList } from '../types/navigation';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RouteProp } from '@react-navigation/native';
@@ -193,7 +194,10 @@ const HoleSummaryScreen: React.FC = () => {
 
   const scoreInfo = getScoreDisplay(hole.strokes, hole.par);
   const shotData = parseShotData(hole.shotData);
-  const stats = shotData ? deriveHoleStats(shotData, hole.par) : null;
+  const isV2 = shotData ? isShotDataV2(shotData) : false;
+  const stats = shotData
+    ? (isV2 ? deriveHoleStatsV2(shotData as import('../types').ShotDataV2, hole.par) : deriveHoleStats(shotData as import('../types').ShotData, hole.par))
+    : null;
   const isLastHole = hole.holeNumber >= totalHoles;
 
   return (
@@ -236,18 +240,29 @@ const HoleSummaryScreen: React.FC = () => {
         {shotData && shotData.shots.length > 0 && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Shot Breakdown</Text>
-            {shotData.shots.map((shot, i) => (
-              <View key={i} style={styles.shotRow}>
-                <Icon name={shotIcon(shot.type)} size={20} color={shotColor(shot)} />
-                <View style={styles.shotInfo}>
-                  <Text style={styles.shotType}>{shot.type}</Text>
-                  <Text style={styles.shotResult}>
-                    {shot.results.map(getResultLabel).join(', ')}
-                    {shot.puttDistance ? ` (${shot.puttDistance})` : ''}
-                  </Text>
-                </View>
-              </View>
-            ))}
+            {isV2
+              ? (shotData.shots as TrackedShotV2[]).map((shot, i) => (
+                  <View key={i} style={styles.shotRow}>
+                    <Icon name={shotIconV2(shot)} size={20} color={shotColorV2(shot)} />
+                    <View style={styles.shotInfo}>
+                      <Text style={styles.shotType}>Shot {shot.stroke}</Text>
+                      <Text style={styles.shotResult}>{shotLabelV2(shot)}</Text>
+                    </View>
+                  </View>
+                ))
+              : (shotData.shots as TrackedShot[]).map((shot, i) => (
+                  <View key={i} style={styles.shotRow}>
+                    <Icon name={shotIcon(shot.type)} size={20} color={shotColor(shot)} />
+                    <View style={styles.shotInfo}>
+                      <Text style={styles.shotType}>{shot.type}</Text>
+                      <Text style={styles.shotResult}>
+                        {shot.results.map(getResultLabel).join(', ')}
+                        {shot.puttDistance ? ` (${shot.puttDistance})` : ''}
+                      </Text>
+                    </View>
+                  </View>
+                ))
+            }
           </View>
         )}
 

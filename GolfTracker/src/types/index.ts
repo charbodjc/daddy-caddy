@@ -37,8 +37,8 @@ export const SHOT_RESULTS = {
 
 export type ShotResult = typeof SHOT_RESULTS[keyof typeof SHOT_RESULTS];
 
-// ── Shot data structures ───────────────────────────────────────
-// This is the actual format stored by ShotTrackingScreen in the DB.
+// ── Shot data structures (V1 — legacy) ────────────────────────
+// Original format stored by the compass-first scoring UI.
 
 export interface TrackedShot {
   stroke: number;
@@ -57,6 +57,104 @@ export interface ShotData {
   currentStroke: number;
 }
 
+// ── Shot data structures (V2 — telephone scoring) ─────────────
+// Structured per-shot data with explicit lie, distance, swing, and result fields.
+
+export const LIE_TYPES = {
+  TEE: 'tee',
+  FAIRWAY: 'fairway',
+  ROUGH: 'rough',
+  SAND: 'sand',
+  GREEN: 'green',
+  TROUBLE: 'trouble',
+} as const;
+
+export type LieType = typeof LIE_TYPES[keyof typeof LIE_TYPES];
+
+export const SWING_TYPES = {
+  FREE: 'free',
+  RESTRICTED: 'restricted',
+} as const;
+
+export type SwingType = typeof SWING_TYPES[keyof typeof SWING_TYPES];
+
+export const MISS_DIRECTIONS = {
+  LEFT: 'left',
+  RIGHT: 'right',
+  SHORT: 'short',
+  LONG: 'long',
+  SHORT_LEFT: 'short_left',
+  SHORT_RIGHT: 'short_right',
+  LONG_LEFT: 'long_left',
+  LONG_RIGHT: 'long_right',
+} as const;
+
+export type MissDirection = typeof MISS_DIRECTIONS[keyof typeof MISS_DIRECTIONS];
+
+export const SHOT_OUTCOMES = {
+  ON_TARGET: 'on_target',
+  MISSED: 'missed',
+  HOLED: 'holed',
+  PENALTY: 'penalty',
+} as const;
+
+export type ShotOutcome = typeof SHOT_OUTCOMES[keyof typeof SHOT_OUTCOMES];
+
+export const PENALTY_TYPES = {
+  OB: 'ob',
+  HAZARD: 'hazard',
+  LOST: 'lost',
+} as const;
+
+export type PenaltyType = typeof PENALTY_TYPES[keyof typeof PENALTY_TYPES];
+
+export const PUTT_MISS_DISTANCE = {
+  LONG: 'long',
+  SHORT: 'short',
+} as const;
+
+export type PuttMissDistance = typeof PUTT_MISS_DISTANCE[keyof typeof PUTT_MISS_DISTANCE];
+
+export const PUTT_MISS_BREAK = {
+  HIGH: 'high',
+  LOW: 'low',
+} as const;
+
+export type PuttMissBreak = typeof PUTT_MISS_BREAK[keyof typeof PUTT_MISS_BREAK];
+
+export type DistanceUnit = 'yds' | 'ft';
+
+export interface TrackedShotV2 {
+  stroke: number;
+
+  // Starting conditions
+  lie: LieType;
+  distanceToHole?: number;
+  distanceUnit: DistanceUnit;
+  swing: SwingType;
+
+  // Result
+  outcome: ShotOutcome;
+  missDirection?: MissDirection;
+  puttMissDistance?: PuttMissDistance;
+  puttMissBreak?: PuttMissBreak;
+  resultLie?: LieType;
+  penaltyType?: PenaltyType;
+  penaltyStrokes?: number;
+}
+
+export interface ShotDataV2 {
+  version: 2;
+  par: number;
+  shots: TrackedShotV2[];
+  currentStroke: number;
+}
+
+/** Type guard: returns true if parsed shot data is V2 format. */
+export function isShotDataV2(data: ShotData | ShotDataV2): data is ShotDataV2 {
+  return 'version' in data && data.version === 2;
+}
+
 // ── Core domain interfaces ─────────────────────────────────────
 
 export interface GolfHole {
@@ -68,7 +166,7 @@ export interface GolfHole {
   putts?: number;
   notes?: string;
   mediaUrls?: string[];
-  shotData?: ShotData;
+  shotData?: ShotData | ShotDataV2;
 }
 
 export interface SmsContact {
