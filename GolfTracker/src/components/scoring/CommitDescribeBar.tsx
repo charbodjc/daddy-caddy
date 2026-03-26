@@ -11,7 +11,7 @@ import { SCORING_COLORS } from './colors';
 
 interface CommitDescribeBarProps {
   onCommit: () => void;
-  onDescribe: () => void;
+  onDescribe?: () => void;
   canCommit: boolean;
   showDescribe?: boolean;
   commitLabel?: string;
@@ -46,7 +46,7 @@ export const CommitDescribeBar = React.memo(function CommitDescribeBar({
         <Text style={styles.commitText}>{commitLabel}</Text>
       </TouchableOpacity>
 
-      {showDescribe && (
+      {showDescribe && onDescribe && (
         <TouchableOpacity
           style={[styles.describeBtn, disabled && styles.disabled]}
           onPress={onDescribe}

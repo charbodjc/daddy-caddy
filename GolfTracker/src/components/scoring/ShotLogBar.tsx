@@ -58,7 +58,7 @@ export const ShotLogBar = React.memo(function ShotLogBar({ shots }: ShotLogBarPr
     <View
       style={styles.bar}
       accessibilityLabel={`Shot log: ${shots.length} shots. ${descriptions}`}
-      accessibilityRole="summary"
+      accessibilityRole="text"
     >
       <Text style={styles.text}>{emojiTrail}</Text>
     </View>

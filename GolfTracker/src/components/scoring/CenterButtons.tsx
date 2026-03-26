@@ -44,7 +44,6 @@ export const CenterButtons = React.memo(function CenterButtons({
         style={[styles.centerBtn, styles.fairwayBtn, disabled && styles.disabled]}
         onPress={() => onPress('fairway')}
         disabled={disabled}
-        hitSlop={{ top: 6, bottom: 2, left: 4, right: 4 }}
         accessibilityLabel="Fairway"
         accessibilityHint="Record shot landing in the fairway"
         accessibilityRole="button"
@@ -56,7 +55,6 @@ export const CenterButtons = React.memo(function CenterButtons({
         style={[styles.centerBtn, styles.greenBtn, disabled && styles.disabled]}
         onPress={() => onPress('green')}
         disabled={disabled}
-        hitSlop={{ top: 2, bottom: 2, left: 4, right: 4 }}
         accessibilityLabel="Green"
         accessibilityHint="Record shot landing on the green"
         accessibilityRole="button"
@@ -68,7 +66,6 @@ export const CenterButtons = React.memo(function CenterButtons({
         style={[styles.centerBtn, styles.holeSmallBtn, disabled && styles.disabled]}
         onPress={() => onPress('hole')}
         disabled={disabled}
-        hitSlop={{ top: 2, bottom: 6, left: 4, right: 4 }}
         accessibilityLabel="In the hole"
         accessibilityHint="Record the ball going in the hole"
         accessibilityRole="button"
@@ -83,16 +80,16 @@ export const CenterButtons = React.memo(function CenterButtons({
 const styles = StyleSheet.create({
   centerStack: {
     width: 90,
-    gap: 2,
+    gap: 4,
     alignItems: 'center',
   },
   centerBtn: {
     width: 90,
-    minHeight: 28,
+    minHeight: 44,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 8,
   },
   centerSingle: {
     width: 80,
@@ -126,7 +123,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   buttonTextSmall: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700',
     color: SCORING_COLORS.white,
   },

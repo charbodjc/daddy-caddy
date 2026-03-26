@@ -7,6 +7,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { SCORING_COLORS } from './colors';
 
 const MAX_DIGITS = 3;
 
@@ -29,11 +30,11 @@ export const DistanceKeypad = React.memo(function DistanceKeypad({
     if (key === 'del') {
       setValue(prev => prev.slice(0, -1));
     } else if (key === 'OK') {
-      if (value) onSubmit(value);
+      setValue(prev => { if (prev) onSubmit(prev); return prev; });
     } else {
       setValue(prev => prev.length < MAX_DIGITS ? prev + key : prev);
     }
-  }, [value, onSubmit]);
+  }, [onSubmit]);
 
   return (
     <View style={styles.container}>
@@ -153,7 +154,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   okKey: {
-    backgroundColor: '#2E7D32',
+    backgroundColor: SCORING_COLORS.green,
   },
   okDisabled: {
     opacity: 0.3,
