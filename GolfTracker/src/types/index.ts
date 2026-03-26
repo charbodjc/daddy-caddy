@@ -45,6 +45,8 @@ export interface TrackedShot {
   type: string; // ShotType at write time, but historical data may have variants
   results: string[]; // ShotResult at write time, but historical data may have variants
   puttDistance?: string;
+  /** Distance remaining after this shot, in yards (e.g. "150 yds"). Off-green only. */
+  distance?: string;
   /** Extra strokes added by a penalty (1 for OB/lost ball, 2 for stroke-and-distance). 0 or undefined for normal shots. */
   penaltyStrokes?: number;
 }
