@@ -23,6 +23,8 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { Q } from '@nozbe/watermelondb';
 import { parseShotData } from '../utils/roundStats';
+import { isShotDataV2 } from '../types';
+import { shotLabelV2 } from '../utils/shotDataV2Helpers';
 import { getScoreColor, getScoreName } from '../utils/scoreColors';
 
 interface RouteParams {
@@ -224,18 +226,27 @@ const HoleDetailsScreen: React.FC = () => {
       {/* Shot Data Section */}
       {hole.shotData && (() => {
         const shotData = parseShotData(hole.shotData);
-        return shotData && shotData.shots.length > 0 ? (
+        if (!shotData || shotData.shots.length === 0) return null;
+        const isV2 = isShotDataV2(shotData);
+        return (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Shot Data</Text>
             <View style={styles.shotDataCard}>
-              {shotData.shots.map((shot, index) => (
-                <Text key={index} style={styles.shotDataText}>
-                  {shot.type} (Stroke {shot.stroke}): {shot.results.join(', ')}
-                </Text>
-              ))}
+              {isV2
+                ? (shotData.shots as import('../types').TrackedShotV2[]).map((shot, index) => (
+                    <Text key={index} style={styles.shotDataText}>
+                      {shotLabelV2(shot)} (Stroke {shot.stroke})
+                    </Text>
+                  ))
+                : (shotData.shots as import('../types').TrackedShot[]).map((shot, index) => (
+                    <Text key={index} style={styles.shotDataText}>
+                      {shot.type} (Stroke {shot.stroke}): {shot.results.join(', ')}
+                    </Text>
+                  ))
+              }
             </View>
           </View>
-        ) : null;
+        );
       })()}
       </ScrollView>
     </View>

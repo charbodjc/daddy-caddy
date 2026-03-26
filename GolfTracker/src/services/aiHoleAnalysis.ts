@@ -1,5 +1,7 @@
-import { GolfHole, ShotData, MediaItem, SHOT_TYPES, SHOT_RESULTS } from '../types';
+import { GolfHole, ShotData, ShotDataV2, MediaItem, SHOT_TYPES, SHOT_RESULTS, isShotDataV2 } from '../types';
+import type { TrackedShotV2 } from '../types';
 import { getResultLabel } from '../utils/shotLabels';
+import { shotLabelV2 } from '../utils/shotDataV2Helpers';
 import Config from 'react-native-config';
 import { isCircuitOpen, recordSuccess, recordFailure, withTimeout } from './aiCircuitBreaker';
 
@@ -118,6 +120,10 @@ class AIHoleAnalysisService {
       return `Completed in ${hole.strokes} strokes`;
     }
 
+    if (isShotDataV2(data)) {
+      return (data.shots as TrackedShotV2[]).map(s => `Shot ${s.stroke}: ${shotLabelV2(s)}`).join('\n');
+    }
+
     const lines: string[] = [];
     for (const shot of data.shots) {
       const resultDesc = shot.results.map(getResultLabel).join(', ');
@@ -128,10 +134,10 @@ class AIHoleAnalysisService {
     return lines.join('\n');
   }
 
-  private parseShotData(raw: ShotData | string): ShotData | null {
+  private parseShotData(raw: ShotData | ShotDataV2 | string): ShotData | ShotDataV2 | null {
     try {
       const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      if (data && Array.isArray(data.shots)) return data as ShotData;
+      if (data && Array.isArray(data.shots)) return data as ShotData | ShotDataV2;
     } catch { /* ignore */ }
     return null;
   }
@@ -156,16 +162,22 @@ class AIHoleAnalysisService {
     if (hole.shotData) {
       const data = this.parseShotData(hole.shotData);
       if (data) {
-        const teeShot = data.shots.find(s => s.type === SHOT_TYPES.TEE_SHOT);
-        if (hole.par > 3 && teeShot?.results.includes(SHOT_RESULTS.CENTER)) {
-          analysis.push('Fairway hit off the tee');
-        }
-        if (hole.greenInRegulation) {
-          analysis.push('Green in regulation');
-        }
-        const putts = data.shots.filter(s => s.type === SHOT_TYPES.PUTT);
-        if (putts.length === 1) {
-          analysis.push('One-putt finish!');
+        if (isShotDataV2(data)) {
+          const shots = data.shots as TrackedShotV2[];
+          if (hole.par > 3 && shots.length > 0 && shots[0].outcome === 'on_target' && shots[0].resultLie === 'fairway') {
+            analysis.push('Fairway hit off the tee');
+          }
+          if (hole.greenInRegulation) analysis.push('Green in regulation');
+          const putts = shots.filter(s => s.lie === 'green');
+          if (putts.length === 1) analysis.push('One-putt finish!');
+        } else {
+          const teeShot = data.shots.find(s => s.type === SHOT_TYPES.TEE_SHOT);
+          if (hole.par > 3 && teeShot?.results.includes(SHOT_RESULTS.CENTER)) {
+            analysis.push('Fairway hit off the tee');
+          }
+          if (hole.greenInRegulation) analysis.push('Green in regulation');
+          const putts = data.shots.filter(s => s.type === SHOT_TYPES.PUTT);
+          if (putts.length === 1) analysis.push('One-putt finish!');
         }
       }
     }
@@ -217,28 +229,32 @@ class AIHoleAnalysisService {
     if (hole.shotData) {
       const shotData = this.parseShotData(hole.shotData);
       if (shotData) {
-        const teeShot = shotData.shots.find(s => s.type === SHOT_TYPES.TEE_SHOT);
-        const putts = shotData.shots.filter(s => s.type === SHOT_TYPES.PUTT);
-        const hasSand = shotData.shots.some(s => s.results.includes(SHOT_RESULTS.SAND));
+        if (isShotDataV2(shotData)) {
+          const v2shots = shotData.shots as TrackedShotV2[];
+          if (hole.par > 3 && v2shots.length > 0 && v2shots[0].outcome === 'on_target' && v2shots[0].resultLie === 'fairway') {
+            summary += 'Fairway hit! ';
+          } else if (hole.par === 3 && v2shots.length > 0 && v2shots[0].outcome === 'on_target' && v2shots[0].resultLie === 'green') {
+            summary += 'Green in one! ';
+          }
+          if (hole.greenInRegulation) summary += 'GIR ';
+          const putts = v2shots.filter(s => s.lie === 'green');
+          if (putts.length === 1) summary += 'One-putt! ';
+          else if (putts.length > 2) summary += `${putts.length} putts `;
+          if (v2shots.some(s => s.lie === 'sand') && hole.strokes <= hole.par) summary += 'Sand save! ';
+        } else {
+          const teeShot = shotData.shots.find(s => s.type === SHOT_TYPES.TEE_SHOT);
+          const putts = shotData.shots.filter(s => s.type === SHOT_TYPES.PUTT);
+          const hasSand = shotData.shots.some(s => s.results.includes(SHOT_RESULTS.SAND));
 
-        if (hole.par > 3 && teeShot?.results.includes(SHOT_RESULTS.CENTER)) {
-          summary += '⛳ Fairway hit! ';
-        } else if (hole.par === 3 && teeShot?.results.includes(SHOT_RESULTS.GREEN)) {
-          summary += '🎯 Green in one! ';
-        }
-
-        if (hole.greenInRegulation) {
-          summary += '🟢 GIR ';
-        }
-
-        if (putts.length === 1) {
-          summary += '🏌️ One-putt! ';
-        } else if (putts.length > 2) {
-          summary += `${putts.length} putts `;
-        }
-
-        if (hasSand) {
-          summary += '🏖️ Sand save ';
+          if (hole.par > 3 && teeShot?.results.includes(SHOT_RESULTS.CENTER)) {
+            summary += 'Fairway hit! ';
+          } else if (hole.par === 3 && teeShot?.results.includes(SHOT_RESULTS.GREEN)) {
+            summary += 'Green in one! ';
+          }
+          if (hole.greenInRegulation) summary += 'GIR ';
+          if (putts.length === 1) summary += 'One-putt! ';
+          else if (putts.length > 2) summary += `${putts.length} putts `;
+          if (hasSand && hole.strokes <= hole.par) summary += 'Sand save! ';
         }
       }
     }

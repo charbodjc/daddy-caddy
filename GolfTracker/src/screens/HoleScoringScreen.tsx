@@ -1,9 +1,10 @@
 /**
  * HoleScoringScreen.tsx
  *
- * Unified scoring screen — one screen for every shot, tee through putt.
- * The compass is always the starting point. Progressive disclosure
- * shows classification only when needed.
+ * Telephone-style scoring screen — two steps per shot:
+ *   1. Distance (with presets + skip) + lie badge + swing toggle
+ *   2. Result (compass off-green, putt result on-green)
+ * Progressive disclosure shows classification only for off-green misses.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -14,9 +15,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
   ScrollView,
-  Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,10 +30,11 @@ import Hole from '../database/watermelon/models/Hole';
 import Round from '../database/watermelon/models/Round';
 import Golfer from '../database/watermelon/models/Golfer';
 import {
-  SHOT_TYPES,
+  isShotDataV2, LIE_TYPES, PENALTY_TYPES,
 } from '../types';
-import type { TrackedShot, ShotData, SmsContact, ShotType, ShotResult } from '../types';
-import { parseShotData, deriveHoleStats, calculateTotalStrokes, calculateRunningRoundStats } from '../utils/roundStats';
+import type { TrackedShotV2, ShotDataV2, SmsContact, LieType, MissDirection, PenaltyType } from '../types';
+import { parseShotData, deriveHoleStatsV2, calculateRunningRoundStats } from '../utils/roundStats';
+import { calculateTotalStrokesV2 } from '../utils/shotDataV2Helpers';
 import { getScoreName } from '../utils/scoreColors';
 import { formatScoreVsPar } from '../utils/scoreCalculations';
 import smsService from '../services/sms';
@@ -44,20 +44,31 @@ import type { ScoringStackParamList } from '../types/navigation';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RouteProp } from '@react-navigation/native';
 
-import { useScoringReducer } from '../hooks/useScoringReducer';
-import type { CenterResult, Classification } from '../hooks/useScoringReducer';
+import { useScoringReducerV2 } from '../hooks/useScoringReducerV2';
 import { ShotCompass } from '../components/scoring/ShotCompass';
 import { ClassificationPanel } from '../components/scoring/ClassificationPanel';
-import { CommitDescribeBar } from '../components/scoring/CommitDescribeBar';
 import { DistanceKeypad } from '../components/scoring/DistanceKeypad';
-import { ShotLogBar, buildShotSummary } from '../components/scoring/ShotLogBar';
+import { ShotLogBarV2, buildShotSummaryV2 } from '../components/scoring/ShotLogBar';
 import { SMSBottomSheet } from '../components/scoring/SMSBottomSheet';
+import { LieBadge } from '../components/scoring/LieBadge';
+import { PuttResult } from '../components/scoring/PuttResult';
 import { SCORING_COLORS } from '../components/scoring/colors';
 
 type NavProp = StackNavigationProp<ScoringStackParamList, 'HoleScoring'>;
 type RoutePropT = RouteProp<ScoringStackParamList, 'HoleScoring'>;
 
-const SHOT_TYPE_CYCLE: ShotType[] = [SHOT_TYPES.TEE_SHOT, SHOT_TYPES.APPROACH, SHOT_TYPES.PUTT];
+// Map V1 Classification type to V2 LieType for the classification panel callback
+const CLASSIFICATION_TO_LIE: Record<string, LieType> = {
+  fairway: LIE_TYPES.FAIRWAY,
+  rough: LIE_TYPES.ROUGH,
+  bunker: LIE_TYPES.SAND,
+  trouble: LIE_TYPES.TROUBLE,
+};
+const CLASSIFICATION_TO_PENALTY: Record<string, PenaltyType> = {
+  hazard: PENALTY_TYPES.HAZARD,
+  ob: PENALTY_TYPES.OB,
+  lost: PENALTY_TYPES.LOST,
+};
 
 // ── Component ────────────────────────────────────────────────────
 
@@ -95,38 +106,23 @@ const HoleScoringScreen: React.FC = () => {
   const prevHoleStrokes = useRef(0);
   const completingRef = useRef(false);
 
-  // The reducer — all scoring state lives here
+  // The V2 reducer — all scoring state lives here
   const {
-    state: scoringState,
-    dispatch,
-    activeShotType,
-    statusLabel,
-    canCommit,
-    canUndo,
+    state: s,
+    submitDistance,
+    skipDistance,
+    toggleSwing,
+    setLie,
+    tapCenterResult,
+    tapDirection,
+    tapResultLie,
+    tapPenaltyLie,
+    tapPuttMade,
+    tapPuttMiss,
+    tapPuttMissSide,
+    undo,
     restore,
-  } = useScoringReducer(hole?.par ?? 4);
-
-  // Stable dispatch callbacks — dispatch identity never changes (React guarantee)
-  const handleDirection = useCallback(
-    (d: ShotResult) => dispatch({ type: 'TAP_DIRECTION', direction: d }),
-    [dispatch],
-  );
-  const handleCenter = useCallback(
-    (r: CenterResult) => dispatch({ type: 'TAP_CENTER', result: r }),
-    [dispatch],
-  );
-  const handleClassify = useCallback(
-    (c: Classification) => dispatch({ type: 'TAP_CLASSIFICATION', classification: c }),
-    [dispatch],
-  );
-  const handleDescribe = useCallback(
-    () => dispatch({ type: 'DESCRIBE' }),
-    [dispatch],
-  );
-  const handleCommitClassification = useCallback(
-    () => dispatch({ type: 'COMMIT' }),
-    [dispatch],
-  );
+  } = useScoringReducerV2(hole?.par ?? 4);
 
   // Clean up retry timer on unmount
   useEffect(() => {
@@ -148,13 +144,18 @@ const HoleScoringScreen: React.FC = () => {
         const h = await database.collections.get<Hole>('holes').find(holeId);
         setHole(h);
 
-        // Restore existing shot data
+        // Restore existing shot data — only V2 data restores into the V2 reducer.
+        // V1 data is preserved in the DB (not overwritten) until the user takes a new shot.
         const existing = parseShotData(h.shotData);
-        if (existing && existing.shots.length > 0) {
-          restore(existing.shots, existing.currentStroke || existing.shots.length + 1, h.par);
+        const hasV1Data = existing && !isShotDataV2(existing) && existing.shots.length > 0;
+        if (existing && isShotDataV2(existing) && existing.shots.length > 0) {
+          restore(existing.shots as TrackedShotV2[], existing.currentStroke || existing.shots.length + 1, h.par);
         } else {
-          // Ensure reducer has correct par even with no shots to restore
           restore([], 1, h.par);
+        }
+        // If this hole has V1 data, don't overwrite until user actually records shots
+        if (hasV1Data) {
+          hasEverPersistedRef.current = false;
         }
 
         // Load golfer + round score
@@ -186,18 +187,17 @@ const HoleScoringScreen: React.FC = () => {
     loadData();
   }, [holeId, roundId, restore]);
 
-  // ── Persistence ─────────────────────────────────────────────
+  // ── Persistence (V2 format) ───────────────────────────────────
 
-  const persistShots = useCallback(async (updatedShots: TrackedShot[], nextStroke: number) => {
+  const persistShots = useCallback(async (updatedShots: TrackedShotV2[], nextStroke: number) => {
     if (!hole || !roundId) return;
 
-    // Bump generation so any in-flight retries from prior calls bail out
     const gen = ++persistGeneration.current;
 
     try {
-      const shotData: ShotData = { par: hole.par, shots: updatedShots, currentStroke: nextStroke };
-      const stats = updatedShots.length > 0 ? deriveHoleStats(shotData, hole.par) : null;
-      const strokes = calculateTotalStrokes(updatedShots);
+      const shotData: ShotDataV2 = { version: 2, par: hole.par, shots: updatedShots, currentStroke: nextStroke };
+      const stats = updatedShots.length > 0 ? deriveHoleStatsV2(shotData, hole.par) : null;
+      const strokes = calculateTotalStrokesV2(updatedShots);
 
       await updateHole(roundId, {
         holeNumber: hole.holeNumber,
@@ -209,13 +209,11 @@ const HoleScoringScreen: React.FC = () => {
         shotData: JSON.stringify(shotData),
       });
 
-      // Only update state if this is still the latest persist
       if (gen !== persistGeneration.current) return;
       setSaveError(false);
       retryCount.current = 0;
       prevHoleStrokes.current = strokes;
     } catch {
-      // Only retry if this is still the latest persist
       if (gen !== persistGeneration.current) return;
       setSaveError(true);
       if (retryCount.current < MAX_RETRIES) {
@@ -229,20 +227,17 @@ const HoleScoringScreen: React.FC = () => {
     }
   }, [hole, roundId, updateHole]);
 
-  // Persist whenever shots change (after commits/undos, including undo-to-zero)
-  const prevShotsRef = useRef<TrackedShot[]>([]);
+  // Persist whenever shots change (including hole_complete to capture the final shot)
+  const prevShotsRef = useRef<TrackedShotV2[]>([]);
   const hasEverPersistedRef = useRef(false);
   useEffect(() => {
-    // Skip if hole-complete — that phase has its own persist in the completion effect
-    if (scoringState.phase === 'hole_complete') return;
-    if (scoringState.shots !== prevShotsRef.current) {
-      // Skip initial mount (no shots yet, nothing to persist)
-      if (!hasEverPersistedRef.current && scoringState.shots.length === 0) return;
-      prevShotsRef.current = scoringState.shots;
+    if (s.shots !== prevShotsRef.current) {
+      if (!hasEverPersistedRef.current && s.shots.length === 0) return;
+      prevShotsRef.current = s.shots;
       hasEverPersistedRef.current = true;
-      persistShots(scoringState.shots, scoringState.currentStroke);
+      persistShots(s.shots, s.currentStroke);
     }
-  }, [scoringState.phase, scoringState.shots, scoringState.currentStroke, persistShots]);
+  }, [s.phase, s.shots, s.currentStroke, persistShots]);
 
   // ── SMS helpers ─────────────────────────────────────────────
 
@@ -286,28 +281,35 @@ const HoleScoringScreen: React.FC = () => {
 
   const handleUpdate = useCallback(() => {
     if (!hole) return;
-    const summary = buildShotSummary(scoringState.shots, hole.par);
-    const strokes = calculateTotalStrokes(scoringState.shots);
+    const summary = buildShotSummaryV2(s.shots, hole.par);
+    const strokes = calculateTotalStrokesV2(s.shots);
     const scoreVsPar = strokes - hole.par;
     const scoreName = getScoreName(scoreVsPar);
     const commentary = generateHoleCommentary(hole.holeNumber, hole.par, strokes, scoreName);
     const message = `Hole ${hole.holeNumber} Update\n${summary}\n\n${commentary}`;
     showSmsSheet(message);
-  }, [hole, scoringState.shots, showSmsSheet]);
+  }, [hole, s.shots, showSmsSheet]);
 
   // ── Hole complete flow ──────────────────────────────────────
 
+  // Reset completingRef when phase leaves hole_complete (e.g., undo)
   useEffect(() => {
-    if (scoringState.phase !== 'hole_complete' || !hole || !roundId) return;
+    if (s.phase !== 'hole_complete') {
+      completingRef.current = false;
+    }
+  }, [s.phase]);
+
+  useEffect(() => {
+    if (s.phase !== 'hole_complete' || !hole || !roundId) return;
     if (completingRef.current) return;
     completingRef.current = true;
 
     const completeHole = async () => {
       setSaving(true);
       try {
-        const shotData: ShotData = { par: hole.par, shots: scoringState.shots, currentStroke: scoringState.currentStroke };
-        const stats = deriveHoleStats(shotData, hole.par);
-        const strokes = calculateTotalStrokes(scoringState.shots);
+        const shotData: ShotDataV2 = { version: 2, par: hole.par, shots: s.shots, currentStroke: s.currentStroke };
+        const stats = deriveHoleStatsV2(shotData, hole.par);
+        const strokes = calculateTotalStrokesV2(s.shots);
 
         await updateHole(roundId, {
           holeNumber: hole.holeNumber,
@@ -319,12 +321,10 @@ const HoleScoringScreen: React.FC = () => {
           shotData: JSON.stringify(shotData),
         });
 
-        // Update round score
         const prior = prevHoleStrokes.current;
         const parDelta = prior === 0 ? hole.par : 0;
         setRoundScoreToPar(prev => prev + (strokes - prior) - parDelta);
 
-        // Build summary SMS
         const finalScoreVsPar = strokes - hole.par;
         const finalScoreName = getScoreName(finalScoreVsPar);
         const runningStats = await calculateRunningRoundStats(roundId);
@@ -348,41 +348,52 @@ const HoleScoringScreen: React.FC = () => {
     };
 
     completeHole();
-  }, [scoringState.phase, scoringState.shots, scoringState.currentStroke, hole, roundId, updateHole, navigation, showSmsSheet]);
+  }, [s.phase, s.shots, s.currentStroke, hole, roundId, updateHole, navigation, showSmsSheet]);
 
-  // ── "In The Hole" confirmation ──────────────────────────────
+  // ── Classification panel callback (bridges V1 Classification → V2) ──
 
-  const handleCommitOrConfirm = useCallback(() => {
-    if (scoringState.pendingCenterResult === 'hole') {
-      const strokes = calculateTotalStrokes(scoringState.shots) + 1;
+  const handleClassify = useCallback((c: string) => {
+    const penaltyType = CLASSIFICATION_TO_PENALTY[c];
+    if (penaltyType) {
+      // Penalty lies get a confirmation alert
+      Alert.alert(
+        `Confirm ${c.toUpperCase()}`,
+        'This adds a penalty stroke. Continue?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Yes', onPress: () => tapPenaltyLie(penaltyType) },
+        ],
+      );
+    } else {
+      const lie = CLASSIFICATION_TO_LIE[c];
+      if (lie) tapResultLie(lie);
+    }
+  }, [tapResultLie, tapPenaltyLie]);
+
+  // ── "Hole" center button confirmation ──────────────────────
+
+  const handleCenterResult = useCallback((result: 'fairway' | 'green' | 'hole') => {
+    if (result === 'hole') {
+      const strokes = calculateTotalStrokesV2(s.shots) + 1;
       Alert.alert(
         'Finish Hole?',
         `End hole with score ${strokes}?`,
         [
-          { text: 'Cancel', onPress: () => dispatch({ type: 'CANCEL_HOLE_COMPLETE' }) },
-          { text: 'Yes', onPress: () => dispatch({ type: 'CONFIRM_HOLE_COMPLETE' }) },
+          { text: 'Cancel' },
+          { text: 'Yes', onPress: () => tapCenterResult('hole') },
         ],
       );
     } else {
-      dispatch({ type: 'COMMIT' });
+      tapCenterResult(result);
     }
-  }, [scoringState.pendingCenterResult, scoringState.shots, dispatch]);
-
-  // ── Shot type cycle ─────────────────────────────────────────
-
-  const handleShotTypeCycle = useCallback(() => {
-    const current = activeShotType;
-    const idx = SHOT_TYPE_CYCLE.indexOf(current);
-    const next = SHOT_TYPE_CYCLE[(idx + 1) % SHOT_TYPE_CYCLE.length];
-    dispatch({ type: 'OVERRIDE_SHOT_TYPE', shotType: next });
-  }, [activeShotType, dispatch]);
+  }, [s.shots, tapCenterResult]);
 
   // ── Back navigation ─────────────────────────────────────────
 
   const allowLeaveRef = useRef(false);
 
   const handleBack = useCallback(() => {
-    if (scoringState.shots.length > 0) {
+    if (s.shots.length > 0) {
       Alert.alert(
         'Leave Hole?',
         'Your shots are saved. You can come back to continue.',
@@ -401,18 +412,24 @@ const HoleScoringScreen: React.FC = () => {
       allowLeaveRef.current = true;
       navigation.goBack();
     }
-  }, [scoringState.shots.length, navigation]);
+  }, [s.shots.length, navigation]);
 
-  // Wire Android back button
+  // Wire Android back button — phase-aware undo
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-      if (allowLeaveRef.current) return; // allow navigation through
-      if (scoringState.shots.length === 0) return;
+      if (allowLeaveRef.current) return;
+      // If in a sub-phase, undo instead of leaving
+      if (s.phase === 'awaiting_result' || s.phase === 'awaiting_result_lie') {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if (s.shots.length === 0) return;
       e.preventDefault();
       handleBack();
     });
     return unsubscribe;
-  }, [navigation, scoringState.shots.length, handleBack]);
+  }, [navigation, s.phase, s.shots.length, handleBack, undo]);
 
   // ── Media ───────────────────────────────────────────────────
 
@@ -441,15 +458,13 @@ const HoleScoringScreen: React.FC = () => {
     return <ErrorScreen error={error || new Error('Hole not found')} onRetry={() => navigation.goBack()} />;
   }
 
-  const totalStrokes = calculateTotalStrokes(scoringState.shots);
+  const totalStrokes = calculateTotalStrokesV2(s.shots);
+  const canUndo = s.phase !== 'awaiting_distance' || s.shots.length > 0;
 
   // ── Render ──────────────────────────────────────────────────
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={styles.container}>
       {/* Save error banner */}
       {saveError && (
         <View style={styles.saveErrorBanner} accessibilityRole="alert">
@@ -477,7 +492,7 @@ const HoleScoringScreen: React.FC = () => {
 
         <TouchableOpacity
           style={[styles.headerBtn, !canUndo && styles.hiddenBtn]}
-          onPress={() => dispatch({ type: 'UNDO' })}
+          onPress={undo}
           disabled={!canUndo}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityLabel="Undo last action"
@@ -526,8 +541,18 @@ const HoleScoringScreen: React.FC = () => {
         </View>
       </View>
 
+      {/* Lie badge + swing toggle */}
+      <LieBadge
+        lie={s.currentLie}
+        swing={s.pendingSwing}
+        stroke={s.currentStroke}
+        onSetLie={setLie}
+        onToggleSwing={toggleSwing}
+        disabled={s.phase !== 'awaiting_distance'}
+      />
+
       {/* Shot log */}
-      <ShotLogBar shots={scoringState.shots} />
+      <ShotLogBarV2 shots={s.shots} />
 
       {/* Main content */}
       <ScrollView
@@ -535,82 +560,54 @@ const HoleScoringScreen: React.FC = () => {
         contentContainerStyle={[styles.bodyContent, { paddingBottom: Math.max(insets.bottom, 20) }]}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Status label + shot type */}
-        <View style={styles.statusRow}>
-          <TouchableOpacity
-            onPress={handleShotTypeCycle}
-            accessibilityLabel={`Shot type: ${activeShotType}. Tap to change.`}
-            accessibilityHint="Cycle through Tee Shot, Approach, and Putt"
-            accessibilityRole="button"
-          >
-            <Text style={styles.shotTypeLabel}>
-              {activeShotType} <Icon name="expand-more" size={14} color="#555" />
-            </Text>
-          </TouchableOpacity>
-          <Text style={styles.statusLabel} accessibilityLiveRegion="polite">{statusLabel}</Text>
-          {totalStrokes > 0 && (
-            <Text style={styles.strokeCount}>Strokes: {totalStrokes}</Text>
-          )}
-        </View>
+        {/* Stroke count */}
+        {totalStrokes > 0 && (
+          <Text style={styles.strokeCount} accessibilityLiveRegion="polite">
+            Strokes: {totalStrokes}
+          </Text>
+        )}
 
-        {/* Phase-dependent content */}
-        {scoringState.phase === 'awaiting_direction' && (
-          <ShotCompass
-            isOnGreen={scoringState.isOnGreen}
-            onDirection={handleDirection}
-            onCenter={handleCenter}
+        {/* Phase: Distance entry */}
+        {s.phase === 'awaiting_distance' && (
+          <DistanceKeypad
+            unit={s.pendingDistanceUnit}
+            onSubmit={(v) => submitDistance(Number(v))}
+            onSkip={skipDistance}
           />
         )}
 
-        {scoringState.phase === 'awaiting_action' && (
-          <View style={styles.actionPhase}>
-            <ShotCompass
-              isOnGreen={scoringState.isOnGreen}
-              onDirection={handleDirection}
-              onCenter={handleCenter}
-              disabled
-            />
-            <CommitDescribeBar
-              onCommit={handleCommitOrConfirm}
-              onDescribe={handleDescribe}
-              canCommit={canCommit}
-              showDescribe={scoringState.pendingCenterResult !== 'hole'}
-            />
-          </View>
+        {/* Phase: Result (off-green) */}
+        {s.phase === 'awaiting_result' && !s.isOnGreen && (
+          <ShotCompass
+            isOnGreen={false}
+            onDirection={(d) => tapDirection(d as MissDirection)}
+            onCenter={(c) => handleCenterResult(c as 'fairway' | 'green' | 'hole')}
+          />
         )}
 
-        {scoringState.phase === 'awaiting_classification' && (
+        {/* Phase: Result (on-green / putts) */}
+        {s.phase === 'awaiting_result' && s.isOnGreen && (
+          <PuttResult
+            onMade={tapPuttMade}
+            onMiss={tapPuttMiss}
+            onMissSide={tapPuttMissSide}
+          />
+        )}
+
+        {/* Phase: Result lie (off-green miss) */}
+        {s.phase === 'awaiting_result_lie' && (
           <View style={styles.classificationPhase}>
-            <ShotCompass
-              isOnGreen={scoringState.isOnGreen}
-              onDirection={handleDirection}
-              onCenter={handleCenter}
-              disabled
-            />
+            <Text style={styles.classificationPrompt}>Where did it end up?</Text>
             <ClassificationPanel
-              isOnGreen={scoringState.isOnGreen}
-              selected={scoringState.pendingClassification}
+              isOnGreen={false}
+              selected={null}
               onClassify={handleClassify}
             />
-            <CommitDescribeBar
-              onCommit={handleCommitClassification}
-              canCommit={canCommit}
-              showDescribe={false}
-              commitLabel="Commit"
-            />
           </View>
         )}
 
-        {scoringState.phase === 'awaiting_putt_distance' && (
-          <DistanceKeypad
-            unit="ft"
-            contextLabel="On the Green"
-            onSubmit={(v) => dispatch({ type: 'SUBMIT_DISTANCE', value: v })}
-            onSkip={() => dispatch({ type: 'SKIP_DISTANCE' })}
-          />
-        )}
-
-        {scoringState.phase === 'hole_complete' && saving && (
+        {/* Phase: Hole complete */}
+        {s.phase === 'hole_complete' && saving && (
           <View style={styles.savingContainer} accessibilityRole="alert" accessibilityLiveRegion="assertive">
             <ActivityIndicator size="large" color="#2E7D32" />
             <Text style={styles.savingText}>Saving hole...</Text>
@@ -626,7 +623,7 @@ const HoleScoringScreen: React.FC = () => {
         onSend={handleSmsSend}
         onSkip={handleSmsSkip}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -712,32 +709,22 @@ const styles = StyleSheet.create({
   bodyContent: { flexGrow: 1, justifyContent: 'center', padding: 20 },
 
   // Status
-  statusRow: { alignItems: 'center', marginBottom: 20 },
-  shotTypeLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#555',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 4,
-    textDecorationLine: 'underline',
-    textDecorationStyle: 'dotted',
-  },
-  statusLabel: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-  },
   strokeCount: {
     fontSize: 14,
     color: '#666',
-    marginTop: 4,
+    textAlign: 'center',
+    marginBottom: 12,
   },
 
   // Phase wrappers
-  actionPhase: { alignItems: 'center' },
   classificationPhase: { alignItems: 'center' },
+  classificationPrompt: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
 
   // Saving
   savingContainer: { alignItems: 'center', paddingVertical: 40 },

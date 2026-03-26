@@ -58,10 +58,19 @@ class SMSService {
         const parsed =
           typeof hole.shotData === 'string' ? JSON.parse(hole.shotData) : hole.shotData;
         if (parsed?.shots && Array.isArray(parsed.shots)) {
-          const puttCount = parsed.shots.filter(
-            (s: { type: string }) =>
-              s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase(),
-          ).length;
+          let puttCount: number;
+          if (parsed.version === 2) {
+            // V2: putts are shots with lie === 'green'
+            puttCount = parsed.shots.filter(
+              (s: { lie: string }) => s.lie === 'green',
+            ).length;
+          } else {
+            // V1: putts by type field
+            puttCount = parsed.shots.filter(
+              (s: { type: string }) =>
+                s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase(),
+            ).length;
+          }
           if (puttCount > 0) {
             message += `Putts: ${puttCount}\n`;
           }

@@ -36,6 +36,52 @@ export type HoleData = z.infer<typeof holeSchema>;
 export type RoundData = z.infer<typeof roundSchema>;
 export type CreateRoundData = z.infer<typeof createRoundSchema>;
 
+// ── V2 Shot Data Validators ──────────────────────────────────
+
+const lieTypeSchema = z.enum(['tee', 'fairway', 'rough', 'sand', 'green', 'trouble']);
+const swingTypeSchema = z.enum(['free', 'restricted']);
+const missDirectionSchema = z.enum([
+  'left', 'right', 'short', 'long',
+  'short_left', 'short_right', 'long_left', 'long_right',
+]);
+const shotOutcomeSchema = z.enum(['on_target', 'missed', 'holed', 'penalty']);
+const penaltyTypeSchema = z.enum(['ob', 'hazard', 'lost']);
+const puttMissDistanceSchema = z.enum(['long', 'short']);
+const puttMissBreakSchema = z.enum(['high', 'low']);
+
+export const trackedShotV2Schema = z.object({
+  stroke: z.number().min(1).max(20),
+  lie: lieTypeSchema,
+  distanceToHole: z.number().min(0).max(700).optional(),
+  distanceUnit: z.enum(['yds', 'ft']),
+  swing: swingTypeSchema,
+  outcome: shotOutcomeSchema,
+  missDirection: missDirectionSchema.optional(),
+  puttMissDistance: puttMissDistanceSchema.optional(),
+  puttMissBreak: puttMissBreakSchema.optional(),
+  resultLie: lieTypeSchema.optional(),
+  penaltyType: penaltyTypeSchema.optional(),
+  penaltyStrokes: z.number().min(0).max(2).optional(),
+});
+
+export const shotDataV2Schema = z.object({
+  version: z.literal(2),
+  par: z.number().min(3).max(5),
+  shots: z.array(trackedShotV2Schema),
+  currentStroke: z.number().min(1),
+});
+
+export type TrackedShotV2Data = z.infer<typeof trackedShotV2Schema>;
+export type ShotDataV2Data = z.infer<typeof shotDataV2Schema>;
+
+export const safeValidateShotDataV2 = (data: unknown): { success: boolean; data?: ShotDataV2Data; error?: string } => {
+  const result = shotDataV2Schema.safeParse(data);
+  if (result.success) {
+    return { success: true, data: result.data };
+  }
+  return { success: false, error: result.error.issues[0].message };
+};
+
 export const validateHole = (data: unknown): HoleData => {
   return holeSchema.parse(data);
 };
