@@ -1,7 +1,6 @@
 /**
  * PuttResult — Putt outcome selector for on-green shots.
- * Made (center) + 4-button miss grid (Long-High, Long-Low, Short-High, Short-Low)
- * + Left/Right for straight-putt misses.
+ * Made (center) + 4-button miss grid (Long-High, Long-Low, Short-High, Short-Low).
  */
 
 import React from 'react';
@@ -13,14 +12,12 @@ import type { PuttMissDistance, PuttMissBreak } from '../../types';
 interface PuttResultProps {
   onMade: () => void;
   onMiss: (distance: PuttMissDistance, breakDir: PuttMissBreak) => void;
-  onMissSide: (direction: 'left' | 'right') => void;
   disabled?: boolean;
 }
 
 export const PuttResult = React.memo(function PuttResult({
   onMade,
   onMiss,
-  onMissSide,
   disabled = false,
 }: PuttResultProps) {
   return (
@@ -90,35 +87,6 @@ export const PuttResult = React.memo(function PuttResult({
           <Text style={styles.missText} adjustsFontSizeToFit numberOfLines={2}>Short{'\n'}Low</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Left / Right for straight putts */}
-      <View style={styles.sideRow}>
-        <TouchableOpacity
-          style={[styles.sideButton, disabled && styles.disabled]}
-          onPress={() => onMissSide('left')}
-          disabled={disabled}
-          accessibilityLabel="Missed left"
-          accessibilityHint="Records a missed putt that went left"
-          accessibilityRole="button"
-          accessibilityState={{ disabled }}
-        >
-          <Icon name="arrow-back" size={20} color="#fff" />
-          <Text style={styles.sideText} adjustsFontSizeToFit numberOfLines={1}>Left</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.sideButton, disabled && styles.disabled]}
-          onPress={() => onMissSide('right')}
-          disabled={disabled}
-          accessibilityLabel="Missed right"
-          accessibilityHint="Records a missed putt that went right"
-          accessibilityRole="button"
-          accessibilityState={{ disabled }}
-        >
-          <Text style={styles.sideText} adjustsFontSizeToFit numberOfLines={1}>Right</Text>
-          <Icon name="arrow-forward" size={20} color="#fff" />
-        </TouchableOpacity>
-      </View>
     </View>
   );
 });
@@ -186,27 +154,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
     lineHeight: 17,
-  },
-  sideRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  sideButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: SCORING_COLORS.puttMissSide,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    minWidth: 100,
-    justifyContent: 'center',
-    minHeight: 48,
-  },
-  sideText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
   },
   disabled: {
     opacity: SCORING_COLORS.disabledOpacity,
