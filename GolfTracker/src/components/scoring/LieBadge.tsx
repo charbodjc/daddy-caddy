@@ -1,26 +1,20 @@
 /**
- * LieBadge — Tappable lie indicator + swing toggle in the scoring header.
- * Shows current lie with color and icon. Tap to cycle through lies.
+ * LieBadge — Lie indicator + swing toggle in the scoring header.
+ * Shows current lie with color and icon (read-only display).
  * Swing toggle defaults to "Free"; tap to switch to "Restricted".
  */
 
-import React, { useCallback } from 'react';
+import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { LIE_TYPES, SWING_TYPES } from '../../types';
+import { SWING_TYPES } from '../../types';
 import type { LieType, SwingType } from '../../types';
 import { lieLabel, lieColor, lieIcon } from '../../utils/shotDataV2Helpers';
-
-const LIE_CYCLE: LieType[] = [
-  LIE_TYPES.TEE, LIE_TYPES.FAIRWAY, LIE_TYPES.ROUGH,
-  LIE_TYPES.SAND, LIE_TYPES.GREEN, LIE_TYPES.TROUBLE,
-];
 
 interface LieBadgeProps {
   lie: LieType;
   swing: SwingType;
   stroke: number;
-  onSetLie: (lie: LieType) => void;
   onToggleSwing: () => void;
   disabled?: boolean;
 }
@@ -29,33 +23,21 @@ export const LieBadge = React.memo(function LieBadge({
   lie,
   swing,
   stroke,
-  onSetLie,
   onToggleSwing,
   disabled = false,
 }: LieBadgeProps) {
-  const handleLieTap = useCallback(() => {
-    const idx = LIE_CYCLE.indexOf(lie);
-    const next = LIE_CYCLE[(idx + 1) % LIE_CYCLE.length];
-    onSetLie(next);
-  }, [lie, onSetLie]);
-
   const isRestricted = swing === SWING_TYPES.RESTRICTED;
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity
+      <View
         style={[styles.lieBadge, { backgroundColor: lieColor(lie) }]}
-        onPress={handleLieTap}
-        disabled={disabled}
-        accessibilityLabel={`Shot ${stroke}, lie: ${lieLabel(lie)}. Tap to change.`}
-        accessibilityRole="button"
-        accessibilityHint="Cycles through lie types: tee, fairway, rough, bunker, green, trouble"
-        accessibilityState={{ disabled }}
+        accessible
+        accessibilityLabel={`Shot ${stroke}, lie: ${lieLabel(lie)}`}
       >
         <Icon name={lieIcon(lie)} size={18} color="#fff" />
         <Text style={styles.lieText}>Shot {stroke} — {lieLabel(lie)}</Text>
-        <Icon name="expand-more" size={16} color="rgba(255,255,255,0.7)" />
-      </TouchableOpacity>
+      </View>
 
       <TouchableOpacity
         style={[styles.swingToggle, isRestricted && styles.swingRestricted, disabled && styles.disabledToggle]}

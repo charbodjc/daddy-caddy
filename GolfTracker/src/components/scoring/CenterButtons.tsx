@@ -79,22 +79,22 @@ export const CenterButtons = React.memo(function CenterButtons({
 
 const styles = StyleSheet.create({
   centerStack: {
-    width: 90,
-    gap: 4,
+    width: 110,
+    gap: 5,
     alignItems: 'center',
   },
   centerBtn: {
-    width: 90,
-    minHeight: 44,
-    borderRadius: 14,
+    width: 110,
+    minHeight: 52,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
   centerSingle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 3,
@@ -116,14 +116,14 @@ const styles = StyleSheet.create({
     backgroundColor: SCORING_COLORS.hole,
   },
   buttonText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700',
     color: SCORING_COLORS.white,
     textAlign: 'center',
     marginTop: 2,
   },
   buttonTextSmall: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
     color: SCORING_COLORS.white,
   },
