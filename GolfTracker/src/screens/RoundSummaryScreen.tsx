@@ -13,13 +13,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { database } from '../database/watermelon/database';
 import { ScreenHeader } from '../components/common/ScreenHeader';
 import Round from '../database/watermelon/models/Round';
+import Hole from '../database/watermelon/models/Hole';
 import { LoadingScreen } from '../components/common/LoadingScreen';
 import { ErrorScreen } from '../components/common/ErrorScreen';
 import { Button } from '../components/common/Button';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { format } from 'date-fns';
 import { formatScoreVsPar, calculateScoreBreakdown } from '../utils/scoreCalculations';
-import { calculateRunningRoundStats, formatRunningStatsForSMS, RunningRoundStats } from '../utils/roundStats';
+import { calculateRunningRoundStats, formatRunningStatsForSMS, RunningRoundStats, parseShotData } from '../utils/roundStats';
+import { isShotDataV2, ShotData } from '../types';
 
 // ── Approach bucket config ──────────────────────────────────────
 
@@ -39,6 +41,45 @@ function getBucketStat(stats: RunningRoundStats, key: BucketKey, suffix: BucketS
   return stats[statKey];
 }
 
+// ── Helpers ─────────────────────────────────────────────────────
+
+/** Hermes-safe thousands separator (toLocaleString is unreliable on Android). */
+function formatWithCommas(n: number): string {
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+// ── Shot outcome formatter ──────────────────────────────────────
+
+function formatShotOutcome(
+  outcome: string,
+  missDirection?: string,
+  resultLie?: string,
+  penaltyType?: string,
+): string {
+  switch (outcome) {
+    case 'holed':
+      return 'Holed';
+    case 'on_target': {
+      const lie = resultLie ? resultLie.charAt(0).toUpperCase() + resultLie.slice(1) : 'On target';
+      return `→ ${lie}`;
+    }
+    case 'missed': {
+      const dir = missDirection
+        ? missDirection.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+        : 'Missed';
+      return `Missed ${dir}`;
+    }
+    case 'penalty': {
+      const type = penaltyType
+        ? penaltyType.toUpperCase()
+        : 'Penalty';
+      return type;
+    }
+    default:
+      return outcome;
+  }
+}
+
 // ── Route params ────────────────────────────────────────────────
 
 interface RouteParams {
@@ -52,7 +93,7 @@ const RoundSummaryScreen: React.FC = () => {
   const { roundId } = (route.params as RouteParams) || {};
 
   const [round, setRound] = useState<Round | null>(null);
-  const [holes, setHoles] = useState<Array<{ strokes: number; par: number }>>([]);
+  const [holes, setHoles] = useState<Hole[]>([]);
   const [roundStats, setRoundStats] = useState<RunningRoundStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -209,6 +250,31 @@ Played with Daddy Caddy ⛳
         </View>
       </View>
 
+      {/* ── Course & Driving ────────────────────────────────────── */}
+      {roundStats && roundStats.holesWithTeeDistance > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle} accessibilityRole="header">Course & Driving</Text>
+          <View style={styles.detailedStatsList}>
+            <DetailedStatRow
+              label="Course Length"
+              value={`${formatWithCommas(Math.round(roundStats.totalCourseLength))} yds`}
+            />
+            {roundStats.driveCount > 0 && (
+              <>
+                <DetailedStatRow
+                  label="Avg Drive Distance"
+                  value={`${Math.round(roundStats.totalDriveDistance / roundStats.driveCount)} yds`}
+                />
+                <DetailedStatRow
+                  label="Longest Drive"
+                  value={`${Math.round(roundStats.longestDrive)} yds`}
+                />
+              </>
+            )}
+          </View>
+        </View>
+      )}
+
       {/* ── Tee Shots ──────────────────────────────────────────── */}
       {roundStats && roundStats.totalFairwayHoles > 0 && (
         <View style={styles.section}>
@@ -250,12 +316,20 @@ Played with Daddy Caddy ⛳
             />
           </View>
 
-          {roundStats.approachShotCount > 0 && (
+          {(roundStats.approachShotCount > 0 || roundStats.girApproachCount > 0) && (
             <View style={[styles.detailedStatsList, styles.detailedStatsListSpaced]}>
-              <DetailedStatRow
-                label="Avg Approach Distance"
-                value={`${Math.round(roundStats.totalApproachDistance / roundStats.approachShotCount)} yds`}
-              />
+              {roundStats.approachShotCount > 0 && (
+                <DetailedStatRow
+                  label="Avg Approach Distance"
+                  value={`${Math.round(roundStats.totalApproachDistance / roundStats.approachShotCount)} yds`}
+                />
+              )}
+              {roundStats.girApproachCount > 0 && (
+                <DetailedStatRow
+                  label="Avg GIR Approach Distance"
+                  value={`${Math.round(roundStats.totalGirApproachDistance / roundStats.girApproachCount)} yds`}
+                />
+              )}
             </View>
           )}
 
@@ -403,6 +477,61 @@ Played with Daddy Caddy ⛳
           )}
         </View>
       </View>
+
+      {/* ── Shot-by-Shot Breakdown ───────────────────────────── */}
+      {completedHoles.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle} accessibilityRole="header">Shot-by-Shot Breakdown</Text>
+          {[...completedHoles]
+            .sort((a, b) => a.holeNumber - b.holeNumber)
+            .map(hole => {
+              const parsed = parseShotData(hole.shotData);
+              if (!parsed || parsed.shots.length === 0) return null;
+
+              const scoreToPar = hole.strokes - hole.par;
+              const scoreLabel = scoreToPar === 0 ? 'E' : scoreToPar > 0 ? `+${scoreToPar}` : `${scoreToPar}`;
+
+              return (
+                <CollapsibleSection
+                  key={hole.holeNumber}
+                  title={`Hole ${hole.holeNumber}  (Par ${hole.par}) — ${hole.strokes} (${scoreLabel})`}
+                >
+                  {isShotDataV2(parsed)
+                    ? parsed.shots.map((shot, i) => {
+                        const distLabel = shot.distanceToHole !== undefined
+                          ? `${shot.distanceToHole} ${shot.distanceUnit}`
+                          : '';
+                        const lieLabel = shot.lie.charAt(0).toUpperCase() + shot.lie.slice(1);
+                        const outcomeLabel = formatShotOutcome(shot.outcome, shot.missDirection, shot.resultLie, shot.penaltyType);
+
+                        return (
+                          <View key={i} style={styles.shotRow}>
+                            <Text style={styles.shotStroke}>{shot.stroke}</Text>
+                            <View style={styles.shotDetails}>
+                              <Text style={styles.shotLie}>{lieLabel}{distLabel ? `, ${distLabel}` : ''}</Text>
+                              <Text style={styles.shotResult}>{outcomeLabel}</Text>
+                            </View>
+                          </View>
+                        );
+                      })
+                    : (parsed as ShotData).shots.map((shot, i) => {
+                        const distLabel = shot.distance || '';
+                        return (
+                          <View key={i} style={styles.shotRow}>
+                            <Text style={styles.shotStroke}>{shot.stroke}</Text>
+                            <View style={styles.shotDetails}>
+                              <Text style={styles.shotLie}>{shot.type}{distLabel ? `, ${distLabel}` : ''}</Text>
+                              <Text style={styles.shotResult}>{shot.results.join(', ')}</Text>
+                            </View>
+                          </View>
+                        );
+                      })
+                  }
+                </CollapsibleSection>
+              );
+            })}
+        </View>
+      )}
 
       {/* AI Analysis */}
       {round.aiAnalysis && (
@@ -748,6 +877,36 @@ const styles = StyleSheet.create({
   collapsibleContent: {
     paddingHorizontal: 8,
     paddingBottom: 8,
+  },
+  shotRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  shotStroke: {
+    width: 28,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2E7D32',
+    textAlign: 'center',
+  },
+  shotDetails: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingLeft: 8,
+  },
+  shotLie: {
+    fontSize: 14,
+    color: '#333',
+    flex: 1,
+  },
+  shotResult: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'right',
   },
 });
 

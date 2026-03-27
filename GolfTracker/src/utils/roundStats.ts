@@ -93,6 +93,17 @@ export interface RunningRoundStats {
   puttMissedLow: number;
   puttMissedLeft: number;
   puttMissedRight: number;
+
+  // ── Course & driving stats ────────────────────────────────────
+  totalCourseLength: number;
+  holesWithTeeDistance: number;
+  totalDriveDistance: number;
+  driveCount: number;
+  longestDrive: number;
+
+  // ── GIR approach distance ─────────────────────────────────────
+  totalGirApproachDistance: number;
+  girApproachCount: number;
 }
 
 /**
@@ -293,6 +304,51 @@ function accumulateV2HoleStats(
     }
   }
 
+  // Course length: tee shot distance = hole length
+  if (shots.length > 0 && shots[0].lie === LIE_TYPES.TEE &&
+      shots[0].distanceToHole !== undefined && shots[0].distanceUnit === 'yds') {
+    stats.totalCourseLength += shots[0].distanceToHole;
+    stats.holesWithTeeDistance += 1;
+  }
+
+  // Drive distance: par 4/5, non-penalty tee shot
+  if (par > 3 && shots.length >= 2 && shots[0].lie === LIE_TYPES.TEE &&
+      shots[0].outcome !== SHOT_OUTCOMES.PENALTY &&
+      shots[0].distanceToHole !== undefined && shots[0].distanceUnit === 'yds') {
+    // Find the next non-penalty shot with distance data
+    const nextShot = shots.slice(1).find(s =>
+      s.outcome !== SHOT_OUTCOMES.PENALTY &&
+      s.distanceToHole !== undefined
+    );
+    if (nextShot && nextShot.distanceToHole !== undefined) {
+      // Convert next shot distance to yards if in feet
+      const nextDistYds = nextShot.distanceUnit === 'ft'
+        ? nextShot.distanceToHole / 3
+        : nextShot.distanceToHole;
+      const driveYards = shots[0].distanceToHole - nextDistYds;
+      if (driveYards > 0) {
+        stats.totalDriveDistance += driveYards;
+        stats.driveCount += 1;
+        if (driveYards > stats.longestDrive) stats.longestDrive = driveYards;
+      }
+    }
+  }
+
+  // GIR approach distance: last non-green shot before first putt on GIR holes
+  // Exclude par 3s — the tee shot IS the approach, which conflates driver/iron stats
+  if (holeStats.greenInRegulation && par > 3) {
+    const lastApproachToGreen = shots
+      .filter(s => s.lie !== LIE_TYPES.GREEN && s.outcome !== SHOT_OUTCOMES.PENALTY)
+      .pop();
+    if (lastApproachToGreen?.distanceToHole !== undefined) {
+      const distYds = lastApproachToGreen.distanceUnit === 'ft'
+        ? lastApproachToGreen.distanceToHole / 3
+        : lastApproachToGreen.distanceToHole;
+      stats.totalGirApproachDistance += distYds;
+      stats.girApproachCount += 1;
+    }
+  }
+
   // Non-green shots: penalties, approach buckets, pitch/chip, bunker
   for (const shot of shots) {
     if (shot.lie === LIE_TYPES.GREEN) continue;
@@ -433,6 +489,11 @@ export async function calculateRunningRoundStats(
     puttMissedLong: 0, puttMissedShort: 0,
     puttMissedHigh: 0, puttMissedLow: 0,
     puttMissedLeft: 0, puttMissedRight: 0,
+    // Course & driving
+    totalCourseLength: 0, holesWithTeeDistance: 0,
+    totalDriveDistance: 0, driveCount: 0, longestDrive: 0,
+    // GIR approach
+    totalGirApproachDistance: 0, girApproachCount: 0,
   };
 
   let round: Round;
@@ -612,6 +673,13 @@ export function formatRunningStatsForSMS(stats: RunningRoundStats): string {
   if (stats.totalHolesPlayed === 0) return '';
 
   let text = '\n--- Round Stats ---\n';
+  if (stats.holesWithTeeDistance > 0) {
+    text += `Course Length: ${Math.round(stats.totalCourseLength)} yds\n`;
+  }
+  if (stats.driveCount > 0) {
+    text += `Avg Drive: ${Math.round(stats.totalDriveDistance / stats.driveCount)} yds\n`;
+    text += `Longest Drive: ${Math.round(stats.longestDrive)} yds\n`;
+  }
   text += `Putts: ${stats.totalPutts}\n`;
   text += `Total Putt Feet Made: ${Math.round(stats.totalPuttFeetMade)} ft\n`;
   if (stats.totalFairwayHoles > 0) {
@@ -650,6 +718,10 @@ export function formatRunningStatsForSMS(stats: RunningRoundStats): string {
   if (stats.approachShotCount > 0) {
     const avgApproach = Math.round(stats.totalApproachDistance / stats.approachShotCount);
     text += `\nAvg Approach: ${avgApproach} yds`;
+  }
+  if (stats.girApproachCount > 0) {
+    const avgGirApproach = Math.round(stats.totalGirApproachDistance / stats.girApproachCount);
+    text += `\nAvg GIR Approach: ${avgGirApproach} yds`;
   }
   if (stats.pitchChipAttempts > 0) {
     text += `\nPitch/Chips: ${stats.pitchChipAttempts}`;
