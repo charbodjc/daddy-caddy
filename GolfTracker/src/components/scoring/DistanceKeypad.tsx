@@ -34,7 +34,7 @@ export const DistanceKeypad = React.memo(function DistanceKeypad({
         return next;
       });
     } else if (key === 'OK') {
-      if (valueRef.current) onSubmit(valueRef.current);
+      if (valueRef.current && Number(valueRef.current) > 0) onSubmit(valueRef.current);
     } else {
       setValue(prev => {
         const next = prev.length < MAX_DIGITS ? prev + key : prev;
@@ -46,11 +46,8 @@ export const DistanceKeypad = React.memo(function DistanceKeypad({
 
   return (
     <View style={styles.container}>
-      {contextLabel && (
-        <Text style={styles.contextLabel}>{contextLabel}</Text>
-      )}
       <Text style={styles.prompt}>
-        {unit === 'ft' ? 'How far from the pin?' : 'Distance remaining?'}
+        {contextLabel || (unit === 'ft' ? 'How far from the pin?' : 'Distance remaining?')}
       </Text>
 
       <View style={styles.display} accessibilityLabel={`${value || '0'} ${unit === 'ft' ? 'feet' : 'yards'}`} accessibilityLiveRegion="polite">
@@ -61,7 +58,7 @@ export const DistanceKeypad = React.memo(function DistanceKeypad({
       <View style={styles.keypad}>
         {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'OK'].map((key) => {
           const isOk = key === 'OK';
-          const okDisabled = isOk && !value;
+          const okDisabled = isOk && (!value || Number(value) === 0);
           return (
             <TouchableOpacity
               key={key}
@@ -104,15 +101,6 @@ export const DistanceKeypad = React.memo(function DistanceKeypad({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-  },
-  contextLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#555',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 4,
-    textAlign: 'center',
   },
   prompt: {
     fontSize: 20,

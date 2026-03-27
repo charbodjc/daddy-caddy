@@ -55,7 +55,6 @@ export type ScoringActionV2 =
   | { type: 'TAP_RESULT_LIE'; lie: LieType }
   | { type: 'TAP_PENALTY_LIE'; penaltyType: PenaltyType }
   | { type: 'TAP_PUTT_MISS'; distance: PuttMissDistance; break: PuttMissBreak }
-  | { type: 'TAP_PUTT_MISS_SIDE'; direction: 'left' | 'right' }
   | { type: 'TAP_PUTT_MADE' }
   | { type: 'UNDO' }
   | { type: 'RESTORE'; shots: TrackedShotV2[]; currentStroke: number; par: number };
@@ -283,13 +282,6 @@ function reducer(state: ScoringStateV2, action: ScoringActionV2): ScoringStateV2
         resultLie: LIE_TYPES.GREEN,
       });
 
-    case 'TAP_PUTT_MISS_SIDE':
-      if (state.phase !== 'awaiting_result') return state;
-      return commitShot(state, SHOT_OUTCOMES.MISSED, {
-        missDirection: action.direction as MissDirection,
-        resultLie: LIE_TYPES.GREEN,
-      });
-
     // ── Hole completion ───────────────────────────────────────
 
     // ── Undo ──────────────────────────────────────────────────
@@ -396,8 +388,6 @@ export function useScoringReducerV2(par: number) {
     dispatch({ type: 'TAP_PUTT_MADE' }), []);
   const tapPuttMiss = useCallback((distance: PuttMissDistance, breakDir: PuttMissBreak) =>
     dispatch({ type: 'TAP_PUTT_MISS', distance, break: breakDir }), []);
-  const tapPuttMissSide = useCallback((direction: 'left' | 'right') =>
-    dispatch({ type: 'TAP_PUTT_MISS_SIDE', direction }), []);
   const undo = useCallback(() =>
     dispatch({ type: 'UNDO' }), []);
   const restore = useCallback((shots: TrackedShotV2[], currentStroke: number, holePar: number) =>
@@ -415,7 +405,6 @@ export function useScoringReducerV2(par: number) {
     tapPenaltyLie,
     tapPuttMade,
     tapPuttMiss,
-    tapPuttMissSide,
     undo,
     restore,
   };

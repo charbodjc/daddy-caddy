@@ -7,7 +7,7 @@
  * Progressive disclosure shows classification only for off-green misses.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -39,7 +39,6 @@ import { getScoreName } from '../utils/scoreColors';
 import { formatScoreVsPar } from '../utils/scoreCalculations';
 import smsService from '../services/sms';
 import MediaService from '../services/media';
-import { generateHoleCommentary } from '../utils/holeCommentary';
 import type { ScoringStackParamList } from '../types/navigation';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RouteProp } from '@react-navigation/native';
@@ -48,7 +47,7 @@ import { useScoringReducerV2 } from '../hooks/useScoringReducerV2';
 import { ShotCompass } from '../components/scoring/ShotCompass';
 import { ClassificationPanel } from '../components/scoring/ClassificationPanel';
 import { DistanceKeypad } from '../components/scoring/DistanceKeypad';
-import { ShotLogBarV2, buildShotSummaryV2 } from '../components/scoring/ShotLogBar';
+import { ShotLogBarV2 } from '../components/scoring/ShotLogBar';
 import { SMSBottomSheet } from '../components/scoring/SMSBottomSheet';
 import { HoleSummary } from '../components/scoring/HoleSummary';
 import { LieBadge } from '../components/scoring/LieBadge';
@@ -122,7 +121,6 @@ const HoleScoringScreen: React.FC = () => {
     tapPenaltyLie,
     tapPuttMade,
     tapPuttMiss,
-    tapPuttMissSide,
     undo,
     restore,
   } = useScoringReducerV2(hole?.par ?? 4);
@@ -280,18 +278,22 @@ const HoleScoringScreen: React.FC = () => {
     smsCallback?.();
   }, [smsCallback]);
 
-  // ── "Update" button — status SMS at any time ────────────────
+  // ── "Report" button — status SMS from the green ─────────────
 
-  const handleUpdate = useCallback(() => {
+  const handleReport = useCallback(() => {
     if (!hole) return;
-    const summary = buildShotSummaryV2(s.shots, hole.par);
-    const strokes = calculateTotalStrokesV2(s.shots);
-    const scoreVsPar = strokes - hole.par;
+    // Include the pending putt in the stroke count for an accurate score
+    const currentStrokes = calculateTotalStrokesV2(s.shots);
+    const prospectiveStrokes = currentStrokes + 1;
+    const scoreVsPar = prospectiveStrokes - hole.par;
     const scoreName = getScoreName(scoreVsPar);
-    const commentary = generateHoleCommentary(hole.holeNumber, hole.par, strokes, scoreName);
-    const message = `Hole ${hole.holeNumber} Update\n${summary}\n\n${commentary}`;
+    const distanceText = s.pendingDistance != null
+      ? `${s.pendingDistance} feet`
+      : 'a putt';
+    const golferName = golfer?.name ?? 'Golfer';
+    const message = `Hole ${hole.holeNumber} Update\n${golferName} has ${distanceText} for ${scoreName.toLowerCase()}`;
     showSmsSheet(message);
-  }, [hole, s.shots, showSmsSheet]);
+  }, [hole, s.shots, s.pendingDistance, golfer, showSmsSheet]);
 
   // ── Hole complete flow ──────────────────────────────────────
 
@@ -511,6 +513,8 @@ const HoleScoringScreen: React.FC = () => {
     }
   }, [hole, roundId]);
 
+  const totalStrokes = useMemo(() => calculateTotalStrokesV2(s.shots), [s.shots]);
+
   // ── Loading / Error ─────────────────────────────────────────
 
   if (loading) return <LoadingScreen message="Loading hole..." />;
@@ -518,7 +522,6 @@ const HoleScoringScreen: React.FC = () => {
     return <ErrorScreen error={error || new Error('Hole not found')} onRetry={() => navigation.goBack()} />;
   }
 
-  const totalStrokes = calculateTotalStrokesV2(s.shots);
   const canUndo = s.phase !== 'awaiting_distance' || s.shots.length > 0;
 
   // ── Render ──────────────────────────────────────────────────
@@ -576,17 +579,6 @@ const HoleScoringScreen: React.FC = () => {
           <Ionicons name="images" size={22} color="#fff" />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.headerBtn}
-          onPress={handleUpdate}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityLabel="Send status update"
-          accessibilityHint="Send an SMS with the current hole status"
-          accessibilityRole="button"
-        >
-          <Icon name="textsms" size={22} color="#fff" />
-        </TouchableOpacity>
-
         <View style={styles.scoreColumn}>
           <View style={styles.roundScoreBadge} accessibilityLabel={`Round score: ${formatScoreVsPar(roundScoreToPar)}`}>
             <Text style={styles.roundScoreValue}>{formatScoreVsPar(roundScoreToPar)}</Text>
@@ -619,38 +611,53 @@ const HoleScoringScreen: React.FC = () => {
         contentContainerStyle={[styles.bodyContent, { paddingBottom: Math.max(insets.bottom, 20) }]}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Stroke count */}
-        {totalStrokes > 0 && (
-          <Text style={styles.strokeCount} accessibilityLiveRegion="polite">
-            Strokes: {totalStrokes}
-          </Text>
-        )}
-
         {/* Phase: Distance entry */}
         {s.phase === 'awaiting_distance' && (
           <DistanceKeypad
             unit={s.pendingDistanceUnit}
             onSubmit={(v) => submitDistance(Number(v))}
             onSkip={skipDistance}
+            contextLabel={s.isOnGreen
+              ? `How far from the pin for stroke ${s.currentStroke}?`
+              : `How far to the hole for stroke ${s.currentStroke}?`}
           />
         )}
 
         {/* Phase: Result (off-green) */}
         {s.phase === 'awaiting_result' && !s.isOnGreen && (
-          <ShotCompass
-            isOnGreen={false}
-            onDirection={(d) => tapDirection(d as MissDirection)}
-            onCenter={(c) => handleCenterResult(c as 'fairway' | 'green' | 'hole')}
-          />
+          <View style={styles.compassPhase}>
+            <Text style={styles.phasePrompt}>Where did stroke #{s.currentStroke} go?</Text>
+            <ShotCompass
+              isOnGreen={false}
+              onDirection={(d) => tapDirection(d as MissDirection)}
+              onCenter={(c) => handleCenterResult(c as 'fairway' | 'green' | 'hole')}
+            />
+          </View>
         )}
 
         {/* Phase: Result (on-green / putts) */}
         {s.phase === 'awaiting_result' && s.isOnGreen && (
-          <PuttResult
-            onMade={tapPuttMade}
-            onMiss={tapPuttMiss}
-            onMissSide={tapPuttMissSide}
-          />
+          <>
+            <Text style={styles.puttStatusText}>
+              {s.pendingDistance != null
+                ? `${s.pendingDistance} feet for ${getScoreName((totalStrokes + 1) - hole.par)}`
+                : `Putting for ${getScoreName((totalStrokes + 1) - hole.par)}`}
+            </Text>
+            <PuttResult
+              onMade={tapPuttMade}
+              onMiss={tapPuttMiss}
+            />
+            <TouchableOpacity
+              style={styles.reportButton}
+              onPress={handleReport}
+              accessibilityLabel="Send status report"
+              accessibilityHint="Send an SMS with current hole status"
+              accessibilityRole="button"
+            >
+              <Icon name="textsms" size={20} color="#fff" />
+              <Text style={styles.reportText}>Report</Text>
+            </TouchableOpacity>
+          </>
         )}
 
         {/* Phase: Result lie (off-green miss) */}
@@ -679,7 +686,7 @@ const HoleScoringScreen: React.FC = () => {
             holeNumber={hole.holeNumber}
             par={hole.par}
             shots={s.shots}
-            totalStrokes={calculateTotalStrokesV2(s.shots)}
+            totalStrokes={totalStrokes}
             onSend={handleSummarySend}
             onSkip={handleSummarySkip}
           />
@@ -779,15 +786,41 @@ const styles = StyleSheet.create({
   scrollBody: { flex: 1 },
   bodyContent: { flexGrow: 1, justifyContent: 'center', padding: 20 },
 
-  // Status
-  strokeCount: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-
   // Phase wrappers
+  compassPhase: { alignItems: 'center' },
+  phasePrompt: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  puttStatusText: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  reportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#546E7A',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 12,
+    minWidth: 160,
+    minHeight: 48,
+    alignSelf: 'center',
+    marginTop: 12,
+  },
+  reportText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
   classificationPhase: { alignItems: 'center' },
   classificationPrompt: {
     fontSize: 18,
