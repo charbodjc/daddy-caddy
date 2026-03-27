@@ -1,6 +1,6 @@
 import React from 'react';
 import { StatusBar } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, type LinkingOptions } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -98,9 +98,23 @@ const SettingsStack = () => {
   );
 };
 
+// Deep linking configuration — enables Live Activity tap → scoring screen.
+const linking: LinkingOptions<RootDrawerParamList> = {
+  prefixes: ['daddycaddy://'],
+  config: {
+    screens: {
+      Scoring: {
+        screens: {
+          RoundTracker: 'round/:roundId',
+        },
+      },
+    },
+  },
+};
+
 const AppNavigator = () => {
   return (
-    <NavigationContainer>
+    <NavigationContainer linking={linking}>
       <StatusBar barStyle="light-content" />
       <Drawer.Navigator
         screenOptions={{

@@ -25,7 +25,8 @@
         "NSContactsUsageDescription": "Daddy Caddy needs access to your contacts to select recipients for golf score updates and messages.",
         "NSMicrophoneUsageDescription": "Daddy Caddy uses the microphone for voice shot tracking.",
         "NSPhotoLibraryUsageDescription": "Daddy Caddy needs access to your photo library to select and save golf media.",
-        "NSSpeechRecognitionUsageDescription": "Daddy Caddy uses speech recognition to convert voice commands to golf scores."
+        "NSSpeechRecognitionUsageDescription": "Daddy Caddy uses speech recognition to convert voice commands to golf scores.",
+        "NSSupportsLiveActivities": true
       },
       "config": {
         "usesNonExemptEncryption": false
@@ -48,6 +49,7 @@
       "favicon": "./assets/daddy-caddy-light.png"
     },
     "plugins": [
+      "@bacons/apple-targets",
       "expo-dev-client",
       "expo-image-picker",
       "expo-speech-recognition",

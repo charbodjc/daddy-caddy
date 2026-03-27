@@ -10,7 +10,13 @@
       "ios": {
         "resourceClass": "m-medium",
         "autoIncrement": true,
-        "scheme": "DaddyCaddy"
+        "scheme": "DaddyCaddy",
+        "appExtensions": [
+          {
+            "targetName": "GolfRoundWidget",
+            "bundleIdentifier": "com.daddycaddy.golf.golf-round-widget"
+          }
+        ]
       },
       "android": {
         "buildType": "apk"
@@ -21,7 +27,13 @@
       "ios": {
         "resourceClass": "m-medium",
         "autoIncrement": true,
-        "scheme": "DaddyCaddy"
+        "scheme": "DaddyCaddy",
+        "appExtensions": [
+          {
+            "targetName": "GolfRoundWidget",
+            "bundleIdentifier": "com.daddycaddy.golf.golf-round-widget"
+          }
+        ]
       },
       "android": {
         "buildType": "apk"
@@ -31,7 +43,13 @@
       "ios": {
         "resourceClass": "m-medium",
         "autoIncrement": true,
-        "scheme": "DaddyCaddy"
+        "scheme": "DaddyCaddy",
+        "appExtensions": [
+          {
+            "targetName": "GolfRoundWidget",
+            "bundleIdentifier": "com.daddycaddy.golf.golf-round-widget"
+          }
+        ]
       },
       "android": {
         "buildType": "app-bundle"

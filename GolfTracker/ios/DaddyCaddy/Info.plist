@@ -63,6 +63,8 @@
     <string>Daddy Caddy needs access to your photo library to select and save golf media.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Daddy Caddy uses speech recognition to convert voice commands to golf scores.</string>
+    <key>NSSupportsLiveActivities</key>
+    <true/>
     <key>RCTNewArchEnabled</key>
     <true/>
     <key>UILaunchStoryboardName</key>
