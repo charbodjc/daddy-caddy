@@ -50,6 +50,7 @@ import { ClassificationPanel } from '../components/scoring/ClassificationPanel';
 import { DistanceKeypad } from '../components/scoring/DistanceKeypad';
 import { ShotLogBarV2, buildShotSummaryV2 } from '../components/scoring/ShotLogBar';
 import { SMSBottomSheet } from '../components/scoring/SMSBottomSheet';
+import { HoleSummary } from '../components/scoring/HoleSummary';
 import { LieBadge } from '../components/scoring/LieBadge';
 import { PuttResult } from '../components/scoring/PuttResult';
 import { SCORING_COLORS } from '../components/scoring/colors';
@@ -94,6 +95,9 @@ const HoleScoringScreen: React.FC = () => {
   const [smsMessage, setSmsMessage] = useState('');
   const [smsCallback, setSmsCallback] = useState<(() => void) | null>(null);
 
+  // Hole summary review
+  const [showSummary, setShowSummary] = useState(false);
+
   // Media
   const [isCapturing, setIsCapturing] = useState(false);
   const capturingRef = useRef(false);
@@ -112,7 +116,6 @@ const HoleScoringScreen: React.FC = () => {
     submitDistance,
     skipDistance,
     toggleSwing,
-    setLie,
     tapCenterResult,
     tapDirection,
     tapResultLie,
@@ -292,10 +295,11 @@ const HoleScoringScreen: React.FC = () => {
 
   // ── Hole complete flow ──────────────────────────────────────
 
-  // Reset completingRef when phase leaves hole_complete (e.g., undo)
+  // Reset completingRef and summary when phase leaves hole_complete (e.g., undo)
   useEffect(() => {
     if (s.phase !== 'hole_complete') {
       completingRef.current = false;
+      setShowSummary(false);
     }
   }, [s.phase]);
 
@@ -325,20 +329,7 @@ const HoleScoringScreen: React.FC = () => {
         const parDelta = prior === 0 ? hole.par : 0;
         setRoundScoreToPar(prev => prev + (strokes - prior) - parDelta);
 
-        const finalScoreVsPar = strokes - hole.par;
-        const finalScoreName = getScoreName(finalScoreVsPar);
-        const runningStats = await calculateRunningRoundStats(roundId);
-        const holesPlayed = runningStats.totalHolesPlayed;
-        const totalScoreVsPar = await calculateTotalScoreVsPar(roundId);
-
-        const summaryMsg = `Hole ${hole.holeNumber} Complete!\n` +
-          `Score: ${strokes} (${finalScoreName})\n` +
-          `${formatScoreVsPar(finalScoreVsPar)} on the hole\n` +
-          `\nAfter ${holesPlayed} holes: ${formatScoreVsPar(totalScoreVsPar)}`;
-
-        showSmsSheet(summaryMsg, () => {
-          navigation.navigate('RoundTracker', { roundId });
-        });
+        setShowSummary(true);
       } catch {
         completingRef.current = false;
         Alert.alert('Error', 'Failed to save hole. Please try again.');
@@ -348,7 +339,76 @@ const HoleScoringScreen: React.FC = () => {
     };
 
     completeHole();
-  }, [s.phase, s.shots, s.currentStroke, hole, roundId, updateHole, navigation, showSmsSheet]);
+  }, [s.phase, s.shots, s.currentStroke, hole, roundId, updateHole]);
+
+  // ── Hole summary send/skip handlers ──────────────────────────
+
+  const summaryBusyRef = useRef(false);
+
+  const persistEditedShots = useCallback(async (editedShots: TrackedShotV2[]) => {
+    if (!hole || !roundId) return 0;
+    const shotData: ShotDataV2 = { version: 2, par: hole.par, shots: editedShots, currentStroke: s.currentStroke };
+    const stats = deriveHoleStatsV2(shotData, hole.par);
+    const strokes = calculateTotalStrokesV2(editedShots);
+
+    await updateHole(roundId, {
+      holeNumber: hole.holeNumber,
+      par: hole.par,
+      strokes,
+      fairwayHit: stats?.fairwayHit,
+      greenInRegulation: stats?.greenInRegulation,
+      putts: stats?.puttsCount,
+      shotData: JSON.stringify(shotData),
+    });
+    return strokes;
+  }, [hole, roundId, s.currentStroke, updateHole]);
+
+  const handleSummarySend = useCallback(async (editedShots: TrackedShotV2[]) => {
+    if (!hole || !roundId || summaryBusyRef.current) return;
+    summaryBusyRef.current = true;
+    setSaving(true);
+
+    try {
+      const strokes = await persistEditedShots(editedShots);
+
+      const finalScoreVsPar = strokes - hole.par;
+      const finalScoreName = getScoreName(finalScoreVsPar);
+      const runningStats = await calculateRunningRoundStats(roundId);
+      const holesPlayed = runningStats.totalHolesPlayed;
+      const totalScoreVsPar = await calculateTotalScoreVsPar(roundId);
+
+      const summaryMsg = `Hole ${hole.holeNumber} Complete!\n` +
+        `Score: ${strokes} (${finalScoreName})\n` +
+        `${formatScoreVsPar(finalScoreVsPar)} on the hole\n` +
+        `\nAfter ${holesPlayed} holes: ${formatScoreVsPar(totalScoreVsPar)}`;
+
+      setShowSummary(false);
+      showSmsSheet(summaryMsg, () => {
+        navigation.navigate('RoundTracker', { roundId });
+      });
+    } catch {
+      Alert.alert('Error', 'Failed to save edits. Please try again.');
+    } finally {
+      summaryBusyRef.current = false;
+      setSaving(false);
+    }
+  }, [hole, roundId, persistEditedShots, navigation, showSmsSheet]);
+
+  const handleSummarySkip = useCallback(async (editedShots: TrackedShotV2[]) => {
+    if (!hole || !roundId || summaryBusyRef.current) return;
+    summaryBusyRef.current = true;
+    setSaving(true);
+
+    try {
+      await persistEditedShots(editedShots);
+      navigation.navigate('RoundTracker', { roundId });
+    } catch {
+      Alert.alert('Error', 'Failed to save edits. Please try again.');
+    } finally {
+      summaryBusyRef.current = false;
+      setSaving(false);
+    }
+  }, [hole, roundId, persistEditedShots, navigation]);
 
   // ── Classification panel callback (bridges V1 Classification → V2) ──
 
@@ -546,7 +606,6 @@ const HoleScoringScreen: React.FC = () => {
         lie={s.currentLie}
         swing={s.pendingSwing}
         stroke={s.currentStroke}
-        onSetLie={setLie}
         onToggleSwing={toggleSwing}
         disabled={s.phase !== 'awaiting_distance'}
       />
@@ -606,12 +665,24 @@ const HoleScoringScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Phase: Hole complete */}
+        {/* Phase: Hole complete — saving */}
         {s.phase === 'hole_complete' && saving && (
           <View style={styles.savingContainer} accessibilityRole="alert" accessibilityLiveRegion="assertive">
             <ActivityIndicator size="large" color="#2E7D32" />
             <Text style={styles.savingText}>Saving hole...</Text>
           </View>
+        )}
+
+        {/* Phase: Hole complete — summary review */}
+        {s.phase === 'hole_complete' && showSummary && !saving && hole && (
+          <HoleSummary
+            holeNumber={hole.holeNumber}
+            par={hole.par}
+            shots={s.shots}
+            totalStrokes={calculateTotalStrokesV2(s.shots)}
+            onSend={handleSummarySend}
+            onSkip={handleSummarySkip}
+          />
         )}
       </ScrollView>
 
