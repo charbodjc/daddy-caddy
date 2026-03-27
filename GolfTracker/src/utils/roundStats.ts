@@ -293,7 +293,7 @@ function accumulateV2HoleStats(
     }
   }
 
-  // Non-green, non-tee shots with distance data
+  // Non-green shots: penalties, approach buckets, pitch/chip, bunker
   for (const shot of shots) {
     if (shot.lie === LIE_TYPES.GREEN) continue;
 
@@ -305,8 +305,14 @@ function accumulateV2HoleStats(
 
     const dist = shot.distanceToHole;
 
-    // Approach shots (>= 50 yds, or par 3 tee shots)
-    if (dist >= 50 || (shot.lie === LIE_TYPES.TEE && par === 3)) {
+    // Approach shots: non-tee shots >= 50 yds, or par 3 tee shots
+    // Exclude tee shots on par 4/5 (drives) and penalty shots
+    const isApproach = shot.outcome !== SHOT_OUTCOMES.PENALTY && (
+      shot.lie === LIE_TYPES.TEE
+        ? par === 3
+        : dist >= 50
+    );
+    if (isApproach) {
       const bucket = getApproachBucket(dist);
       if (bucket) {
         const prefix = `approach${bucket}` as const;
@@ -432,7 +438,8 @@ export async function calculateRunningRoundStats(
   let round: Round;
   try {
     round = await database.get<Round>('rounds').find(roundId);
-  } catch {
+  } catch (e) {
+    console.warn(`Failed to load round ${roundId} for stats:`, e);
     return stats;
   }
   const holes: Hole[] = await round.holes.fetch();
