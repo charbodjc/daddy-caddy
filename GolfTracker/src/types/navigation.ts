@@ -1,4 +1,4 @@
-import { NavigationProp as RNNavigationProp } from '@react-navigation/native';
+import { NavigationProp as RNNavigationProp, NavigatorScreenParams } from '@react-navigation/native';
 
 // Home stack (nested inside Home tab)
 export type HomeStackParamList = {
@@ -38,10 +38,11 @@ export type SettingsStackParamList = {
 // CompositeNavigationProp would require per-screen typing which is a larger refactor.
 export type AppNavigationProp = RNNavigationProp<Record<string, unknown>>;
 
-// Drawer navigation
+// Drawer navigation — NavigatorScreenParams enables type-safe nested navigation
+// and deep linking config for nested stack screens.
 export type RootDrawerParamList = {
-  Home: undefined;
-  Scoring: { screen?: string; params?: Record<string, unknown> } | undefined;
-  Tournaments: { screen?: string; params?: Record<string, unknown> } | undefined;
-  Settings: undefined;
+  Home: NavigatorScreenParams<HomeStackParamList> | undefined;
+  Scoring: NavigatorScreenParams<ScoringStackParamList> | undefined;
+  Tournaments: NavigatorScreenParams<TournamentStackParamList> | undefined;
+  Settings: NavigatorScreenParams<SettingsStackParamList> | undefined;
 };

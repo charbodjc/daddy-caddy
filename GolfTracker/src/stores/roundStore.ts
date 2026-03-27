@@ -11,6 +11,12 @@ import {
   type CreateRoundData,
 } from '../validators/roundValidator';
 import { useGolferStore } from './golferStore';
+import {
+  startRoundActivity,
+  updateRoundActivity,
+  endRoundActivity,
+  getRunningActivityId,
+} from '../../modules/live-activity';
 
 export interface UnfinishedRoundSummary {
   roundId: string;
@@ -59,6 +65,7 @@ export async function getUnfinishedRoundSummary(
 
 interface RoundState {
   activeRound: Round | null;
+  liveActivityId: string | null;
   rounds: Round[];
   loading: boolean;
   error: Error | null;
@@ -78,6 +85,7 @@ export const useRoundStore = create<RoundState>()(
   devtools(
     (set, get) => ({
       activeRound: null,
+      liveActivityId: null,
       rounds: [],
       loading: false,
       error: null,
@@ -101,7 +109,39 @@ export const useRoundStore = create<RoundState>()(
             .query(...clauses)
             .fetch();
 
-          set({ activeRound: unfinished[0] ?? null, loading: false });
+          const activeRound = unfinished[0] ?? null;
+
+          // Only recover Live Activity if we don't already have one tracked
+          // (avoids double-update when called from updateHole)
+          const existingActivityId = get().liveActivityId;
+          let liveActivityId = existingActivityId;
+
+          if (activeRound && !existingActivityId) {
+            // Recover Live Activity ID after app relaunch
+            liveActivityId = await getRunningActivityId(activeRound.id);
+
+            // Push an immediate update so the Lock Screen shows current data
+            if (liveActivityId) {
+              const allHoles: Hole[] = await activeRound.holes.fetch();
+              const completedHoles = allHoles.filter((h: Hole) => h.strokes > 0);
+              const totalScore = completedHoles.reduce((sum: number, h: Hole) => sum + h.strokes, 0);
+              const playedPar = completedHoles.reduce((sum: number, h: Hole) => sum + h.par, 0);
+              const maxHole = completedHoles.length > 0
+                ? Math.max(...completedHoles.map((h: Hole) => h.holeNumber))
+                : 1;
+              updateRoundActivity(liveActivityId, {
+                currentHole: maxHole,
+                totalScore,
+                scoreVsPar: totalScore - playedPar,
+                holesCompleted: completedHoles.length,
+                totalHoles: allHoles.length,
+              }).catch((err) => console.warn('Live Activity update failed:', err));
+            }
+          } else if (!activeRound) {
+            liveActivityId = null;
+          }
+
+          set({ activeRound, liveActivityId, loading: false });
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
           console.error('Failed to load active round:', error);
@@ -116,6 +156,16 @@ export const useRoundStore = create<RoundState>()(
         try {
           // Validate input before touching the database
           validateCreateRound(data);
+
+          // End any existing Live Activity before the write transaction
+          // (native calls must be outside database.write to avoid rollback on throw)
+          const { liveActivityId: previousActivityId } = get();
+          if (previousActivityId) {
+            await endRoundActivity(previousActivityId, {
+              currentHole: 0, totalScore: 0, scoreVsPar: 0, holesCompleted: 0, totalHoles: 18,
+            }).catch((err) => console.warn('Live Activity failed:', err));
+            set({ liveActivityId: null });
+          }
 
           // Create round and all 18 holes in a single write transaction
           const round = await database.write(async () => {
@@ -163,6 +213,11 @@ export const useRoundStore = create<RoundState>()(
           // Round is unfinished, so it becomes the active round automatically
           set({ activeRound: round });
 
+          // Start Live Activity (fire-and-forget — never block round creation)
+          startRoundActivity(data.courseName, round.id, 18).then((id) => {
+            if (id) set({ liveActivityId: id });
+          }).catch((err) => console.warn('Live Activity start failed:', err));
+
           return round;
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
@@ -185,7 +240,8 @@ export const useRoundStore = create<RoundState>()(
 
         try {
           // Update hole and round statistics in a single write transaction
-          await database.write(async () => {
+          // Returns computed stats for the Live Activity update
+          const stats = await database.write(async () => {
             const holes = await database.collections
               .get<Hole>('holes')
               .query(
@@ -218,6 +274,10 @@ export const useRoundStore = create<RoundState>()(
             const totalPutts = completedHoles.reduce((sum: number, h: Hole) => sum + (h.putts || 0), 0);
             const fairwaysHit = allHoles.filter((h: Hole) => h.fairwayHit === true).length;
             const greensInRegulation = allHoles.filter((h: Hole) => h.greenInRegulation === true).length;
+            const playedPar = completedHoles.reduce((sum: number, h: Hole) => sum + h.par, 0);
+            const maxHoleNumber = completedHoles.length > 0
+              ? Math.max(...completedHoles.map((h: Hole) => h.holeNumber))
+              : 1;
 
             await round.update((r) => {
               r.totalScore = totalScore;
@@ -225,7 +285,21 @@ export const useRoundStore = create<RoundState>()(
               r.fairwaysHit = fairwaysHit;
               r.greensInRegulation = greensInRegulation;
             });
+
+            return { totalScore, playedPar, holesCompleted: completedHoles.length, maxHoleNumber, totalHoles: allHoles.length };
           });
+
+          // Update Live Activity outside the DB transaction (fire-and-forget)
+          const { liveActivityId } = get();
+          if (liveActivityId) {
+            updateRoundActivity(liveActivityId, {
+              currentHole: stats.maxHoleNumber,
+              totalScore: stats.totalScore,
+              scoreVsPar: stats.totalScore - stats.playedPar,
+              holesCompleted: stats.holesCompleted,
+              totalHoles: stats.totalHoles,
+            }).catch((err) => console.warn('Live Activity failed:', err));
+          }
 
           // Reload active round if it's the one being updated
           if (activeRound?.id === roundId) {
@@ -248,8 +322,28 @@ export const useRoundStore = create<RoundState>()(
             });
           });
 
+          // End Live Activity with final stats (fire-and-forget)
+          const { liveActivityId } = get();
+          if (liveActivityId) {
+            const round = await database.collections.get<Round>('rounds').find(roundId);
+            const allHoles: Hole[] = await round.holes.fetch();
+            const completedHoles = allHoles.filter((h: Hole) => h.strokes > 0);
+            const totalScore = completedHoles.reduce((sum: number, h: Hole) => sum + h.strokes, 0);
+            const playedPar = completedHoles.reduce((sum: number, h: Hole) => sum + h.par, 0);
+            const maxHole = completedHoles.length > 0
+              ? Math.max(...completedHoles.map((h: Hole) => h.holeNumber))
+              : 18;
+            endRoundActivity(liveActivityId, {
+              currentHole: maxHole,
+              totalScore,
+              scoreVsPar: totalScore - playedPar,
+              holesCompleted: completedHoles.length,
+              totalHoles: allHoles.length,
+            }).catch((err) => console.warn('Live Activity failed:', err));
+          }
+
           // Round is now finished — no longer the active round
-          set({ activeRound: null });
+          set({ activeRound: null, liveActivityId: null });
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
           set({ error });
@@ -274,11 +368,16 @@ export const useRoundStore = create<RoundState>()(
             );
           });
 
-          const { activeRound } = get();
+          const { activeRound, liveActivityId } = get();
 
-          // Clear active round if it was deleted
+          // Clear active round and end Live Activity if it was deleted
           if (activeRound?.id === roundId) {
-            set({ activeRound: null });
+            if (liveActivityId) {
+              endRoundActivity(liveActivityId, {
+                currentHole: 0, totalScore: 0, scoreVsPar: 0, holesCompleted: 0, totalHoles: 18,
+              }).catch((err) => console.warn('Live Activity failed:', err));
+            }
+            set({ activeRound: null, liveActivityId: null });
           }
 
           // Remove deleted round from in-memory list instead of re-querying the DB
@@ -294,7 +393,14 @@ export const useRoundStore = create<RoundState>()(
       // Does NOT mark the round as finished — the round remains unfinished in the DB.
       // This is critical for golfer switching: hiding a round is not finishing it.
       clearActiveRound: async () => {
-        set({ activeRound: null });
+        const { liveActivityId } = get();
+        if (liveActivityId) {
+          // Dismiss immediately — don't show zeroed stats on Lock Screen
+          endRoundActivity(liveActivityId, {
+            currentHole: 0, totalScore: 0, scoreVsPar: 0, holesCompleted: 0, totalHoles: 18,
+          }, true).catch((err) => console.warn('Live Activity end failed:', err));
+        }
+        set({ activeRound: null, liveActivityId: null });
       },
 
       // Load all rounds, optionally filtered by golfer
@@ -319,11 +425,14 @@ export const useRoundStore = create<RoundState>()(
         }
       },
 
-      // Set active round by ID (for navigating to a specific round)
+      // Set active round by ID (for navigating to a specific round, including deep links)
       setActiveRound: async (roundId: string) => {
         try {
           const round = await database.collections.get<Round>('rounds').find(roundId);
-          set({ activeRound: round });
+          // Recover Live Activity if we don't already have one tracked
+          const existingActivityId = get().liveActivityId;
+          const liveActivityId = existingActivityId ?? await getRunningActivityId(roundId);
+          set({ activeRound: round, liveActivityId });
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
           set({ error });

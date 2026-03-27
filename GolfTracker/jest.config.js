@@ -5,6 +5,7 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^.*modules/live-activity$': '<rootDir>/__mocks__/live-activity.ts',
   },
   testEnvironment: 'node',
   setupFiles: ['<rootDir>/jest.setup.js'],
