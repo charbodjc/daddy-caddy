@@ -342,6 +342,22 @@ function reducer(state: ScoringStateV2, action: ScoringActionV2): ScoringStateV2
       if (action.shots.length === 0) {
         return buildInitialState(action.par);
       }
+      // If the last shot was holed, the hole is already complete
+      const lastShot = action.shots[action.shots.length - 1];
+      if (lastShot.outcome === SHOT_OUTCOMES.HOLED) {
+        return {
+          phase: 'hole_complete',
+          shots: action.shots,
+          currentStroke: action.currentStroke,
+          par: action.par,
+          currentLie: LIE_TYPES.GREEN,
+          isOnGreen: true,
+          pendingDistance: null,
+          pendingDistanceUnit: 'ft',
+          pendingSwing: SWING_TYPES.FREE,
+          pendingMissDirection: null,
+        };
+      }
       const nextLie = inferNextLie(action.shots);
       const isOnGreen = nextLie === LIE_TYPES.GREEN;
       return {

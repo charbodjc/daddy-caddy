@@ -310,12 +310,18 @@ const HoleScoringScreen: React.FC = () => {
     if (completingRef.current) return;
     completingRef.current = true;
 
+    // If the hole was already saved (re-entry), skip the DB write and show summary directly
+    const strokes = calculateTotalStrokesV2(s.shots);
+    if (prevHoleStrokes.current > 0 && prevHoleStrokes.current === strokes) {
+      setShowSummary(true);
+      return;
+    }
+
     const completeHole = async () => {
       setSaving(true);
       try {
         const shotData: ShotDataV2 = { version: 2, par: hole.par, shots: s.shots, currentStroke: s.currentStroke };
         const stats = deriveHoleStatsV2(shotData, hole.par);
-        const strokes = calculateTotalStrokesV2(s.shots);
 
         await updateHole(roundId, {
           holeNumber: hole.holeNumber,
