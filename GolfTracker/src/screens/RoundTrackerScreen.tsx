@@ -393,6 +393,10 @@ const RoundTrackerScreen: React.FC = () => {
               onPress={() => handleHolePress(hole)}
             />
           ))}
+          {/* Invisible spacers to keep last row left-aligned with space-between */}
+          {Array.from({ length: (4 - (holes.length % 4)) % 4 }, (_, i) => (
+            <View key={`spacer-${i}`} style={styles.holeSpacer} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+          ))}
         </View>
       </ScrollView>
       
@@ -530,6 +534,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     padding: 15,
+  },
+  holeSpacer: {
+    width: '22%',
   },
   modalOverlay: {
     flex: 1,
