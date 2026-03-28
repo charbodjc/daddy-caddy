@@ -12,7 +12,7 @@
  * - Clean, maintainable code
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -85,6 +85,26 @@ const RoundTrackerScreen: React.FC = () => {
     () => (rawHoles ? [...rawHoles].sort((a, b) => a.holeNumber - b.holeNumber) : []),
     [rawHoles],
   );
+
+  // Auto-navigate to the current hole when arriving via deep link (Live Activity tap).
+  // The ref prevents re-triggering when navigating back from HoleScoringScreen.
+  const autoNavigatedForRound = useRef<string | null>(null);
+  useEffect(() => {
+    if (!params.roundId || !round || !holes.length) return;
+    if (autoNavigatedForRound.current === round.id) return;
+
+    const lastPlayedHole = holes
+      .filter(h => h.strokes > 0)
+      .sort((a, b) => b.holeNumber - a.holeNumber)[0];
+
+    if (!lastPlayedHole) return; // No holes scored yet — stay on the grid
+
+    autoNavigatedForRound.current = round.id;
+    navigation.navigate('HoleScoring', {
+      holeId: lastPlayedHole.id,
+      roundId: round.id,
+    });
+  }, [params.roundId, round, holes, navigation]);
 
   const [setupVisible, setSetupVisible] = useState(!params.roundId && !round);
   const [courseName, setCourseName] = useState('');
