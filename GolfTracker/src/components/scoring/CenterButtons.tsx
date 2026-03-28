@@ -32,7 +32,7 @@ export const CenterButtons = React.memo(function CenterButtons({
         accessibilityRole="button"
         accessibilityState={{ disabled }}
       >
-        <Icon name="flag" size={24} color={SCORING_COLORS.white} />
+        <Icon name="flag" size={28} color={SCORING_COLORS.white} />
         <Text style={styles.buttonText} adjustsFontSizeToFit numberOfLines={2}>In The{'\n'}Hole</Text>
       </TouchableOpacity>
     );
@@ -80,21 +80,26 @@ export const CenterButtons = React.memo(function CenterButtons({
 const styles = StyleSheet.create({
   centerStack: {
     width: 110,
-    gap: 5,
+    gap: 8,
     alignItems: 'center',
   },
   centerBtn: {
     width: 110,
-    minHeight: 52,
-    borderRadius: 16,
+    minHeight: 62,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   centerSingle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 3,
@@ -116,14 +121,14 @@ const styles = StyleSheet.create({
     backgroundColor: SCORING_COLORS.hole,
   },
   buttonText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: SCORING_COLORS.white,
     textAlign: 'center',
     marginTop: 2,
   },
   buttonTextSmall: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '700',
     color: SCORING_COLORS.white,
   },

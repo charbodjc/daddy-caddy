@@ -22,21 +22,21 @@ interface ShotCompassProps {
 const DIRECTIONS = [
   // Row 1: Long-Left, Long, Long-Right
   [
-    { result: SHOT_RESULTS.LONG_LEFT, icon: 'north-west', label: 'Long left', diag: true },
-    { result: SHOT_RESULTS.LONG, icon: 'arrow-upward', label: 'Long', diag: false },
-    { result: SHOT_RESULTS.LONG_RIGHT, icon: 'north-east', label: 'Long right', diag: true },
+    { result: SHOT_RESULTS.LONG_LEFT, icon: 'north-west', label: 'Long left' },
+    { result: SHOT_RESULTS.LONG, icon: 'arrow-upward', label: 'Long' },
+    { result: SHOT_RESULTS.LONG_RIGHT, icon: 'north-east', label: 'Long right' },
   ],
   // Row 2: Left, [CENTER], Right
   [
-    { result: SHOT_RESULTS.LEFT, icon: 'arrow-back', label: 'Left', diag: false },
+    { result: SHOT_RESULTS.LEFT, icon: 'arrow-back', label: 'Left' },
     null, // center slot — rendered separately
-    { result: SHOT_RESULTS.RIGHT, icon: 'arrow-forward', label: 'Right', diag: false },
+    { result: SHOT_RESULTS.RIGHT, icon: 'arrow-forward', label: 'Right' },
   ],
   // Row 3: Short-Left, Short, Short-Right
   [
-    { result: SHOT_RESULTS.SHORT_LEFT, icon: 'south-west', label: 'Short left', diag: true },
-    { result: SHOT_RESULTS.SHORT, icon: 'arrow-downward', label: 'Short', diag: false },
-    { result: SHOT_RESULTS.SHORT_RIGHT, icon: 'south-east', label: 'Short right', diag: true },
+    { result: SHOT_RESULTS.SHORT_LEFT, icon: 'south-west', label: 'Short left' },
+    { result: SHOT_RESULTS.SHORT, icon: 'arrow-downward', label: 'Short' },
+    { result: SHOT_RESULTS.SHORT_RIGHT, icon: 'south-east', label: 'Short right' },
   ],
 ] as const;
 
@@ -65,7 +65,7 @@ export const ShotCompass = React.memo(function ShotCompass({
               <TouchableOpacity
                 key={btn.result}
                 style={[
-                  btn.diag ? styles.diagButton : styles.dirButton,
+                  styles.dirButton,
                   styles.missButton,
                   disabled && styles.disabledButton,
                 ]}
@@ -78,7 +78,7 @@ export const ShotCompass = React.memo(function ShotCompass({
               >
                 <Icon
                   name={btn.icon}
-                  size={btn.diag ? 28 : 36}
+                  size={36}
                   color={SCORING_COLORS.white}
                 />
               </TouchableOpacity>
@@ -104,18 +104,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  diagButton: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 3,
