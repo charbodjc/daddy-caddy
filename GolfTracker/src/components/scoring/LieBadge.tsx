@@ -10,6 +10,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { SWING_TYPES } from '../../types';
 import type { LieType, SwingType } from '../../types';
 import { lieLabel, lieColor, lieIcon } from '../../utils/shotDataV2Helpers';
+import { SCORING_COLORS } from './colors';
 
 interface LieBadgeProps {
   lie: LieType;
@@ -51,7 +52,7 @@ export const LieBadge = React.memo(function LieBadge({
         <Icon
           name={isRestricted ? 'do-not-disturb' : 'open-in-full'}
           size={16}
-          color={isRestricted ? '#fff' : '#555'}
+          color={isRestricted ? SCORING_COLORS.white : SCORING_COLORS.swingFreeText}
         />
         <Text style={[styles.swingText, isRestricted && styles.swingTextRestricted]}>
           {isRestricted ? 'Restricted' : 'Free'}
@@ -88,25 +89,28 @@ const styles = StyleSheet.create({
   swingToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: SCORING_COLORS.swingFreeBg,
+    borderWidth: 1.5,
+    borderColor: SCORING_COLORS.swingFreeBorder,
     minHeight: 44,
   },
   disabledToggle: {
-    opacity: 0.5,
+    opacity: SCORING_COLORS.disabledOpacity,
   },
   swingRestricted: {
-    backgroundColor: '#E65100',
+    backgroundColor: SCORING_COLORS.swingRestricted,
+    borderColor: SCORING_COLORS.swingRestricted,
   },
   swingText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#555',
+    fontSize: 14,
+    fontWeight: '700',
+    color: SCORING_COLORS.swingFreeText,
   },
   swingTextRestricted: {
-    color: '#fff',
+    color: SCORING_COLORS.white,
   },
 });
