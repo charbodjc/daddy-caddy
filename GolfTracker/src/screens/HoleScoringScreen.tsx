@@ -30,11 +30,11 @@ import Hole from '../database/watermelon/models/Hole';
 import Round from '../database/watermelon/models/Round';
 import Golfer from '../database/watermelon/models/Golfer';
 import {
-  isShotDataV2, LIE_TYPES, PENALTY_TYPES,
+  isShotDataV2, LIE_TYPES, PENALTY_TYPES, SHOT_OUTCOMES,
 } from '../types';
 import type { TrackedShotV2, ShotDataV2, SmsContact, LieType, MissDirection, PenaltyType } from '../types';
 import { parseShotData, deriveHoleStatsV2, calculateRunningRoundStats } from '../utils/roundStats';
-import { calculateTotalStrokesV2 } from '../utils/shotDataV2Helpers';
+import { calculateTotalStrokesV2, derivedShotTypeV2, lieLabel } from '../utils/shotDataV2Helpers';
 import { getScoreName } from '../utils/scoreColors';
 import { formatScoreVsPar } from '../utils/scoreCalculations';
 import smsService from '../services/sms';
@@ -287,13 +287,53 @@ const HoleScoringScreen: React.FC = () => {
     const prospectiveStrokes = currentStrokes + 1;
     const scoreVsPar = prospectiveStrokes - hole.par;
     const scoreName = getScoreName(scoreVsPar);
-    const distanceText = s.pendingDistance != null
-      ? `${s.pendingDistance} feet`
-      : 'a putt';
-    const golferName = golfer?.name ?? 'Golfer';
-    const message = `Hole ${hole.holeNumber} Update\n${golferName} has ${distanceText} for ${scoreName.toLowerCase()}`;
+
+    // Build shot-by-shot summary
+    const holeYardage = s.shots[0]?.distanceToHole;
+    const yardageText = holeYardage ? ` ${holeYardage} yards` : '';
+    const lines: string[] = [`Par ${hole.par}:${yardageText}`];
+
+    for (let i = 0; i < s.shots.length; i++) {
+      const shot = s.shots[i];
+      const shotType = derivedShotTypeV2(shot);
+      const unitLabel = shot.distanceUnit === 'ft' ? 'feet' : 'yards';
+
+      // Penalty shots get their own label
+      if (shot.outcome === SHOT_OUTCOMES.PENALTY) {
+        const penaltyLabel = shot.penaltyType?.toUpperCase() ?? 'Penalty';
+        lines.push(`${shotType}: ${penaltyLabel}`);
+      } else if (shot.lie === LIE_TYPES.TEE) {
+        // Tee shot: compute distance traveled from distanceToHole difference
+        const nextShot = s.shots[i + 1];
+        const rawTraveled = (shot.distanceToHole != null && nextShot?.distanceToHole != null)
+          ? shot.distanceToHole - nextShot.distanceToHole
+          : undefined;
+        const traveled = rawTraveled != null && rawTraveled > 0 ? rawTraveled : undefined;
+        const liePrep = shot.resultLie === LIE_TYPES.GREEN ? 'on' : 'in';
+        const resultDesc = shot.resultLie ? `${liePrep} the ${lieLabel(shot.resultLie).toLowerCase()}` : '';
+        const distText = traveled != null ? `${traveled} yards ${resultDesc}`.trim() : resultDesc;
+        if (distText) lines.push(`${shotType}: ${distText}`);
+      } else if (shot.lie !== LIE_TYPES.GREEN) {
+        // Approach / chip: show starting distance and result
+        const distText = shot.distanceToHole != null ? `${shot.distanceToHole} ${unitLabel}` : '';
+        const resultDesc = shot.resultLie === LIE_TYPES.GREEN
+          ? 'to the green'
+          : shot.resultLie
+            ? `to the ${lieLabel(shot.resultLie).toLowerCase()}`
+            : '';
+        const combined = `${distText} ${resultDesc}`.trim();
+        if (combined) lines.push(`${shotType}: ${combined}`);
+      }
+      // Skip green shots — the final line covers the putt
+    }
+
+    // Final line: current putting situation
+    const puttDistText = s.pendingDistance != null ? `${s.pendingDistance} feet` : 'a putt';
+    lines.push(`Green: ${puttDistText} for ${scoreName.toLowerCase()}`);
+
+    const message = lines.join('\n');
     showSmsSheet(message);
-  }, [hole, s.shots, s.pendingDistance, golfer, showSmsSheet]);
+  }, [hole, s.shots, s.pendingDistance, showSmsSheet]);
 
   // ── Hole complete flow ──────────────────────────────────────
 
@@ -385,10 +425,11 @@ const HoleScoringScreen: React.FC = () => {
       const holesPlayed = runningStats.totalHolesPlayed;
       const totalScoreVsPar = await calculateTotalScoreVsPar(roundId);
 
-      const summaryMsg = `Hole ${hole.holeNumber} Complete!\n` +
+      const holeYardage = editedShots[0]?.distanceToHole;
+      const yardageText = holeYardage ? ` ${holeYardage} yards` : '';
+      const summaryMsg = `Hole ${hole.holeNumber}: Par ${hole.par}${yardageText}\n` +
         `Score: ${strokes} (${finalScoreName})\n` +
-        `${formatScoreVsPar(finalScoreVsPar)} on the hole\n` +
-        `\nAfter ${holesPlayed} holes: ${formatScoreVsPar(totalScoreVsPar)}`;
+        `After ${holesPlayed} holes: ${formatScoreVsPar(totalScoreVsPar)}`;
 
       setShowSummary(false);
       showSmsSheet(summaryMsg, () => {
