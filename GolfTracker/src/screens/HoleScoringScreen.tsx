@@ -392,6 +392,7 @@ const HoleScoringScreen: React.FC = () => {
 
       setShowSummary(false);
       showSmsSheet(summaryMsg, () => {
+        allowLeaveRef.current = true;
         navigation.navigate('RoundTracker', { roundId });
       });
     } catch {
@@ -409,6 +410,7 @@ const HoleScoringScreen: React.FC = () => {
 
     try {
       await persistEditedShots(editedShots);
+      allowLeaveRef.current = true;
       navigation.navigate('RoundTracker', { roundId });
     } catch {
       Alert.alert('Error', 'Failed to save edits. Please try again.');
@@ -694,7 +696,6 @@ const HoleScoringScreen: React.FC = () => {
             holeNumber={hole.holeNumber}
             par={hole.par}
             shots={s.shots}
-            totalStrokes={totalStrokes}
             onSend={handleSummarySend}
             onSkip={handleSummarySkip}
           />
