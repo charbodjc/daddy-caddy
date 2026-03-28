@@ -29,6 +29,12 @@ export const SCORING_COLORS = {
   puttMissShortLow: '#EF6C00',
   puttMissSide: '#546E7A',
 
+  // Swing toggle
+  swingFreeBg: '#E3F2FD',
+  swingFreeBorder: '#1E88E5',
+  swingFreeText: '#1565C0',
+  swingRestricted: '#E65100',
+
   // Misc
   skip: '#9E9E9E',
   disabled: '#e0e0e0',
