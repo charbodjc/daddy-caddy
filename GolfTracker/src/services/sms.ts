@@ -1,11 +1,25 @@
 import { Platform, Linking } from 'react-native';
 import * as SMS from 'expo-sms';
-import { GolfHole, SmsContact, SHOT_TYPES } from '../types';
+import type { SMSAttachment } from 'expo-sms';
+import RNFS from 'react-native-fs';
+import { GolfHole, SmsContact, MediaItem, SHOT_TYPES } from '../types';
 import { database } from '../database/watermelon/database';
 import Golfer from '../database/watermelon/models/Golfer';
 import Round from '../database/watermelon/models/Round';
 import { parseGolferContacts } from '../stores/golferStore';
 import { getScoreName } from '../utils/scoreColors';
+
+const MIME_BY_EXT: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.heic': 'image/heic',
+  '.heif': 'image/heif',
+  '.gif': 'image/gif',
+  '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.m4v': 'video/x-m4v',
+};
 
 class SMSService {
   /**
@@ -35,12 +49,34 @@ class SMSService {
     }
   }
 
+  private mimeTypeFromUri(uri: string, fallbackType: 'photo' | 'video'): string {
+    const ext = uri.substring(uri.lastIndexOf('.')).toLowerCase();
+    return MIME_BY_EXT[ext] ?? (fallbackType === 'video' ? 'video/mp4' : 'image/jpeg');
+  }
+
+  private mediaItemToAttachment(item: MediaItem): SMSAttachment {
+    const mimeType = this.mimeTypeFromUri(item.uri, item.type);
+    const filename = item.uri.split('/').pop() ?? `${item.type}_${item.id}.${item.type === 'video' ? 'mp4' : 'jpg'}`;
+    return { uri: item.uri, mimeType, filename };
+  }
+
+  private async buildValidAttachments(items: MediaItem[]): Promise<SMSAttachment[]> {
+    const attachments: SMSAttachment[] = [];
+    for (const item of items) {
+      const exists = await RNFS.exists(item.uri);
+      if (exists) {
+        attachments.push(this.mediaItemToAttachment(item));
+      }
+    }
+    return attachments;
+  }
+
   async sendHoleSummary(
     hole: GolfHole,
     aiSummary: string,
-    mediaCount: { photos: number; videos: number },
     golferId: string,
     runningStatsText?: string,
+    mediaItems?: MediaItem[],
   ): Promise<{ success: boolean; sent: boolean; errors: string[] }> {
     const recipients = await this.getRecipientsForGolfer(golferId);
     if (recipients.length === 0) {
@@ -60,12 +96,10 @@ class SMSService {
         if (parsed?.shots && Array.isArray(parsed.shots)) {
           let puttCount: number;
           if (parsed.version === 2) {
-            // V2: putts are shots with lie === 'green'
             puttCount = parsed.shots.filter(
               (s: { lie: string }) => s.lie === 'green',
             ).length;
           } else {
-            // V1: putts by type field
             puttCount = parsed.shots.filter(
               (s: { type: string }) =>
                 s.type?.toLowerCase() === SHOT_TYPES.PUTT.toLowerCase(),
@@ -80,14 +114,17 @@ class SMSService {
       }
     }
 
-    const totalMedia = mediaCount.photos + mediaCount.videos;
-    if (totalMedia > 0) {
+    const attachments = mediaItems?.length
+      ? await this.buildValidAttachments(mediaItems)
+      : [];
+
+    if (attachments.length > 0) {
+      const photos = attachments.filter((a) => a.mimeType.startsWith('image/')).length;
+      const videos = attachments.filter((a) => a.mimeType.startsWith('video/')).length;
       message += `\n📸 Media: `;
-      if (mediaCount.photos > 0)
-        message += `${mediaCount.photos} photo${mediaCount.photos !== 1 ? 's' : ''}`;
-      if (mediaCount.photos > 0 && mediaCount.videos > 0) message += ' & ';
-      if (mediaCount.videos > 0)
-        message += `${mediaCount.videos} video${mediaCount.videos !== 1 ? 's' : ''}`;
+      if (photos > 0) message += `${photos} photo${photos !== 1 ? 's' : ''}`;
+      if (photos > 0 && videos > 0) message += ' & ';
+      if (videos > 0) message += `${videos} video${videos !== 1 ? 's' : ''}`;
       message += ' attached';
     }
 
@@ -96,7 +133,7 @@ class SMSService {
     }
 
     const phoneNumbers = recipients.map((c) => c.phoneNumber);
-    const result = await this.openSMS(phoneNumbers, message);
+    const result = await this.openSMS(phoneNumbers, message, attachments.length > 0 ? attachments : undefined);
     return {
       success: result.success,
       sent: result.sent,
@@ -107,6 +144,7 @@ class SMSService {
   private async openSMS(
     recipients: string[],
     body: string,
+    attachments?: SMSAttachment[],
   ): Promise<{ success: boolean; sent: boolean }> {
     try {
       if (recipients.length === 0) {
@@ -118,7 +156,8 @@ class SMSService {
       // sms: URLs causes iOS to display raw percent-encoded text (%20, %0A, etc.)
       const isAvailable = await SMS.isAvailableAsync();
       if (isAvailable) {
-        const result = await SMS.sendSMSAsync(recipients, body);
+        const smsOptions = attachments?.length ? { attachments } : undefined;
+        const result = await SMS.sendSMSAsync(recipients, body, smsOptions);
         const wasSent = result.result === 'sent' || result.result === 'unknown';
         return { success: true, sent: wasSent };
       }
