@@ -126,7 +126,7 @@ const HoleSummaryScreen: React.FC = () => {
         }
       } catch (err) {
         if (!mounted) return;
-        setError(err as Error);
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         if (mounted) setLoading(false);
       }
@@ -155,16 +155,16 @@ const HoleSummaryScreen: React.FC = () => {
     setSendingSms(true);
     try {
       const golfHole = holeToGolfHole(hole);
-      const mediaCounts = await MediaService.getMediaCount(roundId, hole.holeNumber);
+      const holeMedia = await MediaService.getMediaForHole(roundId, hole.holeNumber);
       const runningStats = await calculateRunningRoundStats(roundId);
       const runningText = formatRunningStatsForSMS(runningStats);
 
       const result = await SMSService.sendHoleSummary(
         golfHole,
         aiSummary,
-        mediaCounts,
         round.golferId,
         runningText,
+        holeMedia,
       );
 
       if (result.success && result.sent) {
