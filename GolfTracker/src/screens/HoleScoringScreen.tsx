@@ -480,6 +480,8 @@ const HoleScoringScreen: React.FC = () => {
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       if (allowLeaveRef.current) return;
+      // Hole is saved and summary is showing — allow navigation (Send/Skip)
+      if (s.phase === 'hole_complete' && showSummary && !saving) return;
       // If in a sub-phase, undo instead of leaving
       if (s.phase === 'awaiting_result' || s.phase === 'awaiting_result_lie') {
         e.preventDefault();
@@ -491,7 +493,7 @@ const HoleScoringScreen: React.FC = () => {
       handleBack();
     });
     return unsubscribe;
-  }, [navigation, s.phase, s.shots.length, handleBack, undo]);
+  }, [navigation, s.phase, s.shots.length, showSummary, saving, handleBack, undo]);
 
   // ── Media ───────────────────────────────────────────────────
 
