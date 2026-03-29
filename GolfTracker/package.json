@@ -8,7 +8,7 @@
     "lint": "eslint .",
     "start": "expo start --dev-client",
     "test": "jest",
-    "prebuild": "expo prebuild && bash scripts/fix-pbxproj-version.sh",
+    "prebuild": "expo prebuild --clean && bash scripts/fix-pbxproj-version.sh",
     "prebuild:clean": "expo prebuild --clean && bash scripts/fix-pbxproj-version.sh"
   },
   "dependencies": {
