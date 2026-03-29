@@ -40,6 +40,16 @@ final class PhoneConnector: NSObject, ObservableObject {
         sendToPhone(message, messageId: messageId)
     }
 
+    func sendShareRequest(text: String) {
+        let messageId = UUID().uuidString
+        let message: [String: Any] = [
+            "type": "SHARE_SMS",
+            "messageId": messageId,
+            "text": text,
+        ]
+        sendToPhone(message, messageId: messageId)
+    }
+
     func navigateToHole(_ holeNumber: Int, holeId: String, roundId: String) {
         let messageId = UUID().uuidString
         let message: [String: Any] = [
