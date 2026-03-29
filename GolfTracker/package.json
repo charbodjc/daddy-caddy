@@ -8,8 +8,8 @@
     "lint": "eslint .",
     "start": "expo start --dev-client",
     "test": "jest",
-    "prebuild": "expo prebuild",
-    "prebuild:clean": "expo prebuild --clean"
+    "prebuild": "expo prebuild --clean && bash scripts/fix-pbxproj-version.sh",
+    "prebuild:clean": "expo prebuild --clean && bash scripts/fix-pbxproj-version.sh"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.6",
