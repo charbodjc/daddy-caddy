@@ -180,8 +180,8 @@ const HoleSummaryScreen: React.FC = () => {
   }, [hole, round, roundId, aiSummary, showToast]);
 
   const handleNextHole = useCallback(() => {
-    navigation.navigate('RoundTracker', { roundId });
-  }, [navigation, roundId]);
+    navigation.goBack();
+  }, [navigation]);
 
   const handleFinishRound = useCallback(() => {
     navigation.navigate('RoundSummary', { roundId });
