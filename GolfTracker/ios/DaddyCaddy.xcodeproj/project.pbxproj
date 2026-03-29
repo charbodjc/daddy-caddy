@@ -8,12 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		33F1ABBAB0C02318C3709B0A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1DA666011952C4EABB594AFE /* PrivacyInfo.xcprivacy */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		5E955FA73F988B6DF1BAC52B /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E77C7132989CCE47DD0DE66 /* ExpoModulesProvider.swift */; };
-		97DB0D13938CD0C37E4C8BA3 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1DA666011952C4EABB594AFE /* PrivacyInfo.xcprivacy */; };
-		985F88297D93A495F703DF73 /* libPods-DaddyCaddy.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 742D44A7C95833C464C93DD5 /* libPods-DaddyCaddy.a */; };
+		423A57F0ED808D9D219F09E4 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EA0CBBBC7684057C0866ED7 /* ExpoModulesProvider.swift */; };
+		849147FD3553097912E11219 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E24E8D4804F1323D3734257C /* PrivacyInfo.xcprivacy */; };
+		A35CAED2FFE59A1920419D78 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E24E8D4804F1323D3734257C /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
+		BF012ED7BE6C3448EFEAACD1 /* libPods-DaddyCaddy.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 1223F5E4D02091CCC5361A84 /* libPods-DaddyCaddy.a */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		XX12B55A1EDABF083C3B51XX /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = XX470101BAEB8E0BBC8B0DXX /* WidgetKit.framework */; };
 		XX1A6800511A685AB346D2XX /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = XXA12889081EB894481655XX /* AppIntents.framework */; };
@@ -68,16 +68,16 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		1223F5E4D02091CCC5361A84 /* libPods-DaddyCaddy.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-DaddyCaddy.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07F961A680F5B00A75B9A /* DaddyCaddy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; fileEncoding = 4; includeInIndex = 0; path = DaddyCaddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = DaddyCaddy/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = DaddyCaddy/Info.plist; sourceTree = "<group>"; };
-		1B92EC23E0AC7FC504C66B3A /* Pods-DaddyCaddy.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-DaddyCaddy.release.xcconfig"; path = "Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy.release.xcconfig"; sourceTree = "<group>"; };
-		1DA666011952C4EABB594AFE /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = DaddyCaddy/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		3E77C7132989CCE47DD0DE66 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-DaddyCaddy/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		742D44A7C95833C464C93DD5 /* libPods-DaddyCaddy.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-DaddyCaddy.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		1EA0CBBBC7684057C0866ED7 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-DaddyCaddy/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		6131DCCFF1FC88BC9B651B16 /* Pods-DaddyCaddy.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-DaddyCaddy.debug.xcconfig"; path = "Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy.debug.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = DaddyCaddy/SplashScreen.storyboard; sourceTree = "<group>"; };
+		B49C94F36545EC7F1FA3C3EF /* Pods-DaddyCaddy.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-DaddyCaddy.release.xcconfig"; path = "Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy.release.xcconfig"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		DAD717BA163975D84067B86A /* Pods-DaddyCaddy.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-DaddyCaddy.debug.xcconfig"; path = "Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy.debug.xcconfig"; sourceTree = "<group>"; };
+		E24E8D4804F1323D3734257C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = DaddyCaddy/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = undefined; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = DaddyCaddy/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* DaddyCaddy-Bridging-Header.h */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.c.h; name = "DaddyCaddy-Bridging-Header.h"; path = "DaddyCaddy/DaddyCaddy-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -141,7 +141,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				985F88297D93A495F703DF73 /* libPods-DaddyCaddy.a in Frameworks */,
+				BF012ED7BE6C3448EFEAACD1 /* libPods-DaddyCaddy.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -168,11 +168,11 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		091AA10FC614DA3B1D851228 /* Pods */ = {
+		065BB277377CE51790A9F62A /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				DAD717BA163975D84067B86A /* Pods-DaddyCaddy.debug.xcconfig */,
-				1B92EC23E0AC7FC504C66B3A /* Pods-DaddyCaddy.release.xcconfig */,
+				6131DCCFF1FC88BC9B651B16 /* Pods-DaddyCaddy.debug.xcconfig */,
+				B49C94F36545EC7F1FA3C3EF /* Pods-DaddyCaddy.release.xcconfig */,
 			);
 			name = Pods;
 			path = Pods;
@@ -187,7 +187,7 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				1DA666011952C4EABB594AFE /* PrivacyInfo.xcprivacy */,
+				E24E8D4804F1323D3734257C /* PrivacyInfo.xcprivacy */,
 			);
 			name = DaddyCaddy;
 			sourceTree = "<group>";
@@ -201,17 +201,9 @@
 				XXCAF23C3FC41F82140FA1XX /* ActivityKit.framework */,
 				XXA12889081EB894481655XX /* AppIntents.framework */,
 				XX8ACBDF17A27E5D829A2CXX /* WatchConnectivity.framework */,
-				742D44A7C95833C464C93DD5 /* libPods-DaddyCaddy.a */,
+				1223F5E4D02091CCC5361A84 /* libPods-DaddyCaddy.a */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		4475A79133134A11330C5266 /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				BD26F3D5933F0BB8E6B2953F /* DaddyCaddy */,
-			);
-			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -229,8 +221,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				091AA10FC614DA3B1D851228 /* Pods */,
-				4475A79133134A11330C5266 /* ExpoModulesProviders */,
+				065BB277377CE51790A9F62A /* Pods */,
+				FD898A43FC2ABED3077F60FB /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -256,12 +248,20 @@
 			path = DaddyCaddy/Supporting;
 			sourceTree = "<group>";
 		};
-		BD26F3D5933F0BB8E6B2953F /* DaddyCaddy */ = {
+		DA48F883FF39A3C5880D248C /* DaddyCaddy */ = {
 			isa = PBXGroup;
 			children = (
-				3E77C7132989CCE47DD0DE66 /* ExpoModulesProvider.swift */,
+				1EA0CBBBC7684057C0866ED7 /* ExpoModulesProvider.swift */,
 			);
 			name = DaddyCaddy;
+			sourceTree = "<group>";
+		};
+		FD898A43FC2ABED3077F60FB /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				DA48F883FF39A3C5880D248C /* DaddyCaddy */,
+			);
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		XX3E41C1850246162C0061XX /* expo:targets */ = {
@@ -282,7 +282,7 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "DaddyCaddy" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				CF44C638DE27C0032154F1F4 /* [Expo] Configure project */,
+				51ABAAEEF685199EDF091D9F /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
@@ -290,7 +290,7 @@
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
 				XX72A8CFBF0FBA13A79902XX /* Embed Foundation Extensions */,
 				XX81D5C67C94C2E1F9007EXX /* Embed Watch Content */,
-				B732C4081819FEFE0710A519 /* [CP] Embed Pods Frameworks */,
+				18F0D83CBD93B6AF51B34440 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -394,7 +394,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				33F1ABBAB0C02318C3709B0A /* PrivacyInfo.xcprivacy in Resources */,
+				849147FD3553097912E11219 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -402,7 +402,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				97DB0D13938CD0C37E4C8BA3 /* PrivacyInfo.xcprivacy in Resources */,
+				A35CAED2FFE59A1920419D78 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -458,6 +458,52 @@
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
+		};
+		18F0D83CBD93B6AF51B34440 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		51ABAAEEF685199EDF091D9F /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/DaddyCaddy/DaddyCaddy.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-DaddyCaddy/expo-configure-project.sh",
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Pods/Target Support Files/Pods-DaddyCaddy/ExpoModulesProvider.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-DaddyCaddy/expo-configure-project.sh\"\n";
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -531,52 +577,6 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		B732C4081819FEFE0710A519 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		CF44C638DE27C0032154F1F4 /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/DaddyCaddy/DaddyCaddy.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-DaddyCaddy/expo-configure-project.sh",
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-DaddyCaddy/ExpoModulesProvider.swift",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-DaddyCaddy/expo-configure-project.sh\"\n";
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -585,7 +585,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				5E955FA73F988B6DF1BAC52B /* ExpoModulesProvider.swift in Sources */,
+				423A57F0ED808D9D219F09E4 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -621,7 +621,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = DAD717BA163975D84067B86A /* Pods-DaddyCaddy.debug.xcconfig */;
+			baseConfigurationReference = 6131DCCFF1FC88BC9B651B16 /* Pods-DaddyCaddy.debug.xcconfig */;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -658,7 +658,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1B92EC23E0AC7FC504C66B3A /* Pods-DaddyCaddy.release.xcconfig */;
+			baseConfigurationReference = B49C94F36545EC7F1FA3C3EF /* Pods-DaddyCaddy.release.xcconfig */;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
