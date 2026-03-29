@@ -26,25 +26,7 @@ import type Golfer from '../database/watermelon/models/Golfer';
 import { database } from '../database/watermelon/database';
 import Round from '../database/watermelon/models/Round';
 import { Q } from '@nozbe/watermelondb';
-
-const EMOJI_OPTIONS = [
-  '', // No emoji (use initials)
-  '🏌️', '🏌️‍♀️', '⛳', '🏆', '🎯', '🦅', '🐦',
-  '🧔', '👨', '👩', '👴', '👵', '🧑', '👦', '👧',
-  '🤠', '😎', '🧢', '🎩', '🌞', '🔥', '💪', '🍀',
-  '🐯', '🦁', '🐻', '🐺', '🦊', '🐸', '🦈', '🐊',
-];
-
-const COLORS = [
-  { hex: '#2E7D32', name: 'Green' },
-  { hex: '#1565C0', name: 'Blue' },
-  { hex: '#6A1B9A', name: 'Purple' },
-  { hex: '#C62828', name: 'Red' },
-  { hex: '#EF6C00', name: 'Orange' },
-  { hex: '#00838F', name: 'Teal' },
-  { hex: '#4E342E', name: 'Brown' },
-  { hex: '#37474F', name: 'Grey' },
-];
+import { EMOJI_OPTIONS, GOLFER_COLORS as COLORS } from '../constants/golferOptions';
 
 const GolfersScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<SettingsStackParamList>>();
@@ -131,9 +113,10 @@ const GolfersScreen: React.FC = () => {
     }
     setSaving(true);
     try {
+      const trimmedName = name.trim();
       const parsedHandicap = handicap ? parseFloat(handicap) : undefined;
-      await createGolfer({
-        name: name.trim(),
+      const newGolfer = await createGolfer({
+        name: trimmedName,
         handicap: parsedHandicap,
         color: selectedColor,
         emoji: selectedEmoji || undefined,
@@ -143,6 +126,21 @@ const GolfersScreen: React.FC = () => {
       setSelectedColor(COLORS[0].hex);
       setSelectedEmoji('');
       setAddModalVisible(false);
+      // Offer to add SMS contacts for the newly created golfer
+      Alert.alert(
+        'Golfer Created',
+        `Would you like to add SMS contacts for ${trimmedName}?`,
+        [
+          { text: 'Later', style: 'cancel' },
+          {
+            text: 'Add Contacts',
+            onPress: () => navigation.navigate('GolferContacts', {
+              golferId: newGolfer.id,
+              golferName: trimmedName,
+            }),
+          },
+        ],
+      );
     } catch {
       Alert.alert('Error', 'Failed to add golfer');
     } finally {
