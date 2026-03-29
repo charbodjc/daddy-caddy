@@ -111,6 +111,7 @@ const HoleScoringScreen: React.FC = () => {
   const MAX_RETRIES = 3;
   const prevHoleStrokes = useRef(0);
   const completingRef = useRef(false);
+  const allowLeaveRef = useRef(false);
 
   // The V2 reducer — all scoring state lives here
   const {
@@ -163,7 +164,8 @@ const HoleScoringScreen: React.FC = () => {
       tapPuttMiss,
     },
     onNavigateHole: (_holeNumber, _navHoleId) => {
-      navigation.navigate('RoundTracker', { roundId });
+      allowLeaveRef.current = true;
+      navigation.goBack();
     },
   });
 
@@ -478,7 +480,7 @@ const HoleScoringScreen: React.FC = () => {
       setShowSummary(false);
       showSmsSheet(summaryMsg, () => {
         allowLeaveRef.current = true;
-        navigation.navigate('RoundTracker', { roundId });
+        navigation.goBack();
       });
     } catch {
       Alert.alert('Error', 'Failed to save edits. Please try again.');
@@ -496,7 +498,7 @@ const HoleScoringScreen: React.FC = () => {
     try {
       await persistEditedShots(editedShots);
       allowLeaveRef.current = true;
-      navigation.navigate('RoundTracker', { roundId });
+      navigation.goBack();
     } catch {
       Alert.alert('Error', 'Failed to save edits. Please try again.');
     } finally {
@@ -544,8 +546,6 @@ const HoleScoringScreen: React.FC = () => {
   }, [s.shots, tapCenterResult]);
 
   // ── Back navigation ─────────────────────────────────────────
-
-  const allowLeaveRef = useRef(false);
 
   const handleBack = useCallback(() => {
     if (s.shots.length > 0) {
