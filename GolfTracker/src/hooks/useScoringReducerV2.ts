@@ -151,7 +151,8 @@ function commitShot(
 
 // ── Reducer ──────────────────────────────────────────────────
 
-function reducer(state: ScoringStateV2, action: ScoringActionV2): ScoringStateV2 {
+// Exported for cross-platform test parity (Swift reducer must match this exactly)
+export function reducer(state: ScoringStateV2, action: ScoringActionV2): ScoringStateV2 {
   switch (action.type) {
 
     // ── Step 1: Distance ──────────────────────────────────────

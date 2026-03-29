@@ -17,6 +17,7 @@ import {
   endRoundActivity,
   getRunningActivityId,
 } from '../../modules/live-activity';
+import { sendRoundContext } from '../../modules/watch-connectivity';
 
 export interface UnfinishedRoundSummary {
   roundId: string;
@@ -343,6 +344,7 @@ export const useRoundStore = create<RoundState>()(
           }
 
           // Round is now finished — no longer the active round
+          sendRoundContext(null);
           set({ activeRound: null, liveActivityId: null });
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
@@ -400,6 +402,7 @@ export const useRoundStore = create<RoundState>()(
             currentHole: 0, totalScore: 0, scoreVsPar: 0, holesCompleted: 0, totalHoles: 18,
           }, true).catch((err) => console.warn('Live Activity end failed:', err));
         }
+        sendRoundContext(null);
         set({ activeRound: null, liveActivityId: null });
       },
 

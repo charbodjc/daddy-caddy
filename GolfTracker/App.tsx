@@ -7,6 +7,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import { useGolferStore } from './src/stores/golferStore';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
+import { activateWatchSession } from './modules/watch-connectivity';
 
 const App = () => {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -35,6 +36,9 @@ const App = () => {
       // where loadActiveRound fires before activeGolferId is set
       await useGolferStore.getState().ensureDefaultGolfer();
       await useGolferStore.getState().loadGolfers();
+
+      // Activate WatchConnectivity session (fire-and-forget)
+      activateWatchSession();
 
       setIsInitialized(true);
     } catch (err) {
