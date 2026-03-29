@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		020325CE33DBDC2C35146FF4 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F0AB56427C6665C0925563FE /* PrivacyInfo.xcprivacy */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		423A57F0ED808D9D219F09E4 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EA0CBBBC7684057C0866ED7 /* ExpoModulesProvider.swift */; };
-		849147FD3553097912E11219 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E24E8D4804F1323D3734257C /* PrivacyInfo.xcprivacy */; };
-		A35CAED2FFE59A1920419D78 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E24E8D4804F1323D3734257C /* PrivacyInfo.xcprivacy */; };
+		539914FDD87B50CCD68E7A2A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F0AB56427C6665C0925563FE /* PrivacyInfo.xcprivacy */; };
+		65BD714F1B62434ADCCABA6B /* libPods-DaddyCaddy.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5D2D8E4852BA495945D82EFD /* libPods-DaddyCaddy.a */; };
+		85FF24876302C30710CE864C /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61CDE78E3A23A4A7FA0011FC /* ExpoModulesProvider.swift */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		BF012ED7BE6C3448EFEAACD1 /* libPods-DaddyCaddy.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 1223F5E4D02091CCC5361A84 /* libPods-DaddyCaddy.a */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		XX12B55A1EDABF083C3B51XX /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = XX470101BAEB8E0BBC8B0DXX /* WidgetKit.framework */; };
 		XX1A6800511A685AB346D2XX /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = XXA12889081EB894481655XX /* AppIntents.framework */; };
@@ -26,11 +26,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		XX69967BB6A1EC70585DCDXX /* PBXContainerItemProxy */ = {
+		XX1BD9DCD18592FF9CEAB8XX /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = XX92D00D5E4C9E044DB1FDXX;
+			remoteGlobalIDString = XX26D6C3C59595F74A3943XX;
 			remoteInfo = DaddyCaddyWatch;
 		};
 		XX828C75382B5022AF33B0XX /* PBXContainerItemProxy */ = {
@@ -68,17 +68,17 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		1223F5E4D02091CCC5361A84 /* libPods-DaddyCaddy.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-DaddyCaddy.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07F961A680F5B00A75B9A /* DaddyCaddy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; fileEncoding = 4; includeInIndex = 0; path = DaddyCaddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = DaddyCaddy/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = DaddyCaddy/Info.plist; sourceTree = "<group>"; };
-		1EA0CBBBC7684057C0866ED7 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-DaddyCaddy/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		6131DCCFF1FC88BC9B651B16 /* Pods-DaddyCaddy.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-DaddyCaddy.debug.xcconfig"; path = "Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy.debug.xcconfig"; sourceTree = "<group>"; };
+		1F2393FE2EB2BFCEE7EFD12A /* Pods-DaddyCaddy.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-DaddyCaddy.debug.xcconfig"; path = "Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy.debug.xcconfig"; sourceTree = "<group>"; };
+		5D2D8E4852BA495945D82EFD /* libPods-DaddyCaddy.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-DaddyCaddy.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		61CDE78E3A23A4A7FA0011FC /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-DaddyCaddy/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		7DA3E01E3FE312878CE53580 /* Pods-DaddyCaddy.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-DaddyCaddy.release.xcconfig"; path = "Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy.release.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = DaddyCaddy/SplashScreen.storyboard; sourceTree = "<group>"; };
-		B49C94F36545EC7F1FA3C3EF /* Pods-DaddyCaddy.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-DaddyCaddy.release.xcconfig"; path = "Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy.release.xcconfig"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		E24E8D4804F1323D3734257C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = DaddyCaddy/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = undefined; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		F0AB56427C6665C0925563FE /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = DaddyCaddy/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = DaddyCaddy/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* DaddyCaddy-Bridging-Header.h */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.c.h; name = "DaddyCaddy-Bridging-Header.h"; path = "DaddyCaddy/DaddyCaddy-Bridging-Header.h"; sourceTree = "<group>"; };
 		XX470101BAEB8E0BBC8B0DXX /* WidgetKit.framework */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = undefined; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -91,14 +91,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		XX26614ADB43F3475A058DXX /* Exceptions for "watch-app" folder in "DaddyCaddyWatch" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-				"expo-target.config.js",
-			);
-			target = XX92D00D5E4C9E044DB1FDXX /* DaddyCaddyWatch */;
-		};
 		XX34D41D741EC7EBF9AF7DXX /* Exceptions for "golf-round-widget" folder in "GolfRoundWidget" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -106,6 +98,14 @@
 				"expo-target.config.js",
 			);
 			target = XXC87C9A418F25FF370F81XX /* GolfRoundWidget */;
+		};
+		XXE96336ECE0EA3F42BC3DXX /* Exceptions for "watch-app" folder in "DaddyCaddyWatch" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				"expo-target.config.js",
+			);
+			target = XX26D6C3C59595F74A3943XX /* DaddyCaddyWatch */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -122,10 +122,10 @@
 			path = "golf-round-widget";
 			sourceTree = "<group>";
 		};
-		XX0A03D2EB30AB46918646XX /* watch-app */ = {
+		XX0A4E2C78B12E8EFE2FEFXX /* watch-app */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				XX26614ADB43F3475A058DXX /* Exceptions for "watch-app" folder in "DaddyCaddyWatch" target */,
+				XXE96336ECE0EA3F42BC3DXX /* Exceptions for "watch-app" folder in "DaddyCaddyWatch" target */,
 			);
 			explicitFileTypes = {
 			};
@@ -141,7 +141,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BF012ED7BE6C3448EFEAACD1 /* libPods-DaddyCaddy.a in Frameworks */,
+				65BD714F1B62434ADCCABA6B /* libPods-DaddyCaddy.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -168,16 +168,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		065BB277377CE51790A9F62A /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				6131DCCFF1FC88BC9B651B16 /* Pods-DaddyCaddy.debug.xcconfig */,
-				B49C94F36545EC7F1FA3C3EF /* Pods-DaddyCaddy.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		13B07FAE1A68108700A75B9A /* DaddyCaddy */ = {
 			isa = PBXGroup;
 			children = (
@@ -187,9 +177,19 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				E24E8D4804F1323D3734257C /* PrivacyInfo.xcprivacy */,
+				F0AB56427C6665C0925563FE /* PrivacyInfo.xcprivacy */,
 			);
 			name = DaddyCaddy;
+			sourceTree = "<group>";
+		};
+		200A23CE6EC1F9D9F22E6D84 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				1F2393FE2EB2BFCEE7EFD12A /* Pods-DaddyCaddy.debug.xcconfig */,
+				7DA3E01E3FE312878CE53580 /* Pods-DaddyCaddy.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
@@ -201,9 +201,17 @@
 				XXCAF23C3FC41F82140FA1XX /* ActivityKit.framework */,
 				XXA12889081EB894481655XX /* AppIntents.framework */,
 				XX8ACBDF17A27E5D829A2CXX /* WatchConnectivity.framework */,
-				1223F5E4D02091CCC5361A84 /* libPods-DaddyCaddy.a */,
+				5D2D8E4852BA495945D82EFD /* libPods-DaddyCaddy.a */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		7BA83C42715D4FD42406802D /* DaddyCaddy */ = {
+			isa = PBXGroup;
+			children = (
+				61CDE78E3A23A4A7FA0011FC /* ExpoModulesProvider.swift */,
+			);
+			name = DaddyCaddy;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -221,8 +229,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				065BB277377CE51790A9F62A /* Pods */,
-				FD898A43FC2ABED3077F60FB /* ExpoModulesProviders */,
+				200A23CE6EC1F9D9F22E6D84 /* Pods */,
+				A01A70E192E2A3A72BD12DE2 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -239,6 +247,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		A01A70E192E2A3A72BD12DE2 /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				7BA83C42715D4FD42406802D /* DaddyCaddy */,
+			);
+			name = ExpoModulesProviders;
+			sourceTree = "<group>";
+		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
@@ -248,27 +264,11 @@
 			path = DaddyCaddy/Supporting;
 			sourceTree = "<group>";
 		};
-		DA48F883FF39A3C5880D248C /* DaddyCaddy */ = {
-			isa = PBXGroup;
-			children = (
-				1EA0CBBBC7684057C0866ED7 /* ExpoModulesProvider.swift */,
-			);
-			name = DaddyCaddy;
-			sourceTree = "<group>";
-		};
-		FD898A43FC2ABED3077F60FB /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				DA48F883FF39A3C5880D248C /* DaddyCaddy */,
-			);
-			name = ExpoModulesProviders;
-			sourceTree = "<group>";
-		};
 		XX3E41C1850246162C0061XX /* expo:targets */ = {
 			isa = PBXGroup;
 			children = (
 				XX043633078E6643556CF3XX /* golf-round-widget */,
-				XX0A03D2EB30AB46918646XX /* watch-app */,
+				XX0A4E2C78B12E8EFE2FEFXX /* watch-app */,
 			);
 			name = "expo:targets";
 			path = ../targets;
@@ -282,7 +282,7 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "DaddyCaddy" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				51ABAAEEF685199EDF091D9F /* [Expo] Configure project */,
+				F4128BAB5F1D1DE549065C25 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
@@ -290,22 +290,22 @@
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
 				XX72A8CFBF0FBA13A79902XX /* Embed Foundation Extensions */,
 				XX81D5C67C94C2E1F9007EXX /* Embed Watch Content */,
-				18F0D83CBD93B6AF51B34440 /* [CP] Embed Pods Frameworks */,
+				A7F36871837DF827DF79CF55 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				XX037135BD4F3057DD88DBXX /* PBXTargetDependency */,
-				XX6F8F8FDD8032CD5CFF73XX /* PBXTargetDependency */,
+				XX52DEADDD7B620C70AC2FXX /* PBXTargetDependency */,
 			);
 			name = DaddyCaddy;
 			productName = DaddyCaddy;
 			productReference = 13B07F961A680F5B00A75B9A /* DaddyCaddy.app */;
 			productType = "com.apple.product-type.application";
 		};
-		XX92D00D5E4C9E044DB1FDXX /* DaddyCaddyWatch */ = {
+		XX26D6C3C59595F74A3943XX /* DaddyCaddyWatch */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = XX365743A8D9A25AD1CD11XX /* Build configuration list for PBXNativeTarget "DaddyCaddyWatch" */;
+			buildConfigurationList = XXF06F0D41742A89324E89XX /* Build configuration list for PBXNativeTarget "DaddyCaddyWatch" */;
 			buildPhases = (
 				XXBA6CDF0021ABEEEDFCFBXX /* Frameworks */,
 				XXDC105B0E28F884B8E02DXX /* Sources */,
@@ -316,7 +316,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				XX0A03D2EB30AB46918646XX /* watch-app */,
+				XX0A4E2C78B12E8EFE2FEFXX /* watch-app */,
 			);
 			name = DaddyCaddyWatch;
 			productName = DaddyCaddyWatch;
@@ -354,7 +354,7 @@
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
 					};
-					XX92D00D5E4C9E044DB1FDXX = {
+					XX26D6C3C59595F74A3943XX = {
 						CreatedOnToolsVersion = 14.3;
 						DevelopmentTeam = undefined;
 						ProvisioningStyle = Automatic;
@@ -381,7 +381,7 @@
 			targets = (
 				13B07F861A680F5B00A75B9A /* DaddyCaddy */,
 				XXC87C9A418F25FF370F81XX /* GolfRoundWidget */,
-				XX92D00D5E4C9E044DB1FDXX /* DaddyCaddyWatch */,
+				XX26D6C3C59595F74A3943XX /* DaddyCaddyWatch */,
 			);
 		};
 /* End PBXProject section */
@@ -394,7 +394,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				849147FD3553097912E11219 /* PrivacyInfo.xcprivacy in Resources */,
+				539914FDD87B50CCD68E7A2A /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -402,7 +402,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A35CAED2FFE59A1920419D78 /* PrivacyInfo.xcprivacy in Resources */,
+				020325CE33DBDC2C35146FF4 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -458,52 +458,6 @@
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
-		};
-		18F0D83CBD93B6AF51B34440 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		51ABAAEEF685199EDF091D9F /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/DaddyCaddy/DaddyCaddy.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-DaddyCaddy/expo-configure-project.sh",
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-DaddyCaddy/ExpoModulesProvider.swift",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-DaddyCaddy/expo-configure-project.sh\"\n";
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -577,6 +531,52 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
+		A7F36871837DF827DF79CF55 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-DaddyCaddy/Pods-DaddyCaddy-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		F4128BAB5F1D1DE549065C25 /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/DaddyCaddy/DaddyCaddy.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-DaddyCaddy/expo-configure-project.sh",
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Pods/Target Support Files/Pods-DaddyCaddy/ExpoModulesProvider.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-DaddyCaddy/expo-configure-project.sh\"\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -585,7 +585,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				423A57F0ED808D9D219F09E4 /* ExpoModulesProvider.swift in Sources */,
+				85FF24876302C30710CE864C /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -611,17 +611,17 @@
 			target = XXC87C9A418F25FF370F81XX /* GolfRoundWidget */;
 			targetProxy = XX828C75382B5022AF33B0XX /* PBXContainerItemProxy */;
 		};
-		XX6F8F8FDD8032CD5CFF73XX /* PBXTargetDependency */ = {
+		XX52DEADDD7B620C70AC2FXX /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = XX92D00D5E4C9E044DB1FDXX /* DaddyCaddyWatch */;
-			targetProxy = XX69967BB6A1EC70585DCDXX /* PBXContainerItemProxy */;
+			target = XX26D6C3C59595F74A3943XX /* DaddyCaddyWatch */;
+			targetProxy = XX1BD9DCD18592FF9CEAB8XX /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 6131DCCFF1FC88BC9B651B16 /* Pods-DaddyCaddy.debug.xcconfig */;
+			baseConfigurationReference = 1F2393FE2EB2BFCEE7EFD12A /* Pods-DaddyCaddy.debug.xcconfig */;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -658,7 +658,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B49C94F36545EC7F1FA3C3EF /* Pods-DaddyCaddy.release.xcconfig */;
+			baseConfigurationReference = 7DA3E01E3FE312878CE53580 /* Pods-DaddyCaddy.release.xcconfig */;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -805,47 +805,6 @@
 			};
 			name = Release;
 		};
-		XX074B39C8388E95EFA4EDXX /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CODE_SIGN_STYLE = Automatic;
-				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_PREVIEWS = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu11;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "../targets/watch-app/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = DaddyCaddyWatch;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.daddycaddy.golf;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0.1;
-				MTL_FAST_MATH = YES;
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.daddycaddy.golf.watch-app";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = watchos;
-				SKIP_INSTALL = YES;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 10.0;
-			};
-			name = Release;
-		};
 		XX0BEA26B74016751882D5XX /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -885,9 +844,10 @@
 			};
 			name = Debug;
 		};
-		XX62FA8A5DFE6FF15D12C0XX /* Debug */ = {
+		XX7DA9D8E173C333FB4E55XX /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -965,6 +925,48 @@
 			};
 			name = Release;
 		};
+		XXF7CB89ED7F5D0316CEC7XX /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 2;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_PREVIEWS = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "../targets/watch-app/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = DaddyCaddyWatch;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.daddycaddy.golf;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.1;
+				MTL_FAST_MATH = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.daddycaddy.golf.watch-app";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -986,20 +988,20 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		XX365743A8D9A25AD1CD11XX /* Build configuration list for PBXNativeTarget "DaddyCaddyWatch" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				XX62FA8A5DFE6FF15D12C0XX /* Debug */,
-				XX074B39C8388E95EFA4EDXX /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		XXBCD98ECCECAFBE26471AXX /* Build configuration list for PBXNativeTarget "GolfRoundWidget" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				XX0BEA26B74016751882D5XX /* Debug */,
 				XX84FA7BF3292787FDE678XX /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		XXF06F0D41742A89324E89XX /* Build configuration list for PBXNativeTarget "DaddyCaddyWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				XX7DA9D8E173C333FB4E55XX /* Debug */,
+				XXF7CB89ED7F5D0316CEC7XX /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
