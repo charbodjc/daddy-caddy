@@ -42,6 +42,7 @@ struct HoleScoringView: View {
                 switch scoring.phase {
                 case .awaiting_distance:
                     DistanceEntryView(scoring: scoring, hole: hole, context: context)
+                        .id(scoring.currentStroke)
                 case .awaiting_result:
                     if scoring.isOnGreen {
                         PuttResultView(scoring: scoring, hole: hole, context: context)

@@ -1,4 +1,6 @@
 PODS:
+  - DaddyCaddyWatchConnectivity (1.0.0):
+    - ExpoModulesCore
   - EXConstants (18.0.10):
     - ExpoModulesCore
   - EXImageLoader (6.0.0):
@@ -2335,6 +2337,7 @@ PODS:
   - Yoga (0.0.0)
 
 DEPENDENCIES:
+  - DaddyCaddyWatchConnectivity (from `../modules/watch-connectivity/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - EXImageLoader (from `../node_modules/expo-image-loader/ios`)
   - EXJSONUtils (from `../node_modules/expo-json-utils/ios`)
@@ -2441,6 +2444,8 @@ DEPENDENCIES:
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 EXTERNAL SOURCES:
+  DaddyCaddyWatchConnectivity:
+    :path: "../modules/watch-connectivity/ios"
   EXConstants:
     :path: "../node_modules/expo-constants/ios"
   EXImageLoader:
@@ -2650,6 +2655,7 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
+  DaddyCaddyWatchConnectivity: b06eae84af047f275e32c973ea87eb3d483e8a57
   EXConstants: fd688cef4e401dcf798a021cfb5d87c890c30ba3
   EXImageLoader: 189e3476581efe3ad4d1d3fb4735b7179eb26f05
   EXJSONUtils: 1d3e4590438c3ee593684186007028a14b3686cd
