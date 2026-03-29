@@ -8,6 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "ios": {
+        "image": "macos-sequoia-15.5-xcode-16.4",
         "resourceClass": "m-medium",
         "autoIncrement": true,
         "scheme": "DaddyCaddy"
@@ -19,6 +20,7 @@
     "preview": {
       "distribution": "internal",
       "ios": {
+        "image": "macos-sequoia-15.5-xcode-16.4",
         "resourceClass": "m-medium",
         "autoIncrement": true,
         "scheme": "DaddyCaddy"
@@ -29,6 +31,7 @@
     },
     "production": {
       "ios": {
+        "image": "macos-sequoia-15.5-xcode-16.4",
         "resourceClass": "m-medium",
         "autoIncrement": true,
         "scheme": "DaddyCaddy"
