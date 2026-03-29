@@ -232,8 +232,9 @@ Show progress inline:
 
 - Status (PASS/WARN/FAIL)
 - Branch name
-- PR link (if created)
+- **PR URL** (ALWAYS show the full clickable URL, e.g. `https://github.com/charbodjc/daddy-caddy/pull/42`)
 - Files changed count
 - Any warnings or blocking issues
 
 **If FAIL**: Include which phase failed, exact blocking issues, and recovery commands.
+**IMPORTANT**: Always end the report with the full PR URL on its own line so it's easy to find and click.
