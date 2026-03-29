@@ -44,6 +44,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RouteProp } from '@react-navigation/native';
 
 import { useScoringReducerV2 } from '../hooks/useScoringReducerV2';
+import { useWatchSync } from '../hooks/useWatchSync';
 import { ShotCompass } from '../components/scoring/ShotCompass';
 import { ClassificationPanel } from '../components/scoring/ClassificationPanel';
 import { DistanceKeypad } from '../components/scoring/DistanceKeypad';
@@ -82,6 +83,8 @@ const HoleScoringScreen: React.FC = () => {
   // Data loading
   const [hole, setHole] = useState<Hole | null>(null);
   const [golfer, setGolfer] = useState<Golfer | null>(null);
+  const [roundHoles, setRoundHoles] = useState<Array<{ number: number; par: number; strokes: number; holeId: string }>>([]);
+  const [courseName, setCourseName] = useState<string | undefined>(undefined);
   const [roundScoreToPar, setRoundScoreToPar] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -115,6 +118,7 @@ const HoleScoringScreen: React.FC = () => {
     submitDistance,
     skipDistance,
     toggleSwing,
+    setLie,
     tapCenterResult,
     tapDirection,
     tapResultLie,
@@ -124,6 +128,44 @@ const HoleScoringScreen: React.FC = () => {
     undo,
     restore,
   } = useScoringReducerV2(hole?.par ?? 4);
+
+  // ── Watch sync ────────────────────────────────────────────────
+  const watchHolesCompleted = useMemo(
+    () => roundHoles.filter(h => h.strokes > 0).length,
+    [roundHoles],
+  );
+  const watchTotalScore = useMemo(
+    () => roundHoles.filter(h => h.strokes > 0).reduce((sum, h) => sum + h.strokes, 0),
+    [roundHoles],
+  );
+
+  useWatchSync({
+    roundId,
+    courseName,
+    currentHoleNumber: hole?.holeNumber,
+    currentHoleId: holeId,
+    totalHoles: 18,
+    totalScore: watchTotalScore,
+    scoreVsPar: roundScoreToPar,
+    holesCompleted: watchHolesCompleted,
+    holes: roundHoles,
+    scoringState: loading ? null : s,
+    scoringCallbacks: {
+      submitDistance,
+      skipDistance,
+      toggleSwing,
+      setLie,
+      tapCenterResult,
+      tapDirection,
+      tapResultLie,
+      tapPenaltyLie,
+      tapPuttMade,
+      tapPuttMiss,
+    },
+    onNavigateHole: (_holeNumber, _navHoleId) => {
+      navigation.navigate('RoundTracker', { roundId });
+    },
+  });
 
   // Clean up retry timer on unmount
   useEffect(() => {
@@ -159,8 +201,9 @@ const HoleScoringScreen: React.FC = () => {
           hasEverPersistedRef.current = false;
         }
 
-        // Load golfer + round score
+        // Load golfer + round score + watch context
         const r = await database.collections.get<Round>('rounds').find(roundId);
+        setCourseName(r.courseName);
         if (r.golferId) {
           try {
             const g = await database.collections.get<Golfer>('golfers').find(r.golferId);
@@ -174,6 +217,7 @@ const HoleScoringScreen: React.FC = () => {
         const totalScore = playedHoles.reduce((sum, rh) => sum + rh.strokes, 0);
         const playedPar = playedHoles.reduce((sum, rh) => sum + rh.par, 0);
         setRoundScoreToPar(totalScore - playedPar);
+        setRoundHoles(allHoles.map(rh => ({ number: rh.holeNumber, par: rh.par, strokes: rh.strokes, holeId: rh.id })));
         prevHoleStrokes.current = h.strokes;
 
         // Load SMS recipients
