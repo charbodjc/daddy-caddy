@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppNavigator from './src/navigation/AppNavigator';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import SetupWizardScreen from './src/screens/SetupWizardScreen';
 import { useGolferStore } from './src/stores/golferStore';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
 import { activateWatchSession } from './modules/watch-connectivity';
@@ -12,6 +13,7 @@ import { activateWatchSession } from './modules/watch-connectivity';
 const App = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,9 +30,11 @@ const App = () => {
 
   const initializeApp = async () => {
     try {
-      // Check if user has completed onboarding
+      // Check if user has completed onboarding and setup wizard
       const onboardingCompleted = await AsyncStorage.getItem('onboarding_completed');
+      const setupWizardCompleted = await AsyncStorage.getItem('setup_wizard_completed');
       setShowOnboarding(onboardingCompleted !== 'true');
+      setShowSetupWizard(onboardingCompleted === 'true' && setupWizardCompleted !== 'true');
 
       // Bootstrap golfer data BEFORE rendering — prevents race condition
       // where loadActiveRound fires before activeGolferId is set
@@ -49,6 +53,11 @@ const App = () => {
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
+    setShowSetupWizard(true);
+  };
+
+  const handleSetupWizardComplete = () => {
+    setShowSetupWizard(false);
   };
 
   if (error) {
@@ -71,6 +80,11 @@ const App = () => {
   // Show onboarding for first-time users
   if (showOnboarding) {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
+  }
+
+  // Show setup wizard after onboarding completes
+  if (showSetupWizard) {
+    return <SetupWizardScreen onComplete={handleSetupWizardComplete} />;
   }
 
   return (
