@@ -10,7 +10,8 @@ public class WatchConnectivityModule: Module {
         Events(
             "onWatchScoringAction",
             "onWatchNavigateHole",
-            "onWatchReachabilityChanged"
+            "onWatchReachabilityChanged",
+            "onWatchShareSMS"
         )
 
         AsyncFunction("activateSession") { () -> Bool in
@@ -65,6 +66,10 @@ public class WatchConnectivityModule: Module {
 
     func emitReachabilityChanged(_ reachable: Bool) {
         sendEvent("onWatchReachabilityChanged", ["reachable": reachable])
+    }
+
+    func emitShareSMS(_ body: [String: Any]) {
+        sendEvent("onWatchShareSMS", body)
     }
 }
 
@@ -158,6 +163,15 @@ private class SessionDelegate: NSObject, WCSessionDelegate {
                 "roundId": roundId,
                 "holeNumber": holeNumber,
                 "holeId": holeId,
+            ])
+
+        case "SHARE_SMS":
+            guard let roundId = message["roundId"] as? String,
+                  let text = message["text"] as? String else { return }
+            module?.emitShareSMS([
+                "messageId": messageId,
+                "roundId": roundId,
+                "text": text,
             ])
 
         default:

@@ -40,14 +40,25 @@ final class PhoneConnector: NSObject, ObservableObject {
         sendToPhone(message, messageId: messageId)
     }
 
-    func sendShareRequest(text: String) {
+    /// Send SMS share request to phone. Real-time only — never queued.
+    /// Returns false if the phone is unreachable (caller should show feedback).
+    @discardableResult
+    func sendShareRequest(text: String, roundId: String) -> Bool {
+        guard let session = session,
+              session.activationState == .activated,
+              session.isReachable else {
+            return false
+        }
+
         let messageId = UUID().uuidString
         let message: [String: Any] = [
-            "type": "SHARE_SMS",
+            "type": WatchActionType.SHARE_SMS.rawValue,
             "messageId": messageId,
+            "roundId": roundId,
             "text": text,
         ]
-        sendToPhone(message, messageId: messageId)
+        session.sendMessage(message, replyHandler: nil, errorHandler: nil)
+        return true
     }
 
     func navigateToHole(_ holeNumber: Int, holeId: String, roundId: String) {

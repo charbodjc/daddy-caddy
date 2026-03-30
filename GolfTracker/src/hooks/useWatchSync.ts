@@ -14,11 +14,13 @@ import {
   sendRoundContext,
   onWatchScoringAction,
   onWatchNavigateHole,
+  onWatchShareSMS,
 } from '../../modules/watch-connectivity';
 import type {
   WatchRoundContext,
   WatchScoringActionEvent,
   WatchNavigateHoleEvent,
+  WatchShareSMSEvent,
   WatchHoleScore,
 } from '../../modules/watch-connectivity';
 import type { ScoringStateV2 } from './useScoringReducerV2';
@@ -56,13 +58,14 @@ interface UseWatchSyncParams {
   scoringState: ScoringStateV2 | null;
   scoringCallbacks: ScoringCallbacks;
   onNavigateHole: (holeNumber: number, holeId: string) => void;
+  onShareSMS: (text: string) => void;
 }
 
 export function useWatchSync(params: UseWatchSyncParams) {
   const {
     roundId, courseName, currentHoleNumber, currentHoleId,
     totalHoles, totalScore, scoreVsPar, holesCompleted, holes,
-    scoringState, scoringCallbacks, onNavigateHole,
+    scoringState, scoringCallbacks, onNavigateHole, onShareSMS,
   } = params;
 
   // Keep a stable ref of callbacks to avoid re-subscribing events
@@ -71,6 +74,9 @@ export function useWatchSync(params: UseWatchSyncParams) {
 
   const navigateRef = useRef(onNavigateHole);
   navigateRef.current = onNavigateHole;
+
+  const shareSMSRef = useRef(onShareSMS);
+  shareSMSRef.current = onShareSMS;
 
   const roundIdRef = useRef(roundId);
   roundIdRef.current = roundId;
@@ -154,6 +160,10 @@ export function useWatchSync(params: UseWatchSyncParams) {
       onWatchNavigateHole((event: WatchNavigateHoleEvent) => {
         if (event.roundId !== roundIdRef.current) return;
         navigateRef.current(event.holeNumber, event.holeId);
+      }),
+      onWatchShareSMS((event: WatchShareSMSEvent) => {
+        if (event.roundId !== roundIdRef.current) return;
+        shareSMSRef.current(event.text);
       }),
     ];
 

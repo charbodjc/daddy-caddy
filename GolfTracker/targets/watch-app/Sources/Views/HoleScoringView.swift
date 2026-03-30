@@ -14,8 +14,13 @@ struct HoleScoringView: View {
         context?.holes.first(where: { $0.number == holeNumber })
     }
 
+    /// Use phone's scoring state only when the phone is on this hole;
+    /// otherwise use the optimistic local state (set in onAppear after NAVIGATE_HOLE).
     private var scoring: ScoringState {
-        connector.localScoringState ?? context?.scoring ?? .initial(par: hole?.par ?? 4)
+        if context?.currentHoleNumber == holeNumber {
+            return connector.localScoringState ?? context?.scoring ?? .initial(par: hole?.par ?? 4)
+        }
+        return connector.localScoringState ?? .initial(par: hole?.par ?? 4)
     }
 
     var body: some View {
@@ -41,7 +46,7 @@ struct HoleScoringView: View {
                 // Phase-specific UI
                 switch scoring.phase {
                 case .awaiting_distance:
-                    DistanceEntryView(scoring: scoring, hole: hole, context: context)
+                    DistanceEntryView(hole: hole, context: context)
                         .id(scoring.currentStroke)
                 case .awaiting_result:
                     if scoring.isOnGreen {
@@ -57,9 +62,20 @@ struct HoleScoringView: View {
             }
             .navigationTitle("Hole \(hole.number)")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                navigateIfNeeded(context: context, hole: hole)
+            }
         } else {
             ProgressView("Loading...")
                 .accessibilityLabel("Loading hole data")
         }
+    }
+
+    /// If the phone isn't already on this hole, tell it to navigate and
+    /// set an optimistic initial scoring state so the UI is immediately usable.
+    private func navigateIfNeeded(context: WatchRoundContext, hole: WatchHoleScore) {
+        guard context.currentHoleNumber != holeNumber else { return }
+        connector.localScoringState = .initial(par: hole.par)
+        connector.navigateToHole(holeNumber, holeId: hole.holeId, roundId: context.roundId)
     }
 }
