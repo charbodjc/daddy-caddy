@@ -12,7 +12,7 @@
  * - Clean, maintainable code
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -43,6 +43,7 @@ import { GolferPicker } from '../components/golfer/GolferPicker';
 import { ScreenHeader } from '../components/common/ScreenHeader';
 import { useGolfers } from '../hooks/useGolfers';
 import { resetCommentaryHistory } from '../utils/holeCommentary';
+import { useWatchScoringBridge } from '../hooks/useWatchScoringBridge';
 
 interface RouteParams {
   roundId?: string;
@@ -85,6 +86,25 @@ const RoundTrackerScreen: React.FC = () => {
     () => (rawHoles ? [...rawHoles].sort((a, b) => a.holeNumber - b.holeNumber) : []),
     [rawHoles],
   );
+
+  // Watch scoring bridge — processes watch events when HoleScoringScreen is not mounted
+  const watchHoles = useMemo(
+    () => holes.map(h => ({ number: h.holeNumber, par: h.par, strokes: h.strokes, holeId: h.id })),
+    [holes],
+  );
+  const handleWatchNavigate = useCallback(
+    (holeNumber: number, holeId: string) => {
+      if (!round) return;
+      navigation.navigate('HoleScoring', { holeId, roundId: round.id });
+    },
+    [round, navigation],
+  );
+  useWatchScoringBridge({
+    roundId: round?.id,
+    courseName: round?.courseName,
+    holes: watchHoles,
+    onNavigateToHole: handleWatchNavigate,
+  });
 
   // Auto-navigate to the current hole when arriving via deep link (Live Activity tap).
   // The ref prevents re-triggering when navigating back from HoleScoringScreen.
@@ -327,7 +347,7 @@ const RoundTrackerScreen: React.FC = () => {
               loading={golfersLoading}
             />
 
-            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Course</Text>
+            <Text style={[styles.fieldLabel, styles.courseLabel]}>Course</Text>
             <TextInput
               style={styles.input}
               placeholder="Course Name"
@@ -492,6 +512,9 @@ const styles = StyleSheet.create({
     color: '#666',
     textTransform: 'uppercase' as const,
     marginBottom: 8,
+  },
+  courseLabel: {
+    marginTop: 16,
   },
   input: {
     backgroundColor: '#fff',
