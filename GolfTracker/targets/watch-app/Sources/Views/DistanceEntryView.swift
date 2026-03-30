@@ -17,11 +17,11 @@ struct DistanceEntryView: View {
     }
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 1) {
             // Distance display
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(digits.isEmpty ? "—" : digits)
-                    .font(.system(.title3, design: .rounded))
+                    .font(.system(.body, design: .rounded))
                     .fontWeight(.semibold)
                     .foregroundColor(digits.isEmpty ? .secondary : .white)
                     .monospacedDigit()
@@ -30,12 +30,12 @@ struct DistanceEntryView: View {
                     .foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 2)
+            .padding(.vertical, 1)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(digits.isEmpty ? "No distance entered" : "\(digits) \(unitLabel)")
 
             // Numpad grid
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 3), spacing: 2) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 3), spacing: 1) {
                 ForEach(1...9, id: \.self) { num in
                     numButton("\(num)") { appendDigit("\(num)") }
                 }
@@ -82,9 +82,9 @@ struct DistanceEntryView: View {
     private func numButton(_ label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .font(.body)
+                .font(.caption)
                 .fontWeight(.medium)
-                .frame(maxWidth: .infinity, minHeight: 30)
+                .frame(maxWidth: .infinity, minHeight: 24)
         }
         .buttonStyle(.bordered)
     }
