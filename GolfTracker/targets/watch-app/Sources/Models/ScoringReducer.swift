@@ -32,6 +32,14 @@ enum ScoringReducer {
             s.pendingSwing = state.pendingSwing == .free ? .restricted : .free
             return s
 
+        // ── Par override (distance phase only) ──────────────
+
+        case .setPar(let par):
+            guard state.phase == .awaiting_distance else { return state }
+            var s = state
+            s.par = par
+            return s
+
         // ── Lie override (distance phase only) ───────────────
 
         case .setLie(let lie):

@@ -36,6 +36,7 @@ interface ScoringCallbacks {
   submitDistance: (value: number) => void;
   skipDistance: () => void;
   toggleSwing: () => void;
+  setPar: (par: number) => void;
   setLie: (lie: LieType) => void;
   tapCenterResult: (result: 'fairway' | 'green' | 'hole') => void;
   tapDirection: (direction: MissDirection) => void;
@@ -128,6 +129,9 @@ export function useWatchSync(params: UseWatchSyncParams) {
         break;
       case 'TOGGLE_SWING':
         cb.toggleSwing();
+        break;
+      case 'SET_PAR':
+        cb.setPar(a.par);
         break;
       case 'SET_LIE':
         cb.setLie(a.lie);

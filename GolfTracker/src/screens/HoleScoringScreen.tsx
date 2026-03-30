@@ -119,6 +119,7 @@ const HoleScoringScreen: React.FC = () => {
     submitDistance,
     skipDistance,
     toggleSwing,
+    setPar,
     setLie,
     tapCenterResult,
     tapDirection,
@@ -155,6 +156,14 @@ const HoleScoringScreen: React.FC = () => {
       submitDistance,
       skipDistance,
       toggleSwing,
+      setPar: (par: number) => {
+        if (s.phase !== 'awaiting_distance') return;
+        setPar(par);
+        if (hole && roundId) {
+          const strokes = calculateTotalStrokesV2(s.shots);
+          updateHole(roundId, { holeNumber: hole.holeNumber, par, strokes });
+        }
+      },
       setLie,
       tapCenterResult,
       tapDirection,
@@ -245,13 +254,13 @@ const HoleScoringScreen: React.FC = () => {
     const gen = ++persistGeneration.current;
 
     try {
-      const shotData: ShotDataV2 = { version: 2, par: hole.par, shots: updatedShots, currentStroke: nextStroke };
-      const stats = updatedShots.length > 0 ? deriveHoleStatsV2(shotData, hole.par) : null;
+      const shotData: ShotDataV2 = { version: 2, par: s.par, shots: updatedShots, currentStroke: nextStroke };
+      const stats = updatedShots.length > 0 ? deriveHoleStatsV2(shotData, s.par) : null;
       const strokes = calculateTotalStrokesV2(updatedShots);
 
       await updateHole(roundId, {
         holeNumber: hole.holeNumber,
-        par: hole.par,
+        par: s.par,
         strokes,
         fairwayHit: stats?.fairwayHit,
         greenInRegulation: stats?.greenInRegulation,
@@ -275,7 +284,7 @@ const HoleScoringScreen: React.FC = () => {
         }, 2000);
       }
     }
-  }, [hole, roundId, updateHole]);
+  }, [hole, roundId, s.par, updateHole]);
 
   // Persist whenever shots change (including hole_complete to capture the final shot)
   const prevShotsRef = useRef<TrackedShotV2[]>([]);
@@ -338,13 +347,13 @@ const HoleScoringScreen: React.FC = () => {
     // Include the pending putt in the stroke count for an accurate score
     const currentStrokes = calculateTotalStrokesV2(s.shots);
     const prospectiveStrokes = currentStrokes + 1;
-    const scoreVsPar = prospectiveStrokes - hole.par;
+    const scoreVsPar = prospectiveStrokes - s.par;
     const scoreName = getScoreName(scoreVsPar);
 
     // Build shot-by-shot summary
     const holeYardage = s.shots[0]?.distanceToHole;
     const yardageText = holeYardage ? ` ${holeYardage} yards` : '';
-    const lines: string[] = [`Par ${hole.par}:${yardageText}`];
+    const lines: string[] = [`Par ${s.par}:${yardageText}`];
 
     for (let i = 0; i < s.shots.length; i++) {
       const shot = s.shots[i];
@@ -386,7 +395,7 @@ const HoleScoringScreen: React.FC = () => {
 
     const message = lines.join('\n');
     showSmsSheet(message);
-  }, [hole, s.shots, s.pendingDistance, showSmsSheet]);
+  }, [hole, s.par, s.shots, s.pendingDistance, showSmsSheet]);
 
   // ── Hole complete flow ──────────────────────────────────────
 
@@ -413,12 +422,12 @@ const HoleScoringScreen: React.FC = () => {
     const completeHole = async () => {
       setSaving(true);
       try {
-        const shotData: ShotDataV2 = { version: 2, par: hole.par, shots: s.shots, currentStroke: s.currentStroke };
-        const stats = deriveHoleStatsV2(shotData, hole.par);
+        const shotData: ShotDataV2 = { version: 2, par: s.par, shots: s.shots, currentStroke: s.currentStroke };
+        const stats = deriveHoleStatsV2(shotData, s.par);
 
         await updateHole(roundId, {
           holeNumber: hole.holeNumber,
-          par: hole.par,
+          par: s.par,
           strokes,
           fairwayHit: stats?.fairwayHit,
           greenInRegulation: stats?.greenInRegulation,
@@ -427,7 +436,7 @@ const HoleScoringScreen: React.FC = () => {
         });
 
         const prior = prevHoleStrokes.current;
-        const parDelta = prior === 0 ? hole.par : 0;
+        const parDelta = prior === 0 ? s.par : 0;
         setRoundScoreToPar(prev => prev + (strokes - prior) - parDelta);
 
         setShowSummary(true);
@@ -440,7 +449,7 @@ const HoleScoringScreen: React.FC = () => {
     };
 
     completeHole();
-  }, [s.phase, s.shots, s.currentStroke, hole, roundId, updateHole]);
+  }, [s.phase, s.shots, s.currentStroke, s.par, hole, roundId, updateHole]);
 
   // ── Hole summary send/skip handlers ──────────────────────────
 
@@ -448,13 +457,13 @@ const HoleScoringScreen: React.FC = () => {
 
   const persistEditedShots = useCallback(async (editedShots: TrackedShotV2[]) => {
     if (!hole || !roundId) return 0;
-    const shotData: ShotDataV2 = { version: 2, par: hole.par, shots: editedShots, currentStroke: s.currentStroke };
-    const stats = deriveHoleStatsV2(shotData, hole.par);
+    const shotData: ShotDataV2 = { version: 2, par: s.par, shots: editedShots, currentStroke: s.currentStroke };
+    const stats = deriveHoleStatsV2(shotData, s.par);
     const strokes = calculateTotalStrokesV2(editedShots);
 
     await updateHole(roundId, {
       holeNumber: hole.holeNumber,
-      par: hole.par,
+      par: s.par,
       strokes,
       fairwayHit: stats?.fairwayHit,
       greenInRegulation: stats?.greenInRegulation,
@@ -462,7 +471,7 @@ const HoleScoringScreen: React.FC = () => {
       shotData: JSON.stringify(shotData),
     });
     return strokes;
-  }, [hole, roundId, s.currentStroke, updateHole]);
+  }, [hole, roundId, s.par, s.currentStroke, updateHole]);
 
   const handleSummarySend = useCallback(async (editedShots: TrackedShotV2[]) => {
     if (!hole || !roundId || summaryBusyRef.current) return;
@@ -472,7 +481,7 @@ const HoleScoringScreen: React.FC = () => {
     try {
       const strokes = await persistEditedShots(editedShots);
 
-      const finalScoreVsPar = strokes - hole.par;
+      const finalScoreVsPar = strokes - s.par;
       const finalScoreName = getScoreName(finalScoreVsPar);
       const runningStats = await calculateRunningRoundStats(roundId);
       const holesPlayed = runningStats.totalHolesPlayed;
@@ -480,7 +489,7 @@ const HoleScoringScreen: React.FC = () => {
 
       const holeYardage = editedShots[0]?.distanceToHole;
       const yardageText = holeYardage ? ` ${holeYardage} yards` : '';
-      const summaryMsg = `Hole ${hole.holeNumber}: Par ${hole.par}${yardageText}\n` +
+      const summaryMsg = `Hole ${hole.holeNumber}: Par ${s.par}${yardageText}\n` +
         `Score: ${strokes} (${finalScoreName})\n` +
         `After ${holesPlayed} holes: ${formatScoreVsPar(totalScoreVsPar)}`;
 
@@ -495,7 +504,7 @@ const HoleScoringScreen: React.FC = () => {
       summaryBusyRef.current = false;
       setSaving(false);
     }
-  }, [hole, roundId, persistEditedShots, navigation, showSmsSheet]);
+  }, [hole, roundId, s.par, persistEditedShots, navigation, showSmsSheet]);
 
   const handleSummarySkip = useCallback(async (editedShots: TrackedShotV2[]) => {
     if (!hole || !roundId || summaryBusyRef.current) return;
@@ -652,7 +661,7 @@ const HoleScoringScreen: React.FC = () => {
 
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Hole {hole.holeNumber}</Text>
-          <Text style={styles.headerSub}>Par {hole.par}</Text>
+          <Text style={styles.headerSub}>Par {s.par}</Text>
         </View>
 
         <TouchableOpacity
@@ -742,8 +751,8 @@ const HoleScoringScreen: React.FC = () => {
           <>
             <Text style={styles.puttStatusText}>
               {s.pendingDistance != null
-                ? `${s.pendingDistance} feet for ${getScoreName((totalStrokes + 1) - hole.par)}`
-                : `Putting for ${getScoreName((totalStrokes + 1) - hole.par)}`}
+                ? `${s.pendingDistance} feet for ${getScoreName((totalStrokes + 1) - s.par)}`
+                : `Putting for ${getScoreName((totalStrokes + 1) - s.par)}`}
             </Text>
             <PuttResult
               onMade={tapPuttMade}
@@ -786,7 +795,7 @@ const HoleScoringScreen: React.FC = () => {
         {s.phase === 'hole_complete' && showSummary && !saving && hole && (
           <HoleSummary
             holeNumber={hole.holeNumber}
-            par={hole.par}
+            par={s.par}
             shots={s.shots}
             onSend={handleSummarySend}
             onSkip={handleSummarySkip}

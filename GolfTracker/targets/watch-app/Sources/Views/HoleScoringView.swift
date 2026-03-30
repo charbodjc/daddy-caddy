@@ -4,6 +4,7 @@ import WatchKit
 struct HoleScoringView: View {
     let holeNumber: Int
     @EnvironmentObject var connector: PhoneConnector
+    @State private var parConfirmed = false
 
     /// Live context from the connector — always current, not captured at navigation time
     private var context: WatchRoundContext? {
@@ -32,7 +33,7 @@ struct HoleScoringView: View {
                         .font(.caption)
                         .fontWeight(.bold)
                     Spacer()
-                    Text("Par \(hole.par)")
+                    Text("Par \(scoring.par)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()
@@ -44,19 +45,22 @@ struct HoleScoringView: View {
                 .padding(.bottom, 4)
 
                 // Phase-specific UI
-                switch scoring.phase {
-                case .awaiting_distance:
-                    DistanceEntryView(hole: hole, context: context)
+                if scoring.phase == .awaiting_distance && scoring.currentStroke == 1 && scoring.shots.isEmpty && !parConfirmed {
+                    ParSelectionView(hole: hole, context: context) { _ in
+                        parConfirmed = true
+                    }
+                } else if scoring.phase == .awaiting_distance {
+                    DistanceEntryView(hole: hole, context: context, unit: scoring.pendingDistanceUnit)
                         .id(scoring.currentStroke)
-                case .awaiting_result:
+                } else if scoring.phase == .awaiting_result {
                     if scoring.isOnGreen {
                         PuttResultView(scoring: scoring, hole: hole, context: context)
                     } else {
                         CompassResultView(scoring: scoring, hole: hole, context: context)
                     }
-                case .awaiting_result_lie:
+                } else if scoring.phase == .awaiting_result_lie {
                     ResultLieView(scoring: scoring, hole: hole, context: context)
-                case .hole_complete:
+                } else if scoring.phase == .hole_complete {
                     HoleSummaryView(scoring: scoring, hole: hole, context: context)
                 }
             }
