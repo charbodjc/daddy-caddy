@@ -94,6 +94,12 @@ export interface WatchNavigateHoleEvent {
   holeId: string;
 }
 
+export interface WatchShareSMSEvent {
+  messageId: string;
+  roundId: string;
+  text: string;
+}
+
 export interface WatchReachabilityEvent {
   reachable: boolean;
 }

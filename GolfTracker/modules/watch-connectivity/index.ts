@@ -4,6 +4,7 @@ import type {
   WatchRoundContext,
   WatchScoringActionEvent,
   WatchNavigateHoleEvent,
+  WatchShareSMSEvent,
   WatchReachabilityEvent,
 } from './src/WatchConnectivity.types';
 
@@ -13,6 +14,7 @@ export type {
   WatchHoleScore,
   WatchScoringActionEvent,
   WatchNavigateHoleEvent,
+  WatchShareSMSEvent,
   WatchReachabilityEvent,
   WatchScoringActionPayload,
 } from './src/WatchConnectivity.types';
@@ -124,6 +126,16 @@ export function onWatchNavigateHole(
 ): EventSubscription | null {
   if (!WatchConnectivityModule) return null;
   return WatchConnectivityModule.addListener('onWatchNavigateHole', listener);
+}
+
+/**
+ * Subscribe to share-via-SMS requests from the watch.
+ */
+export function onWatchShareSMS(
+  listener: (event: WatchShareSMSEvent) => void,
+): EventSubscription | null {
+  if (!WatchConnectivityModule) return null;
+  return WatchConnectivityModule.addListener('onWatchShareSMS', listener);
 }
 
 /**

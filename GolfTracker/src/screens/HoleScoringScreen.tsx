@@ -167,6 +167,9 @@ const HoleScoringScreen: React.FC = () => {
       allowLeaveRef.current = true;
       navigation.goBack();
     },
+    onShareSMS: (text: string) => {
+      openSMS(text);
+    },
   });
 
   // Clean up retry timer on unmount
@@ -294,11 +297,15 @@ const HoleScoringScreen: React.FC = () => {
       Alert.alert('No Recipients', 'Configure SMS recipients in Manage Golfers.');
       return;
     }
-    const isAvailable = await SMS.isAvailableAsync();
-    if (isAvailable) {
-      await SMS.sendSMSAsync(phoneNumbers, message);
-    } else {
-      Alert.alert('SMS Unavailable', 'SMS is not available on this device.');
+    try {
+      const isAvailable = await SMS.isAvailableAsync();
+      if (isAvailable) {
+        await SMS.sendSMSAsync(phoneNumbers, message);
+      } else {
+        Alert.alert('SMS Unavailable', 'SMS is not available on this device.');
+      }
+    } catch {
+      Alert.alert('SMS Error', 'Failed to send SMS. Please try again.');
     }
   }, [recipients]);
 

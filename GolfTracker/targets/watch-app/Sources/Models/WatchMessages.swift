@@ -34,6 +34,7 @@ struct WatchApplicationContext: Codable {
 enum WatchActionType: String, Codable {
     case SCORING_ACTION
     case NAVIGATE_HOLE
+    case SHARE_SMS
 }
 
 enum CenterResult: String, Codable {
