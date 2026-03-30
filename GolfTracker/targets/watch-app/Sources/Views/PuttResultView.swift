@@ -8,7 +8,7 @@ struct PuttResultView: View {
     @EnvironmentObject var connector: PhoneConnector
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
             // Made button (full width, prominent)
             Button {
                 connector.sendAction(.tapPuttMade,
@@ -17,9 +17,9 @@ struct PuttResultView: View {
                 WKInterfaceDevice.current().play(.success)
             } label: {
                 Label("Made", systemImage: "checkmark.circle.fill")
-                    .font(.body)
+                    .font(.caption)
                     .fontWeight(.bold)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .frame(maxWidth: .infinity, minHeight: 36)
             }
             .buttonStyle(.borderedProminent)
             .tint(.green)
@@ -32,9 +32,9 @@ struct PuttResultView: View {
                 .foregroundColor(.secondary)
 
             LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 6),
-                GridItem(.flexible(), spacing: 6),
-            ], spacing: 6) {
+                GridItem(.flexible(), spacing: 4),
+                GridItem(.flexible(), spacing: 4),
+            ], spacing: 4) {
                 puttMissButton(distance: .long, breakDir: .high, label: "Long\nHigh")
                 puttMissButton(distance: .long, breakDir: .low, label: "Long\nLow")
                 puttMissButton(distance: .short, breakDir: .high, label: "Short\nHigh")
@@ -54,7 +54,7 @@ struct PuttResultView: View {
             Text(label)
                 .font(.caption2)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, minHeight: 44)
+                .frame(maxWidth: .infinity, minHeight: 34)
         }
         .buttonStyle(.bordered)
         .tint(.orange)

@@ -4,6 +4,7 @@ import WatchKit
 struct DistanceEntryView: View {
     let hole: WatchHoleScore
     let context: WatchRoundContext
+    let unit: DistanceUnit
     @EnvironmentObject var connector: PhoneConnector
     @Environment(\.dismiss) private var dismiss
 
@@ -11,19 +12,42 @@ struct DistanceEntryView: View {
 
     private var maxDigits: Int { 3 }
 
+    private var unitLabel: String {
+        unit == .ft ? "ft" : "yds"
+    }
+
     var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3), spacing: 4) {
-            ForEach(1...9, id: \.self) { num in
-                numButton("\(num)") { appendDigit("\(num)") }
+        VStack(spacing: 2) {
+            // Distance display
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(digits.isEmpty ? "—" : digits)
+                    .font(.system(.title3, design: .rounded))
+                    .fontWeight(.semibold)
+                    .foregroundColor(digits.isEmpty ? .secondary : .white)
+                    .monospacedDigit()
+                Text(unitLabel)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
-            // Bottom row: cancel, 0, checkmark
-            numButton("✕") { cancel() }
-                .tint(.red)
-                .accessibilityLabel("Cancel")
-            numButton("0") { appendDigit("0") }
-            numButton("✓") { submit() }
-                .tint(.green)
-                .accessibilityLabel("Submit distance")
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 2)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(digits.isEmpty ? "No distance entered" : "\(digits) \(unitLabel)")
+
+            // Numpad grid
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 3), spacing: 2) {
+                ForEach(1...9, id: \.self) { num in
+                    numButton("\(num)") { appendDigit("\(num)") }
+                }
+                // Bottom row: cancel, 0, checkmark
+                numButton("✕") { cancel() }
+                    .tint(.red)
+                    .accessibilityLabel("Cancel")
+                numButton("0") { appendDigit("0") }
+                numButton("✓") { submit() }
+                    .tint(.green)
+                    .accessibilityLabel("Submit distance")
+            }
         }
         .padding(.horizontal, 4)
     }
@@ -58,9 +82,9 @@ struct DistanceEntryView: View {
     private func numButton(_ label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .font(.title3)
+                .font(.body)
                 .fontWeight(.medium)
-                .frame(maxWidth: .infinity, minHeight: 36)
+                .frame(maxWidth: .infinity, minHeight: 30)
         }
         .buttonStyle(.bordered)
     }

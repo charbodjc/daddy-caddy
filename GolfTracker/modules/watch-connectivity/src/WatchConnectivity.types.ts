@@ -72,6 +72,7 @@ export type WatchScoringActionPayload =
   | { type: 'SUBMIT_DISTANCE'; value: number }
   | { type: 'SKIP_DISTANCE' }
   | { type: 'TOGGLE_SWING' }
+  | { type: 'SET_PAR'; par: number }
   | { type: 'SET_LIE'; lie: LieType }
   | { type: 'TAP_CENTER_RESULT'; result: 'fairway' | 'green' | 'hole' }
   | { type: 'TAP_DIRECTION'; direction: MissDirection }

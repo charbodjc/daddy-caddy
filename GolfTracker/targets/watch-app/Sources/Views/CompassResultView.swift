@@ -29,16 +29,16 @@ struct CompassResultView: View {
     // MARK: - Step 1: Main Compass
 
     private var mainCompass: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             // Long
             directionButton(.long, label: "Long", icon: "arrow.up")
 
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 // Left
                 directionButton(.left, label: "Left", icon: "arrow.left")
 
                 // Center: on-target or hole
-                VStack(spacing: 4) {
+                VStack(spacing: 2) {
                     Button {
                         let result: CenterResult = scoring.currentLie == .tee ? .fairway : .green
                         connector.sendAction(.tapCenterResult(result: result),
@@ -49,7 +49,7 @@ struct CompassResultView: View {
                         Text(centerLabel)
                             .font(.caption2)
                             .fontWeight(.bold)
-                            .frame(minWidth: 52, minHeight: 44)
+                            .frame(minWidth: 48, minHeight: 34)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Color(hex: "2E7D32"))
@@ -63,7 +63,7 @@ struct CompassResultView: View {
                     } label: {
                         Text("Hole!")
                             .font(.caption2)
-                            .frame(minWidth: 52, minHeight: 44)
+                            .frame(minWidth: 48, minHeight: 34)
                     }
                     .buttonStyle(.bordered)
                     .tint(.blue)
@@ -85,7 +85,7 @@ struct CompassResultView: View {
 
     private func directionPicker(quadrant: MissDirection) -> some View {
         let diagonals = diagonalsFor(quadrant)
-        return VStack(spacing: 8) {
+        return VStack(spacing: 4) {
             Text("Which way?")
                 .font(.caption2)
                 .foregroundColor(.secondary)
@@ -97,20 +97,20 @@ struct CompassResultView: View {
                 Text(directionLabel(quadrant))
                     .font(.caption)
                     .fontWeight(.bold)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .frame(maxWidth: .infinity, minHeight: 34)
             }
             .buttonStyle(.borderedProminent)
             .tint(.red)
 
             // Diagonals
-            HStack(spacing: 8) {
+            HStack(spacing: 4) {
                 ForEach(diagonals, id: \.self) { dir in
                     Button {
                         sendDirection(dir)
                     } label: {
                         Text(directionLabel(dir))
                             .font(.caption2)
-                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .frame(maxWidth: .infinity, minHeight: 34)
                     }
                     .buttonStyle(.bordered)
                     .tint(.red)
@@ -136,8 +136,8 @@ struct CompassResultView: View {
             selectedQuadrant = direction
         } label: {
             Image(systemName: icon)
-                .font(.caption)
-                .frame(minWidth: 44, minHeight: 44)
+                .font(.caption2)
+                .frame(minWidth: 36, minHeight: 34)
         }
         .buttonStyle(.bordered)
         .tint(.red)

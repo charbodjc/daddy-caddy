@@ -47,6 +47,7 @@ enum ScoringActionPayload {
     case submitDistance(value: Int)
     case skipDistance
     case toggleSwing
+    case setPar(par: Int)
     case setLie(lie: LieType)
     case tapCenterResult(result: CenterResult)
     case tapDirection(direction: MissDirection)
@@ -64,6 +65,8 @@ enum ScoringActionPayload {
             return ["type": "SKIP_DISTANCE"]
         case .toggleSwing:
             return ["type": "TOGGLE_SWING"]
+        case .setPar(let par):
+            return ["type": "SET_PAR", "par": par]
         case .setLie(let lie):
             return ["type": "SET_LIE", "lie": lie.rawValue]
         case .tapCenterResult(let result):

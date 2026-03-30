@@ -49,6 +49,7 @@ export type ScoringActionV2 =
   | { type: 'SUBMIT_DISTANCE'; value: number }
   | { type: 'SKIP_DISTANCE' }
   | { type: 'TOGGLE_SWING' }
+  | { type: 'SET_PAR'; par: number }
   | { type: 'SET_LIE'; lie: LieType }
   | { type: 'TAP_CENTER_RESULT'; result: 'fairway' | 'green' | 'hole' }
   | { type: 'TAP_DIRECTION'; direction: MissDirection }
@@ -182,6 +183,12 @@ export function reducer(state: ScoringStateV2, action: ScoringActionV2): Scoring
           ? SWING_TYPES.RESTRICTED
           : SWING_TYPES.FREE,
       };
+
+    // ── Par override (available in distance phase) ─────────
+
+    case 'SET_PAR':
+      if (state.phase !== 'awaiting_distance') return state;
+      return { ...state, par: action.par };
 
     // ── Lie override (available in distance phase) ────────────
 
@@ -391,6 +398,8 @@ export function useScoringReducerV2(par: number) {
     dispatch({ type: 'SKIP_DISTANCE' }), []);
   const toggleSwing = useCallback(() =>
     dispatch({ type: 'TOGGLE_SWING' }), []);
+  const setPar = useCallback((newPar: number) =>
+    dispatch({ type: 'SET_PAR', par: newPar }), []);
   const setLie = useCallback((lie: LieType) =>
     dispatch({ type: 'SET_LIE', lie }), []);
   const tapCenterResult = useCallback((result: 'fairway' | 'green' | 'hole') =>
@@ -415,6 +424,7 @@ export function useScoringReducerV2(par: number) {
     submitDistance,
     skipDistance,
     toggleSwing,
+    setPar,
     setLie,
     tapCenterResult,
     tapDirection,
