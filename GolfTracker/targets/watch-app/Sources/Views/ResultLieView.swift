@@ -58,7 +58,7 @@ struct ResultLieView: View {
                     .font(.caption)
                 Spacer()
             }
-            .frame(maxWidth: .infinity, minHeight: 34)
+            .frame(maxWidth: .infinity, minHeight: 28)
             .padding(.horizontal, 8)
         }
         .buttonStyle(.bordered)
@@ -81,7 +81,7 @@ struct ResultLieView: View {
                     .font(.caption)
                 Spacer()
             }
-            .frame(maxWidth: .infinity, minHeight: 34)
+            .frame(maxWidth: .infinity, minHeight: 28)
             .padding(.horizontal, 8)
         }
         .buttonStyle(.bordered)

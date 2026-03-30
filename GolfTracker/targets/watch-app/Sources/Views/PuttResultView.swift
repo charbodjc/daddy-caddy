@@ -8,7 +8,7 @@ struct PuttResultView: View {
     @EnvironmentObject var connector: PhoneConnector
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 3) {
             // Made button (full width, prominent)
             Button {
                 connector.sendAction(.tapPuttMade,
@@ -19,7 +19,7 @@ struct PuttResultView: View {
                 Label("Made", systemImage: "checkmark.circle.fill")
                     .font(.caption)
                     .fontWeight(.bold)
-                    .frame(maxWidth: .infinity, minHeight: 36)
+                    .frame(maxWidth: .infinity, minHeight: 30)
             }
             .buttonStyle(.borderedProminent)
             .tint(.green)
@@ -32,9 +32,9 @@ struct PuttResultView: View {
                 .foregroundColor(.secondary)
 
             LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 4),
-                GridItem(.flexible(), spacing: 4),
-            ], spacing: 4) {
+                GridItem(.flexible(), spacing: 3),
+                GridItem(.flexible(), spacing: 3),
+            ], spacing: 3) {
                 puttMissButton(distance: .long, breakDir: .high, label: "Long\nHigh")
                 puttMissButton(distance: .long, breakDir: .low, label: "Long\nLow")
                 puttMissButton(distance: .short, breakDir: .high, label: "Short\nHigh")
@@ -54,7 +54,7 @@ struct PuttResultView: View {
             Text(label)
                 .font(.caption2)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, minHeight: 34)
+                .frame(maxWidth: .infinity, minHeight: 26)
         }
         .buttonStyle(.bordered)
         .tint(.orange)
