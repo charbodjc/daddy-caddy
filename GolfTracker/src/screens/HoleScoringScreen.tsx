@@ -45,6 +45,7 @@ import type { RouteProp } from '@react-navigation/native';
 
 import { useScoringReducerV2 } from '../hooks/useScoringReducerV2';
 import { useWatchSync } from '../hooks/useWatchSync';
+import { mountHoleScoring, unmountHoleScoring } from '../hooks/watchScoringCoordinator';
 import { ShotCompass } from '../components/scoring/ShotCompass';
 import { ClassificationPanel } from '../components/scoring/ClassificationPanel';
 import { DistanceKeypad } from '../components/scoring/DistanceKeypad';
@@ -180,6 +181,13 @@ const HoleScoringScreen: React.FC = () => {
       openSMS(text);
     },
   });
+
+  // Register with coordinator so the bridge defers to this screen
+  useEffect(() => {
+    if (!holeId) return;
+    mountHoleScoring(holeId);
+    return () => unmountHoleScoring(holeId);
+  }, [holeId]);
 
   // Clean up retry timer on unmount
   useEffect(() => {

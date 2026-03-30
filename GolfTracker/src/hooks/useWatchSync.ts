@@ -31,6 +31,7 @@ import type {
   PuttMissDistance,
   PuttMissBreak,
 } from '../types';
+import { tryProcess } from './watchScoringCoordinator';
 
 interface ScoringCallbacks {
   submitDistance: (value: number) => void;
@@ -116,6 +117,7 @@ export function useWatchSync(params: UseWatchSyncParams) {
   const routeAction = useCallback((event: WatchScoringActionEvent) => {
     if (event.roundId !== roundIdRef.current) return;
     if (event.holeId !== holeIdRef.current) return;
+    if (!tryProcess(event.messageId)) return;
 
     const cb = callbacksRef.current;
     const a = event.action;
@@ -167,6 +169,7 @@ export function useWatchSync(params: UseWatchSyncParams) {
       }),
       onWatchShareSMS((event: WatchShareSMSEvent) => {
         if (event.roundId !== roundIdRef.current) return;
+        if (!tryProcess(event.messageId)) return;
         shareSMSRef.current(event.text);
       }),
     ];

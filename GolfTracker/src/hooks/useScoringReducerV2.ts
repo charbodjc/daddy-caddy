@@ -87,7 +87,7 @@ function inferDistanceUnit(lie: LieType): DistanceUnit {
   return lie === LIE_TYPES.GREEN ? 'ft' : 'yds';
 }
 
-function buildInitialState(par: number): ScoringStateV2 {
+export function buildInitialState(par: number): ScoringStateV2 {
   return {
     phase: 'awaiting_distance',
     shots: [],
