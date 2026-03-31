@@ -31,6 +31,7 @@ export interface ScoringStateV2 {
   shots: TrackedShotV2[];
   currentStroke: number;
   par: number;
+  parConfirmed: boolean;
 
   // Auto-inferred from previous shot (tappable to override)
   currentLie: LieType;
@@ -93,6 +94,7 @@ export function buildInitialState(par: number): ScoringStateV2 {
     shots: [],
     currentStroke: 1,
     par,
+    parConfirmed: false,
     currentLie: LIE_TYPES.TEE,
     isOnGreen: false,
     pendingDistance: null,
@@ -188,7 +190,7 @@ export function reducer(state: ScoringStateV2, action: ScoringActionV2): Scoring
 
     case 'SET_PAR':
       if (state.phase !== 'awaiting_distance') return state;
-      return { ...state, par: action.par };
+      return { ...state, par: action.par, parConfirmed: true };
 
     // ── Lie override (available in distance phase) ────────────
 
@@ -358,6 +360,7 @@ export function reducer(state: ScoringStateV2, action: ScoringActionV2): Scoring
           shots: action.shots,
           currentStroke: action.currentStroke,
           par: action.par,
+          parConfirmed: true,
           currentLie: LIE_TYPES.GREEN,
           isOnGreen: true,
           pendingDistance: null,
@@ -373,6 +376,7 @@ export function reducer(state: ScoringStateV2, action: ScoringActionV2): Scoring
         shots: action.shots,
         currentStroke: action.currentStroke,
         par: action.par,
+        parConfirmed: true,
         currentLie: nextLie,
         isOnGreen,
         pendingDistance: null,

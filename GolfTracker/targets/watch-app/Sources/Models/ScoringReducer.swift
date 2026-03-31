@@ -38,6 +38,7 @@ enum ScoringReducer {
             guard state.phase == .awaiting_distance else { return state }
             var s = state
             s.par = par
+            s.parConfirmed = true
             return s
 
         // ── Lie override (distance phase only) ───────────────

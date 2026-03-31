@@ -12,10 +12,12 @@ struct HoleRowView: View {
                 .fontWeight(isCurrent ? .bold : .regular)
                 .frame(width: 24, alignment: .leading)
 
-            // Par
-            Text("Par \(hole.par)")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            // Par — only show after user has scored (strokes > 0)
+            if hole.strokes > 0 {
+                Text("Par \(hole.par)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
 
             Spacer()
 
@@ -41,6 +43,6 @@ struct HoleRowView: View {
         .listRowBackground(
             isCurrent ? Color.green.opacity(0.15) : Color.clear
         )
-        .accessibilityLabel("Hole \(hole.number), par \(hole.par)\(hole.strokes > 0 ? ", score \(hole.strokes)" : isCurrent ? ", current hole" : "")")
+        .accessibilityLabel("Hole \(hole.number)\(hole.strokes > 0 ? ", par \(hole.par), score \(hole.strokes)" : isCurrent ? ", current hole" : ", not yet played")")
     }
 }
