@@ -45,6 +45,7 @@ export interface WatchScoringState {
   shots: TrackedShotV2[];
   currentStroke: number;
   par: number;
+  parConfirmed: boolean;
   currentLie: LieType;
   isOnGreen: boolean;
   pendingDistance: number | null;

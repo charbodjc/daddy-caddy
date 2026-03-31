@@ -4,7 +4,10 @@ import WatchKit
 struct HoleScoringView: View {
     let holeNumber: Int
     @EnvironmentObject var connector: PhoneConnector
-    @State private var parConfirmed = false
+    /// Whether par should be visible — derived from scoring state, survives view recreation
+    private var shouldShowPar: Bool {
+        scoring.isParConfirmed || scoring.currentStroke > 1 || !scoring.shots.isEmpty
+    }
 
     /// Live context from the connector — always current, not captured at navigation time
     private var context: WatchRoundContext? {
@@ -36,6 +39,7 @@ struct HoleScoringView: View {
                     Text("Par \(scoring.par)")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .opacity(shouldShowPar ? 1 : 0)
                     Spacer()
                     Text("Stroke \(scoring.currentStroke)")
                         .font(.caption)
@@ -45,10 +49,8 @@ struct HoleScoringView: View {
                 .padding(.bottom, 4)
 
                 // Phase-specific UI
-                if scoring.phase == .awaiting_distance && scoring.currentStroke == 1 && scoring.shots.isEmpty && !parConfirmed {
-                    ParSelectionView(hole: hole, context: context) { _ in
-                        parConfirmed = true
-                    }
+                if scoring.phase == .awaiting_distance && scoring.currentStroke == 1 && scoring.shots.isEmpty && !scoring.isParConfirmed {
+                    ParSelectionView(hole: hole, context: context) { _ in }
                 } else if scoring.phase == .awaiting_distance {
                     DistanceEntryView(hole: hole, context: context, unit: scoring.pendingDistanceUnit)
                         .id(scoring.currentStroke)
