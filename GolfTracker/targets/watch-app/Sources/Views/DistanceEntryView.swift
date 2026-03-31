@@ -21,7 +21,7 @@ struct DistanceEntryView: View {
             // Distance display
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(digits.isEmpty ? "—" : digits)
-                    .font(.system(.body, design: .rounded))
+                    .font(.system(.caption, design: .rounded))
                     .fontWeight(.semibold)
                     .foregroundColor(digits.isEmpty ? .secondary : .white)
                     .monospacedDigit()
@@ -82,9 +82,9 @@ struct DistanceEntryView: View {
     private func numButton(_ label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .font(.caption)
+                .font(.caption2)
                 .fontWeight(.medium)
-                .frame(maxWidth: .infinity, minHeight: 24)
+                .frame(maxWidth: .infinity, minHeight: 20)
         }
         .buttonStyle(.bordered)
     }
