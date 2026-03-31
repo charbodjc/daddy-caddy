@@ -43,6 +43,7 @@ import type { ScoringStackParamList } from '../types/navigation';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RouteProp } from '@react-navigation/native';
 
+import { useObservable } from '../hooks/useObservable';
 import { useScoringReducerV2 } from '../hooks/useScoringReducerV2';
 import { useWatchSync } from '../hooks/useWatchSync';
 import { mountHoleScoring, unmountHoleScoring } from '../hooks/watchScoringCoordinator';
@@ -84,9 +85,38 @@ const HoleScoringScreen: React.FC = () => {
   // Data loading
   const [hole, setHole] = useState<Hole | null>(null);
   const [golfer, setGolfer] = useState<Golfer | null>(null);
-  const [roundHoles, setRoundHoles] = useState<Array<{ number: number; par: number; strokes: number; holeId: string }>>([]);
   const [courseName, setCourseName] = useState<string | undefined>(undefined);
-  const [roundScoreToPar, setRoundScoreToPar] = useState(0);
+
+  // Observe round holes reactively via WatermelonDB — auto-updates when ANY
+  // hole changes (including bridge writes for other holes). Eliminates all
+  // manual setRoundHoles calls and prevents stale-data bugs.
+  const roundModel = useMemo(
+    () => roundId ? database.collections.get<Round>('rounds').findAndObserve(roundId) : undefined,
+    [roundId],
+  );
+  const observedRound = useObservable(roundModel);
+  const holesObservable = useMemo(
+    () => observedRound?.holes.observe(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stabilize on ID, not object reference
+    [observedRound?.id],
+  );
+  const rawObservedHoles = useObservable<Hole[]>(holesObservable);
+  const roundHoles = useMemo(
+    () => (rawObservedHoles
+      ? [...rawObservedHoles]
+          .sort((a, b) => a.holeNumber - b.holeNumber)
+          .map(h => ({ number: h.holeNumber, par: h.par, strokes: h.strokes, holeId: h.id }))
+      : []),
+    [rawObservedHoles],
+  );
+
+  // Derived from roundHoles — single source of truth for score-to-par.
+  const roundScoreToPar = useMemo(() => {
+    const completed = roundHoles.filter(h => h.strokes > 0);
+    const total = completed.reduce((sum, h) => sum + h.strokes, 0);
+    const parTotal = completed.reduce((sum, h) => sum + h.par, 0);
+    return total - parTotal;
+  }, [roundHoles]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [saving, setSaving] = useState(false);
@@ -152,7 +182,7 @@ const HoleScoringScreen: React.FC = () => {
     scoreVsPar: roundScoreToPar,
     holesCompleted: watchHolesCompleted,
     holes: roundHoles,
-    scoringState: loading ? null : s,
+    scoringState: loading || !rawObservedHoles ? null : s,
     scoringCallbacks: {
       submitDistance,
       skipDistance,
@@ -234,12 +264,6 @@ const HoleScoringScreen: React.FC = () => {
             // Golfer may have been deleted
           }
         }
-        const allHoles = await r.holes.fetch();
-        const playedHoles = allHoles.filter(rh => rh.strokes > 0);
-        const totalScore = playedHoles.reduce((sum, rh) => sum + rh.strokes, 0);
-        const playedPar = playedHoles.reduce((sum, rh) => sum + rh.par, 0);
-        setRoundScoreToPar(totalScore - playedPar);
-        setRoundHoles(allHoles.map(rh => ({ number: rh.holeNumber, par: rh.par, strokes: rh.strokes, holeId: rh.id })));
         prevHoleStrokes.current = h.strokes;
 
         // Load SMS recipients
@@ -415,49 +439,15 @@ const HoleScoringScreen: React.FC = () => {
     }
   }, [s.phase]);
 
+  // Show hole summary when scoring completes. DB persistence is handled by
+  // the persistShots effect (which fires on every shots change, including the
+  // final shot that triggers hole_complete). This avoids a duplicate DB write.
   useEffect(() => {
     if (s.phase !== 'hole_complete' || !hole || !roundId) return;
     if (completingRef.current) return;
     completingRef.current = true;
-
-    // If the hole was already saved (re-entry), skip the DB write and show summary directly
-    const strokes = calculateTotalStrokesV2(s.shots);
-    if (prevHoleStrokes.current > 0 && prevHoleStrokes.current === strokes) {
-      setShowSummary(true);
-      return;
-    }
-
-    const completeHole = async () => {
-      setSaving(true);
-      try {
-        const shotData: ShotDataV2 = { version: 2, par: s.par, shots: s.shots, currentStroke: s.currentStroke };
-        const stats = deriveHoleStatsV2(shotData, s.par);
-
-        await updateHole(roundId, {
-          holeNumber: hole.holeNumber,
-          par: s.par,
-          strokes,
-          fairwayHit: stats?.fairwayHit,
-          greenInRegulation: stats?.greenInRegulation,
-          putts: stats?.puttsCount,
-          shotData: JSON.stringify(shotData),
-        });
-
-        const prior = prevHoleStrokes.current;
-        const parDelta = prior === 0 ? s.par : 0;
-        setRoundScoreToPar(prev => prev + (strokes - prior) - parDelta);
-
-        setShowSummary(true);
-      } catch {
-        completingRef.current = false;
-        Alert.alert('Error', 'Failed to save hole. Please try again.');
-      } finally {
-        setSaving(false);
-      }
-    };
-
-    completeHole();
-  }, [s.phase, s.shots, s.currentStroke, s.par, hole, roundId, updateHole]);
+    setShowSummary(true);
+  }, [s.phase, hole, roundId]);
 
   // ── Hole summary send/skip handlers ──────────────────────────
 

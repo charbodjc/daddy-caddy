@@ -80,6 +80,11 @@ export function useWatchScoringBridge(params: UseWatchScoringBridgeParams) {
   // Track the "current" hole being scored from the watch (last action's holeId)
   const activeWatchHoleId = useRef<string | null>(null);
 
+  // Optimistic stroke overrides for holes persisted by the bridge but not yet
+  // reflected in holesRef (WatermelonDB observation lag). Cleared per-hole when
+  // the observation catches up (strokes match), or on round change.
+  const strokeOverrides = useRef(new Map<string, { strokes: number; par: number }>());
+
   /**
    * Load or retrieve the scoring state for a hole.
    * First call for a hole loads from DB; subsequent calls use cached state.
@@ -114,9 +119,10 @@ export function useWatchScoringBridge(params: UseWatchScoringBridgeParams) {
   }, []);
 
   /**
-   * Persist scoring state to the database.
+   * Persist scoring state to the database with retry.
+   * Up to 2 retries (3 total attempts) with 1s delay between each.
    */
-  const persistState = useCallback(async (holeId: string, state: ScoringStateV2) => {
+  const persistState = useCallback(async (holeId: string, state: ScoringStateV2, attempt = 0) => {
     const currentRoundId = roundIdRef.current;
     if (!currentRoundId) return;
 
@@ -141,13 +147,23 @@ export function useWatchScoringBridge(params: UseWatchScoringBridgeParams) {
         shotData: JSON.stringify(shotData),
       });
     } catch {
-      // Persistence failure — the watch's optimistic state is ahead, but
-      // the next action will retry persistence. Fire-and-forget.
+      if (attempt < 2) {
+        await new Promise<void>(resolve => setTimeout(resolve, 1000));
+        // Only retry if we're still on the same round
+        if (roundIdRef.current === currentRoundId) {
+          return persistState(holeId, state, attempt + 1);
+        }
+      }
+      // Final failure is silent — the override keeps the watch consistent,
+      // and the next scoring action will persist the latest state.
     }
   }, []);
 
   /**
    * Push updated round context to the watch after processing an action.
+   * Applies all stroke overrides (not just the current hole) so that rapid
+   * catch-up scoring across multiple holes produces accurate totals even
+   * before WatermelonDB observations propagate each DB write.
    */
   const pushContext = useCallback((scoringState: ScoringStateV2, currentHoleId: string) => {
     const currentRoundId = roundIdRef.current;
@@ -158,7 +174,25 @@ export function useWatchScoringBridge(params: UseWatchScoringBridgeParams) {
     const currentHole = currentHoles.find(h => h.holeId === currentHoleId);
     if (!currentHole) return;
 
-    const completedHoles = currentHoles.filter(h => h.strokes > 0);
+    // Record the current hole's strokes as an override
+    const updatedStrokes = calculateTotalStrokesV2(scoringState.shots);
+    strokeOverrides.current.set(currentHoleId, { strokes: updatedStrokes, par: scoringState.par });
+
+    // Prune overrides that the observation has caught up with
+    for (const [holeId, override] of strokeOverrides.current) {
+      const observed = currentHoles.find(h => h.holeId === holeId);
+      if (observed && observed.strokes === override.strokes) {
+        strokeOverrides.current.delete(holeId);
+      }
+    }
+
+    // Apply all pending overrides to build the merged holes array
+    const mergedHoles = currentHoles.map(h => {
+      const override = strokeOverrides.current.get(h.holeId);
+      return override ? { ...h, strokes: override.strokes, par: override.par } : h;
+    });
+
+    const completedHoles = mergedHoles.filter(h => h.strokes > 0);
     const totalScore = completedHoles.reduce((sum, h) => sum + h.strokes, 0);
     const totalPar = completedHoles.reduce((sum, h) => sum + h.par, 0);
 
@@ -172,7 +206,7 @@ export function useWatchScoringBridge(params: UseWatchScoringBridgeParams) {
       scoreVsPar: totalScore - totalPar,
       holesCompleted: completedHoles.length,
       scoring: scoringState,
-      holes: currentHoles,
+      holes: mergedHoles,
     };
 
     sendRoundContext(context);
@@ -281,6 +315,7 @@ export function useWatchScoringBridge(params: UseWatchScoringBridgeParams) {
   useEffect(() => {
     holeStates.current.clear();
     holeQueues.current.clear();
+    strokeOverrides.current.clear();
     activeWatchHoleId.current = null;
   }, [roundId]);
 }
