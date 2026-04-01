@@ -1,13 +1,24 @@
 import ExpoModulesCore
 import ActivityKit
+import os
+
+private let logger = Logger(subsystem: "com.daddycaddy.golf", category: "LiveActivity")
 
 public class LiveActivityModule: Module {
     public func definition() -> ModuleDefinition {
         Name("LiveActivity")
 
         AsyncFunction("startRoundActivity") { (courseName: String, roundId: String, totalHoles: Int) -> String? in
-            guard #available(iOS 16.2, *) else { return nil }
-            guard ActivityAuthorizationInfo().areActivitiesEnabled else { return nil }
+            guard #available(iOS 16.2, *) else {
+                logger.warning("iOS 16.2+ required — skipping")
+                return nil
+            }
+
+            let authInfo = ActivityAuthorizationInfo()
+            guard authInfo.areActivitiesEnabled else {
+                logger.warning("Activities disabled — check Settings > Daddy Caddy > Live Activities")
+                return nil
+            }
 
             let attributes = GolfRoundAttributes(
                 courseName: courseName,
@@ -28,8 +39,10 @@ public class LiveActivityModule: Module {
                     content: content,
                     pushType: nil
                 )
+                logger.info("Started activity \(activity.id) for round \(roundId)")
                 return activity.id
             } catch {
+                logger.error("Failed to start: \(error.localizedDescription)")
                 return nil
             }
         }

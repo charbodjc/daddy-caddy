@@ -20,8 +20,13 @@ export async function startRoundActivity(
 ): Promise<string | null> {
   if (!LiveActivityModule) return null;
   try {
-    return await LiveActivityModule.startRoundActivity(courseName, roundId, totalHoles);
-  } catch {
+    const id = await LiveActivityModule.startRoundActivity(courseName, roundId, totalHoles);
+    if (!id) {
+      console.warn('[LiveActivity] startRoundActivity returned null — check iOS Settings > Daddy Caddy > Live Activities');
+    }
+    return id;
+  } catch (err) {
+    console.warn('[LiveActivity] startRoundActivity threw:', err);
     return null;
   }
 }
