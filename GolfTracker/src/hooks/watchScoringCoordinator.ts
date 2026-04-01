@@ -51,6 +51,36 @@ export function onHoleScoringUnmount(cb: UnmountCallback): () => void {
   };
 }
 
+// Shared stroke overrides — set by the bridge, read by useWatchSync in HoleScoringScreen.
+// Ensures watch sees correct strokes even before WatermelonDB observation propagates.
+const strokeOverrides = new Map<string, { strokes: number; par: number }>();
+
+export function setStrokeOverride(holeId: string, strokes: number, par: number): void {
+  strokeOverrides.set(holeId, { strokes, par });
+}
+
+export function clearStrokeOverride(holeId: string): void {
+  strokeOverrides.delete(holeId);
+}
+
+export function clearAllStrokeOverrides(): void {
+  strokeOverrides.clear();
+}
+
+export function clearProcessedMessages(): void {
+  processedMessages.clear();
+}
+
+export function applyStrokeOverrides<T extends { holeId: string; strokes: number; par: number }>(
+  holes: T[],
+): T[] {
+  if (strokeOverrides.size === 0) return holes;
+  return holes.map(h => {
+    const override = strokeOverrides.get(h.holeId);
+    return override ? { ...h, strokes: override.strokes, par: override.par } : h;
+  });
+}
+
 /**
  * Attempt to claim processing of a message. Returns true if this is the
  * first caller for this messageId (caller should process). Returns false

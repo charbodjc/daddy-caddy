@@ -29,7 +29,7 @@ import type {
 } from '../../modules/watch-connectivity';
 import { reducer, buildInitialState } from './useScoringReducerV2';
 import type { ScoringStateV2, ScoringActionV2 } from './useScoringReducerV2';
-import { isHoleScoringMounted, tryProcess, onHoleScoringUnmount } from './watchScoringCoordinator';
+import { isHoleScoringMounted, tryProcess, onHoleScoringUnmount, setStrokeOverride, clearStrokeOverride, clearAllStrokeOverrides, clearProcessedMessages } from './watchScoringCoordinator';
 import { database } from '../database/watermelon/database';
 import Hole from '../database/watermelon/models/Hole';
 import { isShotDataV2 } from '../types';
@@ -174,15 +174,17 @@ export function useWatchScoringBridge(params: UseWatchScoringBridgeParams) {
     const currentHole = currentHoles.find(h => h.holeId === currentHoleId);
     if (!currentHole) return;
 
-    // Record the current hole's strokes as an override
+    // Record the current hole's strokes as an override (both local and shared)
     const updatedStrokes = calculateTotalStrokesV2(scoringState.shots);
     strokeOverrides.current.set(currentHoleId, { strokes: updatedStrokes, par: scoringState.par });
+    setStrokeOverride(currentHoleId, updatedStrokes, scoringState.par);
 
     // Prune overrides that the observation has caught up with
     for (const [holeId, override] of strokeOverrides.current) {
       const observed = currentHoles.find(h => h.holeId === holeId);
       if (observed && observed.strokes === override.strokes) {
         strokeOverrides.current.delete(holeId);
+        clearStrokeOverride(holeId);
       }
     }
 
@@ -316,6 +318,8 @@ export function useWatchScoringBridge(params: UseWatchScoringBridgeParams) {
     holeStates.current.clear();
     holeQueues.current.clear();
     strokeOverrides.current.clear();
+    clearAllStrokeOverrides();
+    clearProcessedMessages();
     activeWatchHoleId.current = null;
   }, [roundId]);
 }
