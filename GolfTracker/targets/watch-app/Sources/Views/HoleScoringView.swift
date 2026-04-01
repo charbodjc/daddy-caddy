@@ -18,8 +18,11 @@ struct HoleScoringView: View {
         context?.holes.first(where: { $0.number == holeNumber })
     }
 
-    /// Use phone's scoring state only when the phone is on this hole;
-    /// otherwise use the optimistic local state (set in onAppear after NAVIGATE_HOLE).
+    /// True when the distance numpad is showing (not par selection)
+    private var isDistanceNumpad: Bool {
+        scoring.phase == .awaiting_distance && (scoring.currentStroke > 1 || !scoring.shots.isEmpty || scoring.isParConfirmed)
+    }
+
     private var scoring: ScoringState {
         if context?.currentHoleNumber == holeNumber {
             return connector.localScoringState ?? context?.scoring ?? .initial(par: hole?.par ?? 4)
@@ -30,23 +33,23 @@ struct HoleScoringView: View {
     var body: some View {
         if let context = context, let hole = hole {
             VStack(spacing: 0) {
-                // Header: Hole info
-                HStack {
-                    Text("Hole \(hole.number)")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                    Spacer()
-                    Text("Par \(scoring.par)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .opacity(shouldShowPar ? 1 : 0)
-                    Spacer()
-                    Text("Stroke \(scoring.currentStroke)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                // Header row (hidden during distance numpad — it shows its own inline)
+                if !isDistanceNumpad {
+                    HStack(spacing: 0) {
+                        Text("#\(hole.number)")
+                            .fontWeight(.bold)
+                        if shouldShowPar {
+                            Text(" P\(scoring.par)")
+                                .foregroundColor(.secondary)
+                        }
+                        Text(" S\(scoring.currentStroke)")
+                            .foregroundColor(.secondary)
+                    }
+                    .font(.caption2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+                    .padding(.bottom, 2)
                 }
-                .padding(.horizontal, 4)
-                .padding(.bottom, 4)
 
                 // Phase-specific UI
                 if scoring.phase == .awaiting_distance && scoring.currentStroke == 1 && scoring.shots.isEmpty && !scoring.isParConfirmed {
@@ -68,6 +71,7 @@ struct HoleScoringView: View {
             }
             .navigationTitle("Hole \(hole.number)")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(isDistanceNumpad ? .hidden : .visible, for: .navigationBar)
             .onAppear {
                 navigateIfNeeded(context: context, hole: hole)
             }

@@ -1,147 +1,126 @@
 import SwiftUI
 import WatchKit
 
-/// 2-step compass for off-green results.
-/// Step 1: Tap center (on-target) or a quadrant (Left/Right/Long/Short).
-/// Step 2 (if quadrant): Confirm specific direction or pick diagonal.
+/// Compass for off-green results: tap center (on-target) or a cardinal direction (Left/Right/Long/Short).
 struct CompassResultView: View {
     let scoring: ScoringState
     let hole: WatchHoleScore
     let context: WatchRoundContext
     @EnvironmentObject var connector: PhoneConnector
 
-    @State private var selectedQuadrant: MissDirection?
+    /// True when the shot is an approach to the green (or closer).
+    /// Uses current lie to avoid false positives after penalties
+    /// (e.g., after OB from the tee, you're still on the tee, not approaching).
+    private var isTargetingGreen: Bool {
+        if scoring.currentLie == .tee {
+            // From the tee, only target green on par 3
+            return scoring.par <= 3
+        }
+        // From fairway/rough/trouble: target green when stroke count
+        // suggests an approach (stroke >= par - 2)
+        return scoring.currentStroke >= scoring.par - 2
+    }
 
     private var centerLabel: String {
-        scoring.currentLie == .tee ? "Fairway" : "Green"
+        isTargetingGreen ? "Green" : "Fairway"
     }
 
     var body: some View {
-        if let quadrant = selectedQuadrant {
-            // Step 2: Specific direction picker
-            directionPicker(quadrant: quadrant)
-        } else {
-            // Step 1: Main compass
-            mainCompass
-        }
+        mainCompass
     }
 
-    // MARK: - Step 1: Main Compass
+    /// The secondary center result — the opposite of what the main center button shows.
+    private var secondaryCenterResult: CenterResult {
+        isTargetingGreen ? .fairway : .green
+    }
+
+    private var secondaryCenterLabel: String {
+        isTargetingGreen ? "Fairway" : "Green"
+    }
+
+    // MARK: - Main Compass
 
     private var mainCompass: some View {
         VStack(spacing: 2) {
-            // Long
-            directionButton(.long, label: "Long", icon: "arrow.up")
+            // Long (narrow, centered)
+            directionButton(.long, icon: "arrow.up")
 
+            // Middle row: Left | Center | Right
             HStack(spacing: 2) {
-                // Left
-                directionButton(.left, label: "Left", icon: "arrow.left")
+                directionButton(.left, icon: "arrow.left")
 
-                // Center: on-target or hole
-                VStack(spacing: 2) {
-                    Button {
-                        let result: CenterResult = scoring.currentLie == .tee ? .fairway : .green
-                        connector.sendAction(.tapCenterResult(result: result),
-                                             roundId: context.roundId,
-                                             holeId: hole.holeId)
-                        WKInterfaceDevice.current().play(.success)
-                    } label: {
-                        Text(centerLabel)
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .frame(minWidth: 44, minHeight: 26)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color(hex: "2E7D32"))
-                    .accessibilityLabel(centerLabel)
-
-                    Button {
-                        connector.sendAction(.tapCenterResult(result: .hole),
-                                             roundId: context.roundId,
-                                             holeId: hole.holeId)
-                        WKInterfaceDevice.current().play(.success)
-                    } label: {
-                        Text("Hole!")
-                            .font(.caption2)
-                            .frame(minWidth: 44, minHeight: 26)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.blue)
-                    .accessibilityLabel("Holed shot")
-                    .accessibilityHint("Records the ball going in the hole")
+                // Center: primary on-target result
+                Button {
+                    let result: CenterResult = isTargetingGreen ? .green : .fairway
+                    connector.sendAction(.tapCenterResult(result: result),
+                                         roundId: context.roundId,
+                                         holeId: hole.holeId)
+                    WKInterfaceDevice.current().play(.success)
+                } label: {
+                    Text(centerLabel)
+                        .font(.system(size: 12))
+                        .fontWeight(.bold)
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(hex: "2E7D32"))
+                .controlSize(.small)
+                .accessibilityLabel(centerLabel)
 
-                // Right
-                directionButton(.right, label: "Right", icon: "arrow.right")
+                directionButton(.right, icon: "arrow.right")
             }
 
-            // Short
-            directionButton(.short, label: "Short", icon: "arrow.down")
+            // Bottom row: secondary result | Short | Hole!
+            HStack(spacing: 2) {
+                Button {
+                    connector.sendAction(.tapCenterResult(result: secondaryCenterResult),
+                                         roundId: context.roundId,
+                                         holeId: hole.holeId)
+                    WKInterfaceDevice.current().play(.success)
+                } label: {
+                    Text(secondaryCenterLabel)
+                        .font(.system(size: 11))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(Color(hex: "2E7D32"))
+                .controlSize(.small)
+                .accessibilityLabel(secondaryCenterLabel)
+
+                directionButton(.short, icon: "arrow.down")
+
+                Button {
+                    connector.sendAction(.tapCenterResult(result: .hole),
+                                         roundId: context.roundId,
+                                         holeId: hole.holeId)
+                    WKInterfaceDevice.current().play(.success)
+                } label: {
+                    Text("Hole!")
+                        .font(.system(size: 11))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.blue)
+                .controlSize(.small)
+                .accessibilityLabel("Holed shot")
+            }
         }
         .padding(.horizontal, 2)
     }
 
-    // MARK: - Step 2: Direction Picker (for diagonals)
-
-    private func directionPicker(quadrant: MissDirection) -> some View {
-        let diagonals = diagonalsFor(quadrant)
-        return VStack(spacing: 3) {
-            Text("Which way?")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-
-            // Primary direction (straight)
-            Button {
-                sendDirection(quadrant)
-            } label: {
-                Text(directionLabel(quadrant))
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .frame(maxWidth: .infinity, minHeight: 28)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
-
-            // Diagonals
-            HStack(spacing: 3) {
-                ForEach(diagonals, id: \.self) { dir in
-                    Button {
-                        sendDirection(dir)
-                    } label: {
-                        Text(directionLabel(dir))
-                            .font(.caption2)
-                            .frame(maxWidth: .infinity, minHeight: 28)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-                }
-            }
-
-            Button {
-                selectedQuadrant = nil
-            } label: {
-                Text("Back")
-                    .font(.caption2)
-            }
-            .buttonStyle(.plain)
-            .foregroundColor(.secondary)
-        }
-        .padding(.horizontal, 4)
-    }
-
     // MARK: - Helpers
 
-    private func directionButton(_ direction: MissDirection, label: String, icon: String) -> some View {
+    private func directionButton(_ direction: MissDirection, icon: String) -> some View {
         Button {
-            selectedQuadrant = direction
+            sendDirection(direction)
         } label: {
             Image(systemName: icon)
-                .font(.caption2)
-                .frame(minWidth: 32, minHeight: 26)
+                .font(.system(size: 12))
         }
         .buttonStyle(.bordered)
         .tint(.red)
-        .accessibilityLabel("Miss \(label)")
+        .controlSize(.small)
+        .accessibilityLabel("Miss \(direction)")
     }
 
     private func sendDirection(_ direction: MissDirection) {
@@ -149,29 +128,5 @@ struct CompassResultView: View {
                              roundId: context.roundId,
                              holeId: hole.holeId)
         WKInterfaceDevice.current().play(.notification)
-        selectedQuadrant = nil
-    }
-
-    private func diagonalsFor(_ quadrant: MissDirection) -> [MissDirection] {
-        switch quadrant {
-        case .long:  return [.long_left, .long_right]
-        case .short: return [.short_left, .short_right]
-        case .left:  return [.long_left, .short_left]
-        case .right: return [.long_right, .short_right]
-        default:     return []
-        }
-    }
-
-    private func directionLabel(_ dir: MissDirection) -> String {
-        switch dir {
-        case .left:        return "Left"
-        case .right:       return "Right"
-        case .long:        return "Long"
-        case .short:       return "Short"
-        case .long_left:   return "Long L"
-        case .long_right:  return "Long R"
-        case .short_left:  return "Short L"
-        case .short_right: return "Short R"
-        }
     }
 }

@@ -13,14 +13,14 @@ struct WatchHoleScore: Codable, Identifiable {
 struct WatchRoundContext: Codable {
     let roundId: String
     let courseName: String
-    let currentHoleNumber: Int
-    let currentHoleId: String
+    var currentHoleNumber: Int
+    var currentHoleId: String
     let totalHoles: Int
-    let totalScore: Int
-    let scoreVsPar: Int
-    let holesCompleted: Int
-    let scoring: ScoringState
-    let holes: [WatchHoleScore]
+    var totalScore: Int
+    var scoreVsPar: Int
+    var holesCompleted: Int
+    var scoring: ScoringState
+    var holes: [WatchHoleScore]
 }
 
 struct WatchApplicationContext: Codable {

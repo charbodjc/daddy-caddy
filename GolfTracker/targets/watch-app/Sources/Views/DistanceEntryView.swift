@@ -6,7 +6,6 @@ struct DistanceEntryView: View {
     let context: WatchRoundContext
     let unit: DistanceUnit
     @EnvironmentObject var connector: PhoneConnector
-    @Environment(\.dismiss) private var dismiss
 
     @State private var digits: String = ""
 
@@ -17,29 +16,25 @@ struct DistanceEntryView: View {
     }
 
     var body: some View {
-        VStack(spacing: 1) {
+        VStack(spacing: 0) {
+            Spacer().frame(height: 2)
             // Distance display
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(digits.isEmpty ? "—" : digits)
-                    .font(.system(.body, design: .rounded))
+                    .font(.system(.caption, design: .rounded))
                     .fontWeight(.semibold)
                     .foregroundColor(digits.isEmpty ? .secondary : .white)
                     .monospacedDigit()
                 Text(unitLabel)
-                    .font(.caption2)
+                    .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 1)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(digits.isEmpty ? "No distance entered" : "\(digits) \(unitLabel)")
 
-            // Numpad grid
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 3), spacing: 1) {
+            // Numpad grid (all 12 buttons same size)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 3), spacing: 0) {
                 ForEach(1...9, id: \.self) { num in
                     numButton("\(num)") { appendDigit("\(num)") }
                 }
-                // Bottom row: cancel, 0, checkmark
                 numButton("✕") { cancel() }
                     .tint(.red)
                     .accessibilityLabel("Cancel")
@@ -62,7 +57,11 @@ struct DistanceEntryView: View {
 
     private func cancel() {
         WKInterfaceDevice.current().play(.click)
-        dismiss()
+        // Skip distance entry — this advances the scoring phase
+        // without popping the navigation stack
+        connector.sendAction(.skipDistance,
+                             roundId: context.roundId,
+                             holeId: hole.holeId)
     }
 
     private func submit() {
@@ -84,8 +83,9 @@ struct DistanceEntryView: View {
             Text(label)
                 .font(.caption)
                 .fontWeight(.medium)
-                .frame(maxWidth: .infinity, minHeight: 24)
+                .frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered)
+        .controlSize(.small)
     }
 }

@@ -1,7 +1,7 @@
 /** @type {import('@bacons/apple-targets').Config} */
 module.exports = {
   type: "watch",
-  name: "DaddyCaddyWatch",
+  name: "Daddy Caddy",
   bundleIdentifier: ".watch-app",
   icon: "./Assets.xcassets/AppIcon.appiconset/AppIcon.png",
   frameworks: ["SwiftUI", "WatchConnectivity"],

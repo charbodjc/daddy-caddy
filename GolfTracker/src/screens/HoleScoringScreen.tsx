@@ -46,7 +46,7 @@ import type { RouteProp } from '@react-navigation/native';
 import { useObservable } from '../hooks/useObservable';
 import { useScoringReducerV2 } from '../hooks/useScoringReducerV2';
 import { useWatchSync } from '../hooks/useWatchSync';
-import { mountHoleScoring, unmountHoleScoring } from '../hooks/watchScoringCoordinator';
+import { mountHoleScoring, unmountHoleScoring, applyStrokeOverrides } from '../hooks/watchScoringCoordinator';
 import { ShotCompass } from '../components/scoring/ShotCompass';
 import { ClassificationPanel } from '../components/scoring/ClassificationPanel';
 import { DistanceKeypad } from '../components/scoring/DistanceKeypad';
@@ -102,11 +102,15 @@ const HoleScoringScreen: React.FC = () => {
   );
   const rawObservedHoles = useObservable<Hole[]>(holesObservable);
   const roundHoles = useMemo(
-    () => (rawObservedHoles
-      ? [...rawObservedHoles]
-          .sort((a, b) => a.holeNumber - b.holeNumber)
-          .map(h => ({ number: h.holeNumber, par: h.par, strokes: h.strokes, holeId: h.id }))
-      : []),
+    () => {
+      const holes = rawObservedHoles
+        ? [...rawObservedHoles]
+            .sort((a, b) => a.holeNumber - b.holeNumber)
+            .map(h => ({ number: h.holeNumber, par: h.par, strokes: h.strokes, holeId: h.id }))
+        : [];
+      // Apply bridge's stroke overrides to cover the gap before DB observation propagates
+      return applyStrokeOverrides(holes);
+    },
     [rawObservedHoles],
   );
 
