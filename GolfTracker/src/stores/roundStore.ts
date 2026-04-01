@@ -216,7 +216,12 @@ export const useRoundStore = create<RoundState>()(
 
           // Start Live Activity (fire-and-forget — never block round creation)
           startRoundActivity(data.courseName, round.id, 18).then((id) => {
-            if (id) set({ liveActivityId: id });
+            if (id) {
+              console.info('[LiveActivity] Active — Dynamic Island should be visible');
+              set({ liveActivityId: id });
+            } else {
+              console.warn('[LiveActivity] Not started — Dynamic Island will not show');
+            }
           }).catch((err) => console.warn('Live Activity start failed:', err));
 
           return round;

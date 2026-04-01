@@ -1,5 +1,6 @@
 import SwiftUI
 import WatchKit
+import os
 
 @main
 struct DaddyCaddyWatch: App {
@@ -25,19 +26,33 @@ struct DaddyCaddyWatch: App {
 /// This prevents watchOS from suspending the app when the wrist drops,
 /// so it stays foregrounded and shows in the dock as "active".
 final class ExtendedSessionManager: NSObject, ObservableObject, WKExtendedRuntimeSessionDelegate {
+    private static let logger = Logger(subsystem: "com.daddycaddy.golf.watch", category: "ExtendedSession")
+
     private var session: WKExtendedRuntimeSession?
+
+    /// Tracks consecutive restarts to avoid a tight loop if watchOS keeps expiring sessions
+    /// due to resource pressure. Resets when a session runs for > 60s or on explicit stop/start.
+    private var consecutiveRestarts = 0
+    private var lastStartTime: Date?
+    private static let maxConsecutiveRestarts = 5
 
     func start() {
         guard session == nil || session?.state == .invalid else { return }
+        consecutiveRestarts = 0
         let newSession = WKExtendedRuntimeSession()
         newSession.delegate = self
         newSession.start()
         session = newSession
+        lastStartTime = Date()
+        Self.logger.info("Session started")
     }
 
     func stop() {
         session?.invalidate()
         session = nil
+        consecutiveRestarts = 0
+        lastStartTime = nil
+        Self.logger.info("Session stopped")
     }
 
     func extendedRuntimeSession(
@@ -55,9 +70,25 @@ final class ExtendedSessionManager: NSObject, ObservableObject, WKExtendedRuntim
     func extendedRuntimeSessionWillExpire(
         _ extendedRuntimeSession: WKExtendedRuntimeSession
     ) {
-        // Session is about to expire — invalidate it and start a fresh one
         extendedRuntimeSession.invalidate()
         session = nil
-        start()
+
+        // Reset counter if the session ran for a reasonable duration
+        if let lastStart = lastStartTime, Date().timeIntervalSince(lastStart) > 60 {
+            consecutiveRestarts = 0
+        }
+
+        consecutiveRestarts += 1
+        if consecutiveRestarts > Self.maxConsecutiveRestarts {
+            Self.logger.warning("Hit restart limit (\(Self.maxConsecutiveRestarts)) — not restarting")
+            return
+        }
+
+        Self.logger.info("Session expiring — restarting (\(self.consecutiveRestarts)/\(Self.maxConsecutiveRestarts))")
+        let newSession = WKExtendedRuntimeSession()
+        newSession.delegate = self
+        newSession.start()
+        session = newSession
+        lastStartTime = Date()
     }
 }
