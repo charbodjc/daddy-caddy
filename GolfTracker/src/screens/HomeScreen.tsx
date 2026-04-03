@@ -15,6 +15,7 @@ import { GolferAvatar } from '../components/golfer/GolferAvatar';
 import { GolferPicker } from '../components/golfer/GolferPicker';
 import { useGolfers } from '../hooks/useGolfers';
 import { useStatsStore } from '../stores/statsStore';
+import { useTournaments } from '../hooks/useTournaments';
 
 const bannerImage = require('../../assets/daddy-caddy-banner.jpg');
 
@@ -26,20 +27,27 @@ const HomeScreen: React.FC = () => {
   const { loadAllRounds, loadActiveRound } = useRoundStore();
   const { golfers, activeGolfer, activeGolferId, loading: golfersLoading, setActiveGolfer, createGolfer } = useGolfers();
   const { calculateStats } = useStatsStore();
-  
+  const { tournaments, reload: reloadTournaments } = useTournaments();
+
+  const latestTournament = tournaments.length > 0 ? tournaments[0] : null;
+
   const [refreshing, setRefreshing] = React.useState(false);
   
   const loading = roundLoading || statsLoading;
   
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([
-      reloadRound(),
-      refreshStats(),
-      loadAllRounds(),
-    ]);
-    setRefreshing(false);
-  }, [reloadRound, refreshStats, loadAllRounds]);
+    try {
+      await Promise.all([
+        reloadRound(),
+        refreshStats(),
+        loadAllRounds(),
+        reloadTournaments(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [reloadRound, refreshStats, loadAllRounds, reloadTournaments]);
 
   const handleSwitchGolfer = useCallback(async (id: string) => {
     await setActiveGolfer(id);
@@ -66,6 +74,15 @@ const HomeScreen: React.FC = () => {
   const handleGoToTournaments = useCallback(() => {
     navigation.navigate('Tournaments' );
   }, [navigation]);
+
+  const handleGoToLatestTournament = useCallback(() => {
+    if (latestTournament) {
+      navigation.navigate('Tournaments', {
+        screen: 'TournamentRounds',
+        params: { tournamentId: latestTournament.id },
+      });
+    }
+  }, [navigation, latestTournament]);
   
   if (loading && !activeRound && !stats) {
     return <LoadingScreen message="Loading your golf data..." />;
@@ -207,6 +224,17 @@ const HomeScreen: React.FC = () => {
           <Text style={styles.cardTitle}>Quick Actions</Text>
         </View>
         
+        {latestTournament && (
+          <TouchableOpacity style={styles.actionItem} onPress={handleGoToLatestTournament} accessibilityRole="button" accessibilityLabel={`Go to tournament: ${latestTournament.name}`}>
+            <FontAwesome5 name="flag" size={20} color="#C62828" />
+            <View style={styles.actionTextGroup}>
+              <Text style={styles.actionText}>Tournament Round</Text>
+              <Text style={styles.actionSubtext}>{latestTournament.name}</Text>
+            </View>
+            <Icon name="chevron-right" size={20} color="#ccc" />
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity style={styles.actionItem} onPress={handleGoToTournaments} accessibilityRole="button" accessibilityLabel="Go to Tournaments">
           <FontAwesome5 name="trophy" size={20} color="#2E7D32" />
           <Text style={styles.actionText}>Tournaments</Text>
@@ -391,10 +419,18 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f0f0f0',
     gap: 15,
   },
+  actionTextGroup: {
+    flex: 1,
+  },
   actionText: {
     flex: 1,
     fontSize: 16,
     color: '#333',
+  },
+  actionSubtext: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 2,
   },
 });
 
