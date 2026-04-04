@@ -86,11 +86,15 @@ export interface RunningRoundStats {
   // Greenside bunker (sand lie, < 50 yds)
   greensideBunkerAttempts: number;
   greensideBunkerHitGreen: number;
-  // Putt miss analysis
-  puttMissedLong: number;
-  puttMissedShort: number;
-  puttMissedHigh: number;
-  puttMissedLow: number;
+  // Putt miss analysis — combined distance + break categories
+  puttMissedLongHigh: number;
+  puttMissedLongLow: number;
+  puttMissedShortHigh: number;
+  puttMissedShortLow: number;
+  puttMissedLong: number;   // long only (no break info)
+  puttMissedShort: number;  // short only (no break info)
+  puttMissedHigh: number;   // high only (no distance info)
+  puttMissedLow: number;    // low only (no distance info)
   puttMissedLeft: number;
   puttMissedRight: number;
 
@@ -285,10 +289,19 @@ function accumulateV2HoleStats(
       stats.totalPuttFeetMade += putt.distanceToHole;
     }
     if (putt.outcome === SHOT_OUTCOMES.MISSED) {
-      if (putt.puttMissDistance === 'long') stats.puttMissedLong += 1;
-      if (putt.puttMissDistance === 'short') stats.puttMissedShort += 1;
-      if (putt.puttMissBreak === 'high') stats.puttMissedHigh += 1;
-      if (putt.puttMissBreak === 'low') stats.puttMissedLow += 1;
+      // Combined distance + break categories
+      if (putt.puttMissDistance && putt.puttMissBreak) {
+        if (putt.puttMissDistance === 'long' && putt.puttMissBreak === 'high') stats.puttMissedLongHigh += 1;
+        if (putt.puttMissDistance === 'long' && putt.puttMissBreak === 'low') stats.puttMissedLongLow += 1;
+        if (putt.puttMissDistance === 'short' && putt.puttMissBreak === 'high') stats.puttMissedShortHigh += 1;
+        if (putt.puttMissDistance === 'short' && putt.puttMissBreak === 'low') stats.puttMissedShortLow += 1;
+      } else {
+        // Only one dimension available
+        if (putt.puttMissDistance === 'long') stats.puttMissedLong += 1;
+        if (putt.puttMissDistance === 'short') stats.puttMissedShort += 1;
+        if (putt.puttMissBreak === 'high') stats.puttMissedHigh += 1;
+        if (putt.puttMissBreak === 'low') stats.puttMissedLow += 1;
+      }
       // Left/Right misses (straight putts via TAP_PUTT_MISS_SIDE)
       if (putt.missDirection === 'left') stats.puttMissedLeft += 1;
       if (putt.missDirection === 'right') stats.puttMissedRight += 1;
@@ -486,6 +499,8 @@ export async function calculateRunningRoundStats(
     pitchChipMissedLeft: 0, pitchChipMissedRight: 0,
     pitchChipMissedShort: 0, pitchChipMissedLong: 0,
     greensideBunkerAttempts: 0, greensideBunkerHitGreen: 0,
+    puttMissedLongHigh: 0, puttMissedLongLow: 0,
+    puttMissedShortHigh: 0, puttMissedShortLow: 0,
     puttMissedLong: 0, puttMissedShort: 0,
     puttMissedHigh: 0, puttMissedLow: 0,
     puttMissedLeft: 0, puttMissedRight: 0,
@@ -729,13 +744,24 @@ export function formatRunningStatsForSMS(stats: RunningRoundStats): string {
   if (stats.greensideBunkerAttempts > 0) {
     text += `\nGreenside Bunker: ${stats.greensideBunkerAttempts}`;
   }
-  const puttMissTotal = stats.puttMissedLong + stats.puttMissedShort + stats.puttMissedHigh + stats.puttMissedLow + stats.puttMissedLeft + stats.puttMissedRight;
+  const puttMissTotal = stats.puttMissedLongHigh + stats.puttMissedLongLow +
+    stats.puttMissedShortHigh + stats.puttMissedShortLow +
+    stats.puttMissedLong + stats.puttMissedShort +
+    stats.puttMissedHigh + stats.puttMissedLow +
+    stats.puttMissedLeft + stats.puttMissedRight;
   if (puttMissTotal > 0) {
-    text += `\nPutt Miss Long/Short: ${stats.puttMissedLong}/${stats.puttMissedShort}`;
-    text += `\nPutt Miss High/Low: ${stats.puttMissedHigh}/${stats.puttMissedLow}`;
-    if (stats.puttMissedLeft + stats.puttMissedRight > 0) {
-      text += `\nPutt Miss L/R: ${stats.puttMissedLeft}/${stats.puttMissedRight}`;
-    }
+    const parts: string[] = [];
+    if (stats.puttMissedLongHigh > 0) parts.push(`Long-High: ${stats.puttMissedLongHigh}`);
+    if (stats.puttMissedLongLow > 0) parts.push(`Long-Low: ${stats.puttMissedLongLow}`);
+    if (stats.puttMissedShortHigh > 0) parts.push(`Short-High: ${stats.puttMissedShortHigh}`);
+    if (stats.puttMissedShortLow > 0) parts.push(`Short-Low: ${stats.puttMissedShortLow}`);
+    if (stats.puttMissedLong > 0) parts.push(`Long: ${stats.puttMissedLong}`);
+    if (stats.puttMissedShort > 0) parts.push(`Short: ${stats.puttMissedShort}`);
+    if (stats.puttMissedHigh > 0) parts.push(`High: ${stats.puttMissedHigh}`);
+    if (stats.puttMissedLow > 0) parts.push(`Low: ${stats.puttMissedLow}`);
+    if (stats.puttMissedLeft > 0) parts.push(`Left: ${stats.puttMissedLeft}`);
+    if (stats.puttMissedRight > 0) parts.push(`Right: ${stats.puttMissedRight}`);
+    text += `\nPutt Misses: ${parts.join(', ')}`;
   }
 
   return text;

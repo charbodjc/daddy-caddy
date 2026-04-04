@@ -16,6 +16,7 @@ interface CreateTournamentData {
   startDate: Date;
   endDate: Date;
   golferIds: string[];
+  leaderboardUrl?: string;
 }
 
 interface TournamentState {
@@ -27,6 +28,7 @@ interface TournamentState {
   // Actions
   loadTournaments: () => Promise<void>;
   createTournament: (data: CreateTournamentData) => Promise<Tournament>;
+  updateTournament: (id: string, data: Partial<CreateTournamentData>) => Promise<void>;
   deleteTournament: (id: string) => Promise<void>;
   selectTournament: (id: string) => Promise<void>;
   getTournamentRounds: (tournamentId: string) => Promise<Round[]>;
@@ -71,6 +73,7 @@ export const useTournamentStore = create<TournamentState>()(
               t.startDate = data.startDate;
               t.endDate = data.endDate;
               t.golferIdsRaw = serializeTournamentGolferIds(data.golferIds);
+              if (data.leaderboardUrl) t.leaderboardUrl = data.leaderboardUrl;
             });
           });
           
@@ -85,6 +88,30 @@ export const useTournamentStore = create<TournamentState>()(
         }
       },
       
+      // Update a tournament's details
+      updateTournament: async (id: string, data: Partial<CreateTournamentData>) => {
+        try {
+          await database.write(async () => {
+            const tournament = await database.collections
+              .get<Tournament>('tournaments')
+              .find(id);
+            await tournament.update((t) => {
+              if (data.name !== undefined) t.name = data.name;
+              if (data.courseName !== undefined) t.courseName = data.courseName;
+              if (data.startDate !== undefined) t.startDate = data.startDate;
+              if (data.endDate !== undefined) t.endDate = data.endDate;
+              if (data.golferIds !== undefined) t.golferIdsRaw = serializeTournamentGolferIds(data.golferIds);
+              if (data.leaderboardUrl !== undefined) t.leaderboardUrl = data.leaderboardUrl || undefined;
+            });
+          });
+          await get().loadTournaments();
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          set({ error });
+          throw error;
+        }
+      },
+
       // Delete a tournament and all its rounds
       deleteTournament: async (id: string) => {
         set({ loading: true });
@@ -96,22 +123,26 @@ export const useTournamentStore = create<TournamentState>()(
               .get<Round>('rounds')
               .query(Q.where('tournament_id', id))
               .fetch();
-            
-            // Delete all rounds
-            for (const round of rounds) {
-              // Delete holes for each round
-              const holes = await round.holes.fetch();
-              for (const hole of holes) {
-                await hole.markAsDeleted();
-              }
-              await round.markAsDeleted();
-            }
-            
+
+            // Collect all holes across all rounds for batch deletion
+            const holeOps = (
+              await Promise.all(rounds.map((round) => round.holes.fetch()))
+            )
+              .flat()
+              .map((hole) => hole.prepareMarkAsDeleted());
+
+            const roundOps = rounds.map((round) => round.prepareMarkAsDeleted());
+
             // Delete the tournament
             const tournament = await database.collections
               .get<Tournament>('tournaments')
               .find(id);
-            await tournament.markAsDeleted();
+
+            await database.batch(
+              ...holeOps,
+              ...roundOps,
+              tournament.prepareMarkAsDeleted(),
+            );
           });
           
           // Reload tournaments

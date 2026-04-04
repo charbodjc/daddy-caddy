@@ -7,13 +7,17 @@ import type { Statistics } from '../types';
 import { calculateScoreBreakdown } from '../utils/scoreCalculations';
 import { useGolferStore } from './golferStore';
 
+export type StatsScope = 'all' | 'tournament' | 'non-tournament';
+
 interface StatsState {
   stats: Statistics | null;
   loading: boolean;
   error: Error | null;
-  
+  scope: StatsScope;
+
   // Actions
-  calculateStats: (golferId?: string) => Promise<void>;
+  calculateStats: (golferId?: string, scope?: StatsScope) => Promise<void>;
+  setScope: (scope: StatsScope) => void;
   calculateStatsForRounds: (rounds: Round[]) => Promise<Statistics>;
   clearStats: () => void;
 }
@@ -39,16 +43,24 @@ export const useStatsStore = create<StatsState>()(
       stats: null,
       loading: false,
       error: null,
-      
+      scope: 'all',
+
+      setScope: (scope: StatsScope) => {
+        set({ scope });
+      },
+
       // Calculate statistics for a specific golfer (defaults to active golfer)
-      calculateStats: async (golferId?: string) => {
-        set({ loading: true, error: null });
+      calculateStats: async (golferId?: string, scope?: StatsScope) => {
+        const effectiveScope = scope ?? get().scope;
+        set({ loading: true, error: null, scope: effectiveScope });
 
         try {
           const effectiveGolferId = golferId || useGolferStore.getState().getActiveGolferId();
           const clauses = [
             Q.where('is_finished', true),
             ...(effectiveGolferId ? [Q.where('golfer_id', effectiveGolferId)] : []),
+            ...(effectiveScope === 'tournament' ? [Q.where('tournament_id', Q.notEq(null))] : []),
+            ...(effectiveScope === 'non-tournament' ? [Q.where('tournament_id', null)] : []),
           ];
 
           const rounds = await database.collections

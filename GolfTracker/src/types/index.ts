@@ -181,6 +181,7 @@ export interface GolferInfo {
   name: string;
   color: string;
   emoji?: string;
+  avatarUri?: string;
 }
 
 export interface Golfer {

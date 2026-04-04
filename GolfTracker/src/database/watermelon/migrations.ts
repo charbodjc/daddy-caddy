@@ -68,5 +68,27 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 6,
+      steps: [
+        addColumns({
+          table: 'golfers',
+          columns: [
+            { name: 'avatar_uri', type: 'string', isOptional: true },
+          ],
+        }),
+      ],
+    },
+    {
+      toVersion: 7,
+      steps: [
+        addColumns({
+          table: 'tournaments',
+          columns: [
+            { name: 'leaderboard_url', type: 'string', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

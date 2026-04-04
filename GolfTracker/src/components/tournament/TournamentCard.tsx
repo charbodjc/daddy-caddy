@@ -9,6 +9,8 @@ import type { GolferInfo } from '../../types';
 interface TournamentCardProps {
   tournament: Tournament;
   onPress: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
   roundCount?: number;
   golfers?: GolferInfo[];
 }
@@ -18,6 +20,8 @@ const MAX_VISIBLE_AVATARS = 4;
 export const TournamentCard: React.FC<TournamentCardProps> = React.memo(({
   tournament,
   onPress,
+  onEdit,
+  onDelete,
   roundCount = 0,
   golfers,
 }) => {
@@ -41,6 +45,32 @@ export const TournamentCard: React.FC<TournamentCardProps> = React.memo(({
           <Text style={styles.name}>{tournament.name}</Text>
           <Text style={styles.courseName}>{tournament.courseName}</Text>
         </View>
+        {(onEdit || onDelete) && (
+          <View style={styles.actions}>
+            {onEdit && (
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={onEdit}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Edit tournament"
+                accessibilityRole="button"
+              >
+                <Icon name="edit" size={20} color="#666" />
+              </TouchableOpacity>
+            )}
+            {onDelete && (
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={onDelete}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Delete tournament"
+                accessibilityRole="button"
+              >
+                <Icon name="delete" size={20} color="#f44336" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       {visibleGolfers.length > 0 && (
@@ -54,6 +84,7 @@ export const TournamentCard: React.FC<TournamentCardProps> = React.memo(({
                 name={golfer.name}
                 color={golfer.color}
                 emoji={golfer.emoji}
+                avatarUri={golfer.avatarUri}
                 size={28}
               />
             </View>
@@ -116,6 +147,18 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  actionButton: {
+    padding: 10,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   name: {
     fontSize: 18,

@@ -16,7 +16,6 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { AppNavigationProp } from '../types/navigation';
 import { ScreenHeader } from '../components/common/ScreenHeader';
-import { format } from 'date-fns';
 import { useTournaments } from '../hooks/useTournaments';
 import { useTournamentStore } from '../stores/tournamentStore';
 import { useGolferStore } from '../stores/golferStore';
@@ -34,19 +33,19 @@ import type { GolferInfo } from '../types';
 const TournamentsScreen: React.FC = () => {
   const navigation = useNavigation<AppNavigationProp>();
   const { tournaments, loading, error, reload } = useTournaments();
-  const { createTournament } = useTournamentStore();
+  const { createTournament, updateTournament, deleteTournament } = useTournamentStore();
   const { golfers, loadGolfers, loading: golfersLoading } = useGolferStore();
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingTournamentId, setEditingTournamentId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     courseName: '',
+    leaderboardUrl: '',
     startDate: new Date(),
     endDate: new Date(),
   });
   const [selectedGolferIds, setSelectedGolferIds] = useState<string[]>([]);
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
   const [creating, setCreating] = useState(false);
 
   // Load golfers for tournament card avatars and modal selection
@@ -56,51 +55,96 @@ const TournamentsScreen: React.FC = () => {
 
   // Build golfer lookup for tournament cards
   const golferById = React.useMemo(() => {
-    const map: Record<string, { id: string; name: string; color: string; emoji?: string }> = {};
+    const map: Record<string, GolferInfo> = {};
     for (const g of golfers) {
-      map[g.id] = { id: g.id, name: g.name, color: g.color, emoji: g.emoji };
+      map[g.id] = { id: g.id, name: g.name, color: g.color, emoji: g.emoji, avatarUri: g.avatarUri };
     }
     return map;
   }, [golfers]);
   
+  const resetForm = () => {
+    setFormData({ name: '', courseName: '', leaderboardUrl: '', startDate: new Date(), endDate: new Date() });
+    setSelectedGolferIds([]);
+    setEditingTournamentId(null);
+  };
+
   const handleCreate = async () => {
     if (!formData.name.trim() || !formData.courseName.trim()) {
       Alert.alert('Error', 'Please enter tournament name and course name');
       return;
     }
-    
+
     if (formData.endDate < formData.startDate) {
       Alert.alert('Error', 'End date must be after start date');
       return;
     }
-    
+
     setCreating(true);
-    
+
     try {
-      await createTournament({
-        name: formData.name.trim(),
-        courseName: formData.courseName.trim(),
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-        golferIds: selectedGolferIds,
-      });
+      if (editingTournamentId) {
+        await updateTournament(editingTournamentId, {
+          name: formData.name.trim(),
+          courseName: formData.courseName.trim(),
+          leaderboardUrl: formData.leaderboardUrl.trim() || undefined,
+          startDate: formData.startDate,
+          endDate: formData.endDate,
+          golferIds: selectedGolferIds,
+        });
+      } else {
+        await createTournament({
+          name: formData.name.trim(),
+          courseName: formData.courseName.trim(),
+          leaderboardUrl: formData.leaderboardUrl.trim() || undefined,
+          startDate: formData.startDate,
+          endDate: formData.endDate,
+          golferIds: selectedGolferIds,
+        });
+      }
 
       setModalVisible(false);
-      setFormData({
-        name: '',
-        courseName: '',
-        startDate: new Date(),
-        endDate: new Date(),
-      });
-      setSelectedGolferIds([]);
-      
-      Alert.alert('Success', 'Tournament created successfully');
+      resetForm();
     } catch {
-      Alert.alert('Error', 'Failed to create tournament');
+      Alert.alert('Error', editingTournamentId ? 'Failed to update tournament' : 'Failed to create tournament');
     } finally {
       setCreating(false);
     }
   };
+
+  const handleEdit = useCallback((tournament: Tournament) => {
+    const ids = parseTournamentGolferIds(tournament.golferIdsRaw);
+    setEditingTournamentId(tournament.id);
+    setFormData({
+      name: tournament.name,
+      courseName: tournament.courseName,
+      leaderboardUrl: tournament.leaderboardUrl || '',
+      startDate: tournament.startDate,
+      endDate: tournament.endDate,
+    });
+    setSelectedGolferIds(ids);
+    setModalVisible(true);
+  }, []);
+
+  const handleDelete = useCallback((tournament: Tournament) => {
+    Alert.alert(
+      'Delete Tournament?',
+      `Delete "${tournament.name}"? All rounds in this tournament will also be deleted. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteTournament(tournament.id);
+            } catch {
+              Alert.alert('Error', 'Failed to delete tournament');
+            }
+          },
+        },
+      ],
+    );
+  }, [deleteTournament]);
 
   const toggleGolfer = useCallback((golferId: string) => {
     setSelectedGolferIds((prev) =>
@@ -127,11 +171,13 @@ const TournamentsScreen: React.FC = () => {
       <TournamentCard
         tournament={item}
         onPress={() => handleTournamentPress(item)}
+        onEdit={() => handleEdit(item)}
+        onDelete={() => handleDelete(item)}
         roundCount={0}
         golfers={cardGolfers}
       />
     );
-  }, [handleTournamentPress, golferById]);
+  }, [handleTournamentPress, handleEdit, handleDelete, golferById]);
 
   const tournamentKeyExtractor = useCallback((item: Tournament) => item.id, []);
 
@@ -152,7 +198,7 @@ const TournamentsScreen: React.FC = () => {
         rightContent={
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => setModalVisible(true)}
+            onPress={() => { resetForm(); setModalVisible(true); }}
             accessibilityLabel="Create tournament"
             accessibilityRole="button"
           >
@@ -171,7 +217,7 @@ const TournamentsScreen: React.FC = () => {
           </Text>
           <Button
             title="Create Tournament"
-            onPress={() => setModalVisible(true)}
+            onPress={() => { resetForm(); setModalVisible(true); }}
             style={styles.createButton}
           />
         </View>
@@ -189,7 +235,7 @@ const TournamentsScreen: React.FC = () => {
         visible={modalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() => { setModalVisible(false); resetForm(); }}
       >
         <KeyboardAvoidingView
           style={styles.modalContainer}
@@ -197,9 +243,9 @@ const TournamentsScreen: React.FC = () => {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Tournament</Text>
+              <Text style={styles.modalTitle}>{editingTournamentId ? 'Edit Tournament' : 'Create Tournament'}</Text>
               <TouchableOpacity
-                onPress={() => setModalVisible(false)}
+                onPress={() => { setModalVisible(false); resetForm(); }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 accessibilityLabel="Close"
                 accessibilityRole="button"
@@ -212,6 +258,7 @@ const TournamentsScreen: React.FC = () => {
               <TextInput
                 style={styles.input}
                 placeholder="Tournament Name"
+                placeholderTextColor="#999"
                 value={formData.name}
                 onChangeText={(name) => setFormData({ ...formData, name })}
                 autoCapitalize="words"
@@ -220,60 +267,47 @@ const TournamentsScreen: React.FC = () => {
 
               <TextInput
                 style={styles.input}
-                placeholder="Course Name"
+                placeholder="Golf Course Name"
+                placeholderTextColor="#999"
                 value={formData.courseName}
                 onChangeText={(courseName) => setFormData({ ...formData, courseName })}
                 autoCapitalize="words"
                 accessibilityLabel="Course name"
               />
 
-              <TouchableOpacity
-                style={styles.dateInput}
-                onPress={() => setShowStartPicker(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`Start date: ${format(formData.startDate, 'MMM d, yyyy')}`}
-                accessibilityHint="Opens date picker"
-              >
-                <Icon name="event" size={20} color="#666" />
-                <Text style={styles.dateInputText}>
-                  Start: {format(formData.startDate, 'MMM d, yyyy')}
-                </Text>
-              </TouchableOpacity>
+              <TextInput
+                style={styles.input}
+                placeholder="Leaderboard URL (optional)"
+                placeholderTextColor="#999"
+                value={formData.leaderboardUrl}
+                onChangeText={(leaderboardUrl) => setFormData({ ...formData, leaderboardUrl })}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                accessibilityLabel="Leaderboard URL"
+              />
 
-              <TouchableOpacity
-                style={styles.dateInput}
-                onPress={() => setShowEndPicker(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`End date: ${format(formData.endDate, 'MMM d, yyyy')}`}
-                accessibilityHint="Opens date picker"
-              >
-                <Icon name="event" size={20} color="#666" />
-                <Text style={styles.dateInputText}>
-                  End: {format(formData.endDate, 'MMM d, yyyy')}
-                </Text>
-              </TouchableOpacity>
+              <Text style={styles.dateLabel}>Start Date</Text>
+              <DateTimePicker
+                value={formData.startDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                onChange={(_event, date) => {
+                  if (date) setFormData((prev) => ({ ...prev, startDate: date }));
+                }}
+                style={styles.datePicker}
+              />
 
-              {showStartPicker && (
-                <DateTimePicker
-                  value={formData.startDate}
-                  mode="date"
-                  onChange={(event, date) => {
-                    setShowStartPicker(false);
-                    if (date) setFormData({ ...formData, startDate: date });
-                  }}
-                />
-              )}
-
-              {showEndPicker && (
-                <DateTimePicker
-                  value={formData.endDate}
-                  mode="date"
-                  onChange={(event, date) => {
-                    setShowEndPicker(false);
-                    if (date) setFormData({ ...formData, endDate: date });
-                  }}
-                />
-              )}
+              <Text style={styles.dateLabel}>End Date</Text>
+              <DateTimePicker
+                value={formData.endDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                onChange={(_event, date) => {
+                  if (date) setFormData((prev) => ({ ...prev, endDate: date }));
+                }}
+                style={styles.datePicker}
+              />
 
               {/* Golfer Selection */}
               <View style={styles.golferSection}>
@@ -308,6 +342,7 @@ const TournamentsScreen: React.FC = () => {
                           name={golfer.name}
                           color={golfer.color}
                           emoji={golfer.emoji}
+                          avatarUri={golfer.avatarUri}
                           size={36}
                         />
                         <Text style={styles.golferRowName}>{golfer.name}</Text>
@@ -326,12 +361,12 @@ const TournamentsScreen: React.FC = () => {
             <View style={styles.modalButtons}>
               <Button
                 title="Cancel"
-                onPress={() => setModalVisible(false)}
+                onPress={() => { setModalVisible(false); resetForm(); }}
                 variant="secondary"
                 style={styles.modalButton}
               />
               <Button
-                title="Create"
+                title={editingTournamentId ? 'Save' : 'Create'}
                 onPress={handleCreate}
                 loading={creating}
                 style={styles.modalButton}
@@ -417,20 +452,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
-  dateInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    gap: 10,
+  dateLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 4,
+    marginTop: 4,
   },
-  dateInputText: {
-    fontSize: 16,
-    color: '#333',
+  datePicker: {
+    marginBottom: 8,
   },
   golferSection: {
     marginTop: 8,

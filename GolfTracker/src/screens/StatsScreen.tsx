@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { useStats } from '../hooks/useStats';
 import { ScreenHeader } from '../components/common/ScreenHeader';
 import { LoadingScreen } from '../components/common/LoadingScreen';
@@ -8,14 +8,18 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { GolferPicker } from '../components/golfer/GolferPicker';
 import { useGolfers } from '../hooks/useGolfers';
-import { useStatsStore } from '../stores/statsStore';
+import { useStatsStore, type StatsScope } from '../stores/statsStore';
 
 const StatsScreen: React.FC = () => {
   const { stats, loading, error, refresh } = useStats();
   const { golfers, activeGolferId, activeGolfer, loading: golfersLoading, createGolfer } = useGolfers();
-  const { calculateStats } = useStatsStore();
+  const { calculateStats, scope } = useStatsStore();
   const [selectedGolferId, setSelectedGolferId] = React.useState<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
+
+  const handleScopeChange = useCallback(async (newScope: StatsScope) => {
+    await calculateStats(selectedGolferId || undefined, newScope);
+  }, [calculateStats, selectedGolferId]);
 
   // Init selected golfer from active
   React.useEffect(() => {
@@ -80,7 +84,26 @@ const StatsScreen: React.FC = () => {
           />
         </View>
       )}
-      
+
+      {/* Scope filter */}
+      <View style={styles.scopeFilter}>
+        {([
+          { key: 'all' as const, label: 'All Rounds' },
+          { key: 'tournament' as const, label: 'Tournament' },
+          { key: 'non-tournament' as const, label: 'Other' },
+        ]).map(({ key, label }) => (
+          <TouchableOpacity
+            key={key}
+            style={[styles.scopeTab, scope === key && styles.scopeTabActive]}
+            onPress={() => handleScopeChange(key)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: scope === key }}
+          >
+            <Text style={[styles.scopeTabText, scope === key && styles.scopeTabTextActive]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <ScrollView
         style={styles.content}
         refreshControl={
@@ -219,6 +242,33 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  scopeFilter: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    gap: 8,
+  },
+  scopeTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  scopeTabActive: {
+    backgroundColor: '#2E7D32',
+  },
+  scopeTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+  },
+  scopeTabTextActive: {
+    color: '#fff',
   },
   content: {
     flex: 1,

@@ -49,15 +49,6 @@ export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, tota
           <Icon name="menu" size={28} color="#fff" />
         </TouchableOpacity>
       )}
-      <View style={styles.courseInfo}>
-        <Text style={styles.courseName}>{round.courseName}</Text>
-        {round.tournamentName && (
-          <Text style={styles.tournamentName}>{round.tournamentName}</Text>
-        )}
-        <Text style={styles.date}>
-          {formatDateShort(round.date)}
-        </Text>
-      </View>
 
       <TouchableOpacity
         style={styles.scoreInfo}
@@ -74,8 +65,16 @@ export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, tota
       >
         <Text style={styles.scoreValue}>{scoreDisplay}</Text>
         {scoreLabel && <Text style={styles.scoreLabel}>{scoreLabel}</Text>}
-        {golferName && <Text style={styles.golferName}>{golferName}</Text>}
       </TouchableOpacity>
+
+      <View style={styles.courseInfo}>
+        {golferName && <Text style={styles.golferName} numberOfLines={1}>{golferName}</Text>}
+        <Text style={styles.courseName} numberOfLines={1}>{round.courseName}</Text>
+        {round.tournamentName && (
+          <Text style={styles.tournamentName} numberOfLines={1}>{round.tournamentName}</Text>
+        )}
+        <Text style={styles.date}>{formatDateShort(round.date)}</Text>
+      </View>
     </View>
   );
 });
@@ -88,7 +87,7 @@ const styles = StyleSheet.create({
     padding: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   menuButton: {
     padding: 5,
@@ -96,24 +95,6 @@ const styles = StyleSheet.create({
     minWidth: 44,
     minHeight: 44,
     justifyContent: 'center',
-  },
-  courseInfo: {
-    flex: 1,
-  },
-  courseName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  tournamentName: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 2,
-  },
-  date: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
   },
   scoreInfo: {
     alignItems: 'center',
@@ -123,6 +104,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minWidth: 80,
     minHeight: 44,
+    marginRight: 12,
   },
   scoreValue: {
     fontSize: 28,
@@ -134,10 +116,29 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 2,
   },
+  courseInfo: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
   golferName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  courseName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 2,
+  },
+  tournamentName: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.85)',
-    fontWeight: '500',
-    marginTop: 4,
+    marginBottom: 2,
+  },
+  date: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
 });
