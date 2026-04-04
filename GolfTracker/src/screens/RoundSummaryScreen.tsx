@@ -95,6 +95,7 @@ const RoundSummaryScreen: React.FC = () => {
   const [round, setRound] = useState<Round | null>(null);
   const [holes, setHoles] = useState<Hole[]>([]);
   const [roundStats, setRoundStats] = useState<RunningRoundStats | null>(null);
+  const [golferName, setGolferName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -113,11 +114,21 @@ const RoundSummaryScreen: React.FC = () => {
     try {
       const roundData = await database.collections.get<Round>('rounds').find(roundId);
       const holesData = await roundData.holes.fetch();
-
       const stats = await calculateRunningRoundStats(roundId);
+
+      // Fetch golfer name
+      let name = '';
+      try {
+        const golfer = await roundData.golfer.fetch();
+        if (golfer) name = golfer.name;
+      } catch {
+        // No golfer linked — leave name empty
+      }
+
       setRound(roundData);
       setHoles(holesData);
       setRoundStats(stats);
+      setGolferName(name);
       setError(null);
     } catch (err) {
       setError(err as Error);
@@ -206,8 +217,10 @@ Played with Daddy Caddy ⛳
     <ScrollView style={styles.container}>
       {/* Header */}
       <ScreenHeader
-        title="Round Summary"
-        subtitle={round.courseName}
+        title={golferName || round.courseName}
+        subtitle={golferName ? round.courseName : undefined}
+        titleStyle={styles.headerTitle}
+        subtitleStyle={styles.headerSubtitle}
         leftAction="back"
         rightContent={
           <View style={styles.headerActions}>
@@ -231,7 +244,9 @@ Played with Daddy Caddy ⛳
             </TouchableOpacity>
           </View>
         }
-      />
+      >
+        <Text style={styles.headerDate}>{format(round.date, 'EEE, MMM d, yyyy')}</Text>
+      </ScreenHeader>
 
       {/* Score Card */}
       <View style={styles.scoreCard}>
@@ -427,23 +442,35 @@ Played with Daddy Caddy ⛳
             )}
             <DetailedStatRow label="1-Putts" value={`${roundStats.totalOnePutts}`} />
             <DetailedStatRow label="3-Putts" value={`${roundStats.totalThreePutts}`} />
+            {roundStats.puttMissedLongHigh > 0 && (
+              <DetailedStatRow label="Missed Long-High" value={`${roundStats.puttMissedLongHigh}`} />
+            )}
+            {roundStats.puttMissedLongLow > 0 && (
+              <DetailedStatRow label="Missed Long-Low" value={`${roundStats.puttMissedLongLow}`} />
+            )}
+            {roundStats.puttMissedShortHigh > 0 && (
+              <DetailedStatRow label="Missed Short-High" value={`${roundStats.puttMissedShortHigh}`} />
+            )}
+            {roundStats.puttMissedShortLow > 0 && (
+              <DetailedStatRow label="Missed Short-Low" value={`${roundStats.puttMissedShortLow}`} />
+            )}
             {roundStats.puttMissedLong > 0 && (
-              <DetailedStatRow label="Putts Missed Long" value={`${roundStats.puttMissedLong}`} />
+              <DetailedStatRow label="Missed Long" value={`${roundStats.puttMissedLong}`} />
             )}
             {roundStats.puttMissedShort > 0 && (
-              <DetailedStatRow label="Putts Missed Short" value={`${roundStats.puttMissedShort}`} />
+              <DetailedStatRow label="Missed Short" value={`${roundStats.puttMissedShort}`} />
             )}
             {roundStats.puttMissedHigh > 0 && (
-              <DetailedStatRow label="Putts Missed High" value={`${roundStats.puttMissedHigh}`} />
+              <DetailedStatRow label="Missed High" value={`${roundStats.puttMissedHigh}`} />
             )}
             {roundStats.puttMissedLow > 0 && (
-              <DetailedStatRow label="Putts Missed Low" value={`${roundStats.puttMissedLow}`} />
+              <DetailedStatRow label="Missed Low" value={`${roundStats.puttMissedLow}`} />
             )}
             {roundStats.puttMissedLeft > 0 && (
-              <DetailedStatRow label="Putts Missed Left" value={`${roundStats.puttMissedLeft}`} />
+              <DetailedStatRow label="Missed Left" value={`${roundStats.puttMissedLeft}`} />
             )}
             {roundStats.puttMissedRight > 0 && (
-              <DetailedStatRow label="Putts Missed Right" value={`${roundStats.puttMissedRight}`} />
+              <DetailedStatRow label="Missed Right" value={`${roundStats.puttMissedRight}`} />
             )}
           </View>
         </View>
@@ -648,6 +675,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+  },
+  headerDate: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 1,
   },
   headerActionButton: {
     padding: 5,

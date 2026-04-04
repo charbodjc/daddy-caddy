@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 
 interface GolferAvatarProps {
   name: string;
   color: string;
   emoji?: string;
+  avatarUri?: string;
   size?: number;
 }
 
@@ -29,11 +30,24 @@ function getInitials(name: string): string {
   return trimmed.slice(0, 2).toUpperCase();
 }
 
-export const GolferAvatar: React.FC<GolferAvatarProps> = React.memo(({ name, color, emoji, size = 32 }) => {
+export const GolferAvatar: React.FC<GolferAvatarProps> = React.memo(({ name, color, emoji, avatarUri, size = 32 }) => {
+  const [imageError, setImageError] = React.useState(false);
   const initials = getInitials(name);
   const textColor = getContrastTextColor(color);
   const fontSize = size * 0.4;
   const emojiSize = size * 0.55;
+
+  if (avatarUri && !imageError) {
+    return (
+      <Image
+        source={{ uri: avatarUri }}
+        style={{ width: size, height: size, borderRadius: size / 2 }}
+        onError={() => setImageError(true)}
+        accessibilityLabel={name}
+        accessibilityRole="image"
+      />
+    );
+  }
 
   return (
     <View

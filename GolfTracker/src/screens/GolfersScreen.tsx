@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -9,6 +10,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  ActionSheetIOS,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -26,7 +28,9 @@ import type Golfer from '../database/watermelon/models/Golfer';
 import { database } from '../database/watermelon/database';
 import Round from '../database/watermelon/models/Round';
 import { Q } from '@nozbe/watermelondb';
-import { EMOJI_OPTIONS, GOLFER_COLORS as COLORS } from '../constants/golferOptions';
+
+import * as ImagePicker from 'expo-image-picker';
+import RNFS from 'react-native-fs';
 
 const GolfersScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<SettingsStackParamList>>();
@@ -45,9 +49,7 @@ const GolfersScreen: React.FC = () => {
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [editingGolfer, setEditingGolfer] = useState<Golfer | null>(null);
   const [name, setName] = useState('');
-  const [handicap, setHandicap] = useState('');
-  const [selectedColor, setSelectedColor] = useState(COLORS[0].hex);
-  const [selectedEmoji, setSelectedEmoji] = useState('');
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -73,26 +75,18 @@ const GolfersScreen: React.FC = () => {
   const handleEditGolfer = (golfer: Golfer) => {
     setEditingGolfer(golfer);
     setName(golfer.name);
-    setHandicap(golfer.handicap != null ? String(golfer.handicap) : '');
-    setSelectedColor(golfer.color);
-    setSelectedEmoji(golfer.emoji || '');
+    setAvatarUri(golfer.avatarUri || null);
     setEditModalVisible(true);
   };
 
   const handleSaveEdit = async () => {
     if (!editingGolfer || !name.trim()) return;
-    if (handicap && isNaN(parseFloat(handicap))) {
-      Alert.alert('Invalid Handicap', 'Please enter a valid number');
-      return;
-    }
     setSaving(true);
     try {
-      const parsedHandicap = handicap ? parseFloat(handicap) : undefined;
+      const savedUri = await persistAvatar(avatarUri, editingGolfer.id);
       await updateGolfer(editingGolfer.id, {
         name: name.trim(),
-        handicap: parsedHandicap,
-        color: selectedColor,
-        emoji: selectedEmoji,
+        avatarUri: savedUri,
       });
       setEditModalVisible(false);
     } catch {
@@ -107,26 +101,18 @@ const GolfersScreen: React.FC = () => {
       Alert.alert('Error', 'Please enter a name');
       return;
     }
-    if (handicap && isNaN(parseFloat(handicap))) {
-      Alert.alert('Invalid Handicap', 'Please enter a valid number');
-      return;
-    }
     setSaving(true);
     try {
       const trimmedName = name.trim();
-      const parsedHandicap = handicap ? parseFloat(handicap) : undefined;
-      const newGolfer = await createGolfer({
-        name: trimmedName,
-        handicap: parsedHandicap,
-        color: selectedColor,
-        emoji: selectedEmoji || undefined,
-      });
+      // Create golfer first to get the ID, then persist avatar
+      const newGolfer = await createGolfer({ name: trimmedName });
+      const savedUri = await persistAvatar(avatarUri, newGolfer.id);
+      if (savedUri) {
+        await updateGolfer(newGolfer.id, { avatarUri: savedUri });
+      }
       setName('');
-      setHandicap('');
-      setSelectedColor(COLORS[0].hex);
-      setSelectedEmoji('');
+      setAvatarUri(null);
       setAddModalVisible(false);
-      // Offer to add SMS contacts for the newly created golfer
       Alert.alert(
         'Golfer Created',
         `Would you like to add SMS contacts for ${trimmedName}?`,
@@ -180,6 +166,91 @@ const GolfersScreen: React.FC = () => {
     });
   };
 
+  /** Copy a picked image to a persistent location and return the saved URI. */
+  const persistAvatar = async (uri: string | null, golferId: string): Promise<string | null> => {
+    const avatarDir = `${RNFS.DocumentDirectoryPath}/avatars`;
+    if (!uri) {
+      // Clean up existing avatar file when removed
+      try {
+        const files = await RNFS.readDir(avatarDir).catch(() => []);
+        for (const f of files) {
+          if (f.name.startsWith(golferId)) await RNFS.unlink(f.path);
+        }
+      } catch { /* ignore cleanup errors */ }
+      return null;
+    }
+    // If already in our avatar directory, skip copy
+    if (uri.startsWith(avatarDir)) return uri;
+    await RNFS.mkdir(avatarDir);
+    const ext = uri.split('.').pop() || 'jpg';
+    const dest = `${avatarDir}/${golferId}.${ext}`;
+    // Remove old avatar file if format changed
+    try {
+      const files = await RNFS.readDir(avatarDir).catch(() => []);
+      for (const f of files) {
+        if (f.name.startsWith(golferId) && f.path !== dest) await RNFS.unlink(f.path);
+      }
+    } catch { /* ignore cleanup errors */ }
+    await RNFS.copyFile(uri, dest);
+    return dest;
+  };
+
+  const pickImageFromLibrary = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow access to your photo library.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setAvatarUri(result.assets[0].uri);
+    }
+  };
+
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow access to your camera.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setAvatarUri(result.assets[0].uri);
+    }
+  };
+
+  const showImagePicker = () => {
+    if (Platform.OS === 'ios') {
+      const options = avatarUri
+        ? ['Take Photo', 'Choose from Library', 'Remove Photo', 'Cancel']
+        : ['Take Photo', 'Choose from Library', 'Cancel'];
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options, cancelButtonIndex: options.length - 1, destructiveButtonIndex: avatarUri ? 2 : undefined },
+        (index) => {
+          if (index === 0) takePhoto();
+          else if (index === 1) pickImageFromLibrary();
+          else if (index === 2 && avatarUri) setAvatarUri(null);
+        },
+      );
+    } else {
+      Alert.alert('Change Photo', undefined, [
+        { text: 'Take Photo', onPress: takePhoto },
+        { text: 'Choose from Library', onPress: pickImageFromLibrary },
+        ...(avatarUri ? [{ text: 'Remove Photo', style: 'destructive' as const, onPress: () => setAvatarUri(null) }] : []),
+        { text: 'Cancel', style: 'cancel' as const },
+      ]);
+    }
+  };
+
   const contactCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const golfer of golfers) {
@@ -198,7 +269,7 @@ const GolfersScreen: React.FC = () => {
     setEditModalVisible(false);
     setAddModalVisible(false);
     setName('');
-    setHandicap('');
+    setAvatarUri(null);
   };
 
   const renderGolferForm = (onSave: () => void, title: string) => (
@@ -218,6 +289,24 @@ const GolfersScreen: React.FC = () => {
         >
         <Text style={styles.modalTitle}>{title}</Text>
 
+        <TouchableOpacity
+          style={styles.avatarPicker}
+          onPress={showImagePicker}
+          accessibilityRole="button"
+          accessibilityLabel="Change photo"
+        >
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarEmoji}>{'\u{1F3CC}\u{FE0F}'}</Text>
+            </View>
+          )}
+          <View style={styles.avatarBadge}>
+            <Icon name="camera-alt" size={16} color="#fff" />
+          </View>
+        </TouchableOpacity>
+
         <Text style={styles.fieldLabel}>Name</Text>
         <TextInput
           style={styles.input}
@@ -229,53 +318,6 @@ const GolfersScreen: React.FC = () => {
           maxLength={50}
           accessibilityLabel="Golfer name"
         />
-
-        <Text style={styles.fieldLabel}>Handicap (optional)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. 14.3"
-          value={handicap}
-          onChangeText={setHandicap}
-          keyboardType="decimal-pad"
-          accessibilityLabel="Handicap"
-        />
-
-        <Text style={styles.fieldLabel}>Emoji (optional)</Text>
-        <View style={styles.emojiGrid}>
-          {EMOJI_OPTIONS.map((emoji, idx) => (
-            <TouchableOpacity
-              key={idx}
-              style={[
-                styles.emojiSwatch,
-                selectedEmoji === emoji && styles.emojiSwatchSelected,
-              ]}
-              onPress={() => setSelectedEmoji(emoji)}
-              accessibilityRole="button"
-              accessibilityLabel={emoji || 'No emoji (use initials)'}
-              accessibilityState={{ selected: selectedEmoji === emoji }}
-            >
-              <Text style={styles.emojiText}>{emoji || '–'}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.fieldLabel}>Color</Text>
-        <View style={styles.colorGrid}>
-          {COLORS.map(({ hex, name: colorName }) => (
-            <TouchableOpacity
-              key={hex}
-              style={[
-                styles.colorSwatch,
-                { backgroundColor: hex },
-                selectedColor === hex && styles.colorSwatchSelected,
-              ]}
-              onPress={() => setSelectedColor(hex)}
-              accessibilityRole="button"
-              accessibilityLabel={colorName}
-              accessibilityState={{ selected: selectedColor === hex }}
-            />
-          ))}
-        </View>
 
         {editingGolfer && (
           <TouchableOpacity
@@ -302,7 +344,7 @@ const GolfersScreen: React.FC = () => {
               setEditModalVisible(false);
               setAddModalVisible(false);
               setName('');
-              setHandicap('');
+              setAvatarUri(null);
             }}
             variant="secondary"
             style={styles.modalButton}
@@ -341,15 +383,13 @@ const GolfersScreen: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel={`Edit ${golfer.name}`}
           >
-            <GolferAvatar name={golfer.name} color={golfer.color} emoji={golfer.emoji} size={44} />
+            <GolferAvatar name={golfer.name} color={golfer.color} emoji={golfer.emoji} avatarUri={golfer.avatarUri} size={44} />
             <View style={styles.golferInfo}>
               <Text style={styles.golferName}>
                 {golfer.name}
                 {golfer.isDefault && <Text style={styles.defaultBadge}> (Default)</Text>}
               </Text>
               <Text style={styles.golferMeta}>
-                {golfer.handicap != null ? `Handicap: ${golfer.handicap}` : 'No handicap set'}
-                {' · '}
                 {roundCounts[golfer.id] ?? 0} round{(roundCounts[golfer.id] ?? 0) !== 1 ? 's' : ''}
               </Text>
               {getContactCount(golfer) > 0 && (
@@ -381,9 +421,7 @@ const GolfersScreen: React.FC = () => {
           title="Add Golfer"
           onPress={() => {
             setName('');
-            setHandicap('');
-            setSelectedColor(COLORS[0].hex);
-            setSelectedEmoji('');
+            setAvatarUri(null);
             setAddModalVisible(true);
           }}
         />
@@ -518,44 +556,42 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
-  emojiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  avatarPicker: {
+    alignSelf: 'center',
     marginBottom: 20,
+    position: 'relative',
   },
-  emojiSwatch: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  avatarPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#e8f5e9',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: '#c8e6c9',
+    borderStyle: 'dashed',
   },
-  emojiSwatchSelected: {
-    borderColor: '#2E7D32',
-    backgroundColor: '#f0f9f0',
+  avatarEmoji: {
+    fontSize: 44,
   },
-  emojiText: {
-    fontSize: 24,
-  },
-  colorGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 20,
-  },
-  colorSwatch: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 3,
-    borderColor: 'transparent',
-  },
-  colorSwatchSelected: {
-    borderColor: '#333',
+  avatarBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#2E7D32',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   smsContactsButton: {
     flexDirection: 'row',

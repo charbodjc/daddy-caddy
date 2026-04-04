@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { ScreenHeader } from '../components/common/ScreenHeader';
+import { GolferAvatar } from '../components/golfer/GolferAvatar';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { database } from '../database/watermelon/database';
 import Round from '../database/watermelon/models/Round';
@@ -22,16 +23,12 @@ import type { SettingsStackParamList } from '../types/navigation';
 
 const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<SettingsStackParamList>>();
-  const [exporting, setExporting] = useState(false);
+  const { golfers, loadGolfers } = useGolferStore();
+  const [smsExpanded, setSmsExpanded] = useState(false);
 
-  const handleExportData = async () => {
-    setExporting(true);
-    try {
-      Alert.alert('Coming Soon', 'Data export will be available in a future update.');
-    } finally {
-      setExporting(false);
-    }
-  };
+  useEffect(() => {
+    loadGolfers();
+  }, [loadGolfers]);
 
   const executeClearAllData = async () => {
     try {
@@ -92,10 +89,6 @@ const SettingsScreen: React.FC = () => {
     );
   };
   
-  const handleDatabaseDiagnostics = () => {
-    navigation.navigate('DatabaseDiagnostic');
-  };
-  
   const handleReplayOnboarding = async () => {
     Alert.alert(
       'Replay Onboarding',
@@ -121,7 +114,7 @@ const SettingsScreen: React.FC = () => {
                   { text: 'Later', style: 'cancel' },
                 ]
               );
-            } catch (error) {
+            } catch {
               Alert.alert('Error', 'Failed to reset tutorial');
             }
           },
@@ -177,6 +170,46 @@ const SettingsScreen: React.FC = () => {
 
         <TouchableOpacity
           style={styles.settingItem}
+          onPress={() => setSmsExpanded(prev => !prev)}
+          accessibilityRole="button"
+          accessibilityLabel="Manage SMS contacts"
+        >
+          <View style={styles.settingInfo}>
+            <Icon name="sms" size={24} color="#2E7D32" />
+            <View style={styles.settingText}>
+              <Text style={styles.settingLabel}>Manage SMS</Text>
+              <Text style={styles.settingDescription}>
+                Choose contacts to receive round updates
+              </Text>
+            </View>
+          </View>
+          <Icon name={smsExpanded ? 'expand-less' : 'expand-more'} size={24} color="#ccc" />
+        </TouchableOpacity>
+
+        {smsExpanded && (
+          <View style={styles.golferList}>
+            {golfers.length === 0 ? (
+              <Text style={styles.noGolfersText}>No golfers yet — add golfers above</Text>
+            ) : (
+              golfers.map(golfer => (
+                <TouchableOpacity
+                  key={golfer.id}
+                  style={styles.golferRow}
+                  onPress={() => navigation.navigate('GolferContacts', { golferId: golfer.id, golferName: golfer.name })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Manage SMS contacts for ${golfer.name}`}
+                >
+                  <GolferAvatar name={golfer.name} color={golfer.color} emoji={golfer.emoji} avatarUri={golfer.avatarUri} size={32} />
+                  <Text style={styles.golferRowName}>{golfer.name}</Text>
+                  <Icon name="chevron-right" size={20} color="#ccc" />
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={styles.settingItem}
           onPress={handleReplayOnboarding}
           accessibilityRole="button"
           accessibilityLabel="Replay tutorial"
@@ -193,33 +226,11 @@ const SettingsScreen: React.FC = () => {
           <Icon name="chevron-right" size={24} color="#ccc" />
         </TouchableOpacity>
       </View>
-      
+
       {/* Data Management */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Data Management</Text>
-        
-        <TouchableOpacity
-          style={styles.settingItem}
-          onPress={handleExportData}
-          disabled={exporting}
-          accessibilityRole="button"
-          accessibilityLabel="Export data"
-        >
-          <View style={styles.settingInfo}>
-            <Icon name="cloud-upload" size={24} color="#2E7D32" />
-            <View style={styles.settingText}>
-              <Text style={styles.settingLabel}>Export Data</Text>
-              <Text style={styles.settingDescription}>
-                Save your data to a file
-              </Text>
-            </View>
-          </View>
-          {exporting && (
-            <Text style={styles.loadingText}>Exporting...</Text>
-          )}
-          {!exporting && <Icon name="chevron-right" size={24} color="#ccc" />}
-        </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={styles.settingItem}
           onPress={handleClearAllData}
@@ -234,29 +245,6 @@ const SettingsScreen: React.FC = () => {
               </Text>
               <Text style={styles.settingDescription}>
                 Permanently delete all rounds and tournaments
-              </Text>
-            </View>
-          </View>
-          <Icon name="chevron-right" size={24} color="#ccc" />
-        </TouchableOpacity>
-      </View>
-      
-      {/* Developer Tools */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Developer</Text>
-        
-        <TouchableOpacity
-          style={styles.settingItem}
-          onPress={handleDatabaseDiagnostics}
-          accessibilityRole="button"
-          accessibilityLabel="Database diagnostics"
-        >
-          <View style={styles.settingInfo}>
-            <Icon name="bug-report" size={24} color="#666" />
-            <View style={styles.settingText}>
-              <Text style={styles.settingLabel}>Database Diagnostics</Text>
-              <Text style={styles.settingDescription}>
-                View database information
               </Text>
             </View>
           </View>
@@ -325,9 +313,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#767676',
   },
-  loadingText: {
+  golferList: {
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+    backgroundColor: '#fafafa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  golferRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    gap: 12,
+  },
+  golferRowName: {
+    flex: 1,
+    fontSize: 15,
+    color: '#333',
+  },
+  noGolfersText: {
     fontSize: 14,
-    color: '#2E7D32',
+    color: '#999',
+    fontStyle: 'italic',
+    paddingVertical: 12,
   },
   footer: {
     padding: 30,

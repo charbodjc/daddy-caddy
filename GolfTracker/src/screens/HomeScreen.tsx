@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, ImageBackground } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, ImageBackground, Linking, Alert } from 'react-native';
 import { useNavigation, DrawerActions } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppNavigationProp } from '../types/navigation';
@@ -16,6 +16,9 @@ import { GolferPicker } from '../components/golfer/GolferPicker';
 import { useGolfers } from '../hooks/useGolfers';
 import { useStatsStore } from '../stores/statsStore';
 import { useTournaments } from '../hooks/useTournaments';
+import { useTournamentStore } from '../stores/tournamentStore';
+import type Round from '../database/watermelon/models/Round';
+import type Tournament from '../database/watermelon/models/Tournament';
 
 const bannerImage = require('../../assets/daddy-caddy-banner.jpg');
 
@@ -28,10 +31,35 @@ const HomeScreen: React.FC = () => {
   const { golfers, activeGolfer, activeGolferId, loading: golfersLoading, setActiveGolfer, createGolfer } = useGolfers();
   const { calculateStats } = useStatsStore();
   const { tournaments, reload: reloadTournaments } = useTournaments();
+  const { getTournamentRounds } = useTournamentStore();
 
   const latestTournament = tournaments.length > 0 ? tournaments[0] : null;
 
   const [refreshing, setRefreshing] = React.useState(false);
+  const [tournamentRounds, setTournamentRounds] = useState<Round[]>([]);
+  const [activeTournament, setActiveTournament] = useState<Tournament | null>(null);
+
+  // Load previous tournament rounds when active round is a tournament round
+  useEffect(() => {
+    const loadTournamentData = async () => {
+      if (!activeRound?.tournamentId) {
+        setTournamentRounds([]);
+        setActiveTournament(null);
+        return;
+      }
+      try {
+        const rounds = await getTournamentRounds(activeRound.tournamentId);
+        // Show only finished rounds (not the active one)
+        setTournamentRounds(rounds.filter(r => r.isFinished && r.totalScore));
+        // Find tournament object
+        const found = tournaments.find(tr => tr.id === activeRound.tournamentId) || null;
+        setActiveTournament(found);
+      } catch {
+        setTournamentRounds([]);
+      }
+    };
+    loadTournamentData();
+  }, [activeRound?.tournamentId, activeRound?.id, getTournamentRounds, tournaments]);
   
   const loading = roundLoading || statsLoading;
   
@@ -141,7 +169,7 @@ const HomeScreen: React.FC = () => {
           </View>
           {activeGolfer && (
             <View style={styles.golferRow}>
-              <GolferAvatar name={activeGolfer.name} color={activeGolfer.color} emoji={activeGolfer.emoji} size={24} />
+              <GolferAvatar name={activeGolfer.name} color={activeGolfer.color} emoji={activeGolfer.emoji} avatarUri={activeGolfer.avatarUri} size={24} />
               <Text style={styles.golferName}>{activeGolfer.name}</Text>
             </View>
           )}
@@ -152,6 +180,63 @@ const HomeScreen: React.FC = () => {
           <Text style={styles.dateText}>
             {formatDate(activeRound.date)}
           </Text>
+
+          {/* Tournament previous rounds and leaderboard */}
+          {activeRound.tournamentId && (
+            <View style={styles.tournamentSection}>
+              {tournamentRounds.length > 0 && (
+                <View style={styles.prevRounds}>
+                  <Text style={styles.prevRoundsTitle}>Previous Rounds</Text>
+                  {tournamentRounds.map((r) => {
+                    return (
+                      <View key={r.id} style={styles.prevRoundRow}>
+                        <Text style={styles.prevRoundDate}>{formatDate(r.date)}</Text>
+                        <Text style={styles.prevRoundScore}>{r.totalScore}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {activeTournament?.leaderboardUrl ? (
+                <TouchableOpacity
+                  style={styles.leaderboardLink}
+                  onPress={() => {
+                    const url = activeTournament.leaderboardUrl;
+                    if (url && /^https?:\/\//i.test(url)) {
+                      Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open leaderboard URL'));
+                    } else {
+                      Alert.alert('Invalid URL', 'The leaderboard URL is not a valid web address.');
+                    }
+                  }}
+                  accessibilityRole="link"
+                  accessibilityLabel="View tournament leaderboard"
+                >
+                  <Icon name="leaderboard" size={18} color="#2E7D32" />
+                  <Text style={styles.leaderboardText}>Leaderboard</Text>
+                  <Icon name="open-in-new" size={16} color="#2E7D32" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.leaderboardLink}
+                  onPress={() => {
+                    if (activeTournament) {
+                      navigation.navigate('Tournaments', {
+                        screen: 'TournamentRounds',
+                        params: { tournamentId: activeTournament.id },
+                      });
+                    }
+                  }}
+                  accessibilityRole="link"
+                >
+                  <Icon name="leaderboard" size={18} color="#999" />
+                  <Text style={styles.leaderboardConfigText}>Configure leaderboard in tournament settings</Text>
+                  <Icon name="chevron-right" size={16} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           <Button
             title="Continue Round"
             onPress={handleContinueRound}
@@ -372,6 +457,53 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 15,
+  },
+  tournamentSection: {
+    marginTop: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  prevRounds: {
+    marginBottom: 10,
+  },
+  prevRoundsTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  prevRoundRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  prevRoundDate: {
+    fontSize: 14,
+    color: '#555',
+  },
+  prevRoundScore: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  leaderboardLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+  },
+  leaderboardText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#2E7D32',
+    flex: 1,
+  },
+  leaderboardConfigText: {
+    fontSize: 13,
+    color: '#999',
+    flex: 1,
   },
   continueButton: {
     marginTop: 10,

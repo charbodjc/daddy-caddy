@@ -12,6 +12,7 @@ export default class Golfer extends Model {
   @field('handicap') handicap?: number;
   @field('color') color!: string;
   @field('emoji') emoji?: string;
+  @field('avatar_uri') avatarUri?: string;
   @field('is_default') isDefault!: boolean;
   @field('sms_contacts') smsContactsRaw?: string;
   @readonly @date('created_at') createdAt!: Date;

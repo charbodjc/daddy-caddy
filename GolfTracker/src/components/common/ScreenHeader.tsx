@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, type TextStyle, type StyleProp } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, DrawerActions } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -12,6 +12,8 @@ interface ScreenHeaderProps {
   rightContent?: React.ReactNode;
   backgroundColor?: string;
   centered?: boolean;
+  titleStyle?: StyleProp<TextStyle>;
+  subtitleStyle?: StyleProp<TextStyle>;
   children?: React.ReactNode;
 }
 
@@ -26,6 +28,8 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = React.memo(({
   rightContent,
   backgroundColor = '#2E7D32',
   centered = false,
+  titleStyle,
+  subtitleStyle,
   children,
 }) => {
   const insets = useSafeAreaInsets();
@@ -63,8 +67,8 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = React.memo(({
 
   const renderTitleContent = () => (
     <View style={[styles.titleContainer, centered && styles.titleCentered]}>
-      <Text style={styles.title} numberOfLines={1}>{title}</Text>
-      {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+      <Text style={[styles.title, titleStyle]} numberOfLines={1}>{title}</Text>
+      {subtitle && <Text style={[styles.subtitle, subtitleStyle]} numberOfLines={1}>{subtitle}</Text>}
       {children}
     </View>
   );

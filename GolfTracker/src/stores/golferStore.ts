@@ -36,8 +36,8 @@ interface GolferState {
   error: Error | null;
 
   loadGolfers: () => Promise<void>;
-  createGolfer: (data: { name: string; handicap?: number; color?: string; emoji?: string }) => Promise<Golfer>;
-  updateGolfer: (id: string, data: { name?: string; handicap?: number; color?: string; emoji?: string }) => Promise<void>;
+  createGolfer: (data: { name: string; handicap?: number; color?: string; emoji?: string; avatarUri?: string }) => Promise<Golfer>;
+  updateGolfer: (id: string, data: { name?: string; handicap?: number; color?: string; emoji?: string; avatarUri?: string | null }) => Promise<void>;
   deleteGolfer: (id: string) => Promise<{ reassignedCount: number }>;
   setActiveGolfer: (id: string) => Promise<void>;
   ensureDefaultGolfer: () => Promise<void>;
@@ -82,6 +82,7 @@ export const useGolferStore = create<GolferState>()(
               g.name = data.name;
               if (data.handicap !== undefined) g.handicap = data.handicap;
               if (data.emoji !== undefined) g.emoji = data.emoji;
+              if (data.avatarUri !== undefined) g.avatarUri = data.avatarUri;
               g.color = color;
               g.isDefault = false;
             });
@@ -106,6 +107,7 @@ export const useGolferStore = create<GolferState>()(
               if (data.handicap !== undefined) g.handicap = data.handicap;
               if (data.color !== undefined) g.color = data.color;
               if (data.emoji !== undefined) g.emoji = data.emoji || undefined;
+              if (data.avatarUri !== undefined) g.avatarUri = data.avatarUri ?? undefined;
             });
           });
           await get().loadGolfers();
