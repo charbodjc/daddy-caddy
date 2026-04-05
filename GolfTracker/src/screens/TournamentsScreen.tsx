@@ -47,6 +47,8 @@ const TournamentsScreen: React.FC = () => {
   });
   const [selectedGolferIds, setSelectedGolferIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
 
   // Load golfers for tournament card avatars and modal selection
   useEffect(() => {
@@ -66,6 +68,8 @@ const TournamentsScreen: React.FC = () => {
     setFormData({ name: '', courseName: '', leaderboardUrl: '', startDate: new Date(), endDate: new Date() });
     setSelectedGolferIds([]);
     setEditingTournamentId(null);
+    setShowStartPicker(false);
+    setShowEndPicker(false);
   };
 
   const handleCreate = async () => {
@@ -181,7 +185,7 @@ const TournamentsScreen: React.FC = () => {
 
   const tournamentKeyExtractor = useCallback((item: Tournament) => item.id, []);
 
-  if (loading) {
+  if (loading && !modalVisible) {
     return <LoadingScreen message="Loading tournaments..." />;
   }
   
@@ -241,7 +245,7 @@ const TournamentsScreen: React.FC = () => {
           style={styles.modalContainer}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={styles.modalContent}>
+          <View style={styles.modalContent} accessibilityViewIsModal>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{editingTournamentId ? 'Edit Tournament' : 'Create Tournament'}</Text>
               <TouchableOpacity
@@ -287,27 +291,58 @@ const TournamentsScreen: React.FC = () => {
                 accessibilityLabel="Leaderboard URL"
               />
 
-              <Text style={styles.dateLabel}>Start Date</Text>
-              <DateTimePicker
-                value={formData.startDate}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                onChange={(_event, date) => {
-                  if (date) setFormData((prev) => ({ ...prev, startDate: date }));
-                }}
-                style={styles.datePicker}
-              />
-
-              <Text style={styles.dateLabel}>End Date</Text>
-              <DateTimePicker
-                value={formData.endDate}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                onChange={(_event, date) => {
-                  if (date) setFormData((prev) => ({ ...prev, endDate: date }));
-                }}
-                style={styles.datePicker}
-              />
+              <View style={styles.dateRow}>
+                <View style={styles.dateField}>
+                  <Text style={styles.dateLabel}>Start Date</Text>
+                  <TouchableOpacity
+                    style={styles.dateButton}
+                    onPress={() => setShowStartPicker(true)}
+                    accessibilityLabel="Select start date"
+                    accessibilityRole="button"
+                  >
+                    <Icon name="calendar-today" size={18} color="#2E7D32" />
+                    <Text style={styles.dateButtonText}>
+                      {formData.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.dateField}>
+                  <Text style={styles.dateLabel}>End Date</Text>
+                  <TouchableOpacity
+                    style={styles.dateButton}
+                    onPress={() => setShowEndPicker(true)}
+                    accessibilityLabel="Select end date"
+                    accessibilityRole="button"
+                  >
+                    <Icon name="calendar-today" size={18} color="#2E7D32" />
+                    <Text style={styles.dateButtonText}>
+                      {formData.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {showStartPicker && (
+                <DateTimePicker
+                  value={formData.startDate}
+                  mode="date"
+                  display="default"
+                  onChange={(_event, date) => {
+                    setShowStartPicker(false);
+                    if (date) setFormData((prev) => ({ ...prev, startDate: date }));
+                  }}
+                />
+              )}
+              {showEndPicker && (
+                <DateTimePicker
+                  value={formData.endDate}
+                  mode="date"
+                  display="default"
+                  onChange={(_event, date) => {
+                    setShowEndPicker(false);
+                    if (date) setFormData((prev) => ({ ...prev, endDate: date }));
+                  }}
+                />
+              )}
 
               {/* Golfer Selection */}
               <View style={styles.golferSection}>
@@ -452,15 +487,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
+  dateRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 4,
+  },
+  dateField: {
+    flex: 1,
+  },
   dateLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#666',
-    marginBottom: 4,
-    marginTop: 4,
+    marginBottom: 6,
   },
-  datePicker: {
-    marginBottom: 8,
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  dateButtonText: {
+    fontSize: 15,
+    color: '#333',
+    fontWeight: '500',
   },
   golferSection: {
     marginTop: 8,
