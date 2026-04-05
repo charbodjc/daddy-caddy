@@ -32,6 +32,7 @@ function getInitials(name: string): string {
 
 export const GolferAvatar: React.FC<GolferAvatarProps> = React.memo(({ name, color, emoji, avatarUri, size = 32 }) => {
   const [imageError, setImageError] = React.useState(false);
+  React.useEffect(() => setImageError(false), [avatarUri]);
   const initials = getInitials(name);
   const textColor = getContrastTextColor(color);
   const fontSize = size * 0.4;

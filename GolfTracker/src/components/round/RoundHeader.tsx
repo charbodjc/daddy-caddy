@@ -5,15 +5,20 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import Round from '../../database/watermelon/models/Round';
 import { formatScoreVsPar } from '../../utils/scoreCalculations';
 import { formatDateShort } from '../../utils/dateFormatting';
+import { GolferAvatar } from '../golfer/GolferAvatar';
 
 interface RoundHeaderProps {
   round: Round;
   totalPar?: number;
+  totalScore?: number;
   golferName?: string;
+  golferColor?: string;
+  golferEmoji?: string;
+  golferAvatarUri?: string;
   onMenuPress?: () => void;
 }
 
-export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, totalPar: totalParProp, golferName, onMenuPress }) => {
+export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, totalPar: totalParProp, totalScore: totalScoreProp, golferName, golferColor, golferEmoji, golferAvatarUri, onMenuPress }) => {
   const insets = useSafeAreaInsets();
   const [showTotalScore, setShowTotalScore] = useState(false);
 
@@ -21,15 +26,17 @@ export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, tota
     setShowTotalScore((prev) => !prev);
   }, []);
 
-  const hasScore = round.totalScore != null && round.totalScore > 0 && totalParProp;
+  // Prefer the live score derived from observed holes; fall back to round model
+  const score = totalScoreProp ?? round.totalScore;
+  const hasScore = score != null && score > 0 && totalParProp;
 
   const toPar = (() => {
-    if (!round.totalScore || !totalParProp || totalParProp <= 0) return 0;
-    return round.totalScore - totalParProp;
+    if (!score || !totalParProp || totalParProp <= 0) return 0;
+    return score - totalParProp;
   })();
 
   const scoreDisplay = hasScore
-    ? (showTotalScore ? String(round.totalScore) : formatScoreVsPar(toPar))
+    ? (showTotalScore ? String(score) : formatScoreVsPar(toPar))
     : '--';
 
   const scoreLabel = hasScore
@@ -38,6 +45,7 @@ export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, tota
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
+      <View style={styles.topRow}>
       {onMenuPress && (
         <TouchableOpacity
           style={styles.menuButton}
@@ -68,13 +76,26 @@ export const RoundHeader: React.FC<RoundHeaderProps> = React.memo(({ round, tota
       </TouchableOpacity>
 
       <View style={styles.courseInfo}>
-        {golferName && <Text style={styles.golferName} numberOfLines={1}>{golferName}</Text>}
         <Text style={styles.courseName} numberOfLines={1}>{round.courseName}</Text>
         {round.tournamentName && (
           <Text style={styles.tournamentName} numberOfLines={1}>{round.tournamentName}</Text>
         )}
         <Text style={styles.date}>{formatDateShort(round.date)}</Text>
       </View>
+      </View>
+
+      {golferName && (
+        <View style={styles.golferRow}>
+          <GolferAvatar
+            name={golferName}
+            color={golferColor || '#666'}
+            emoji={golferEmoji}
+            avatarUri={golferAvatarUri}
+            size={22}
+          />
+          <Text style={styles.golferName} numberOfLines={1}>{golferName}</Text>
+        </View>
+      )}
     </View>
   );
 });
@@ -85,6 +106,8 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#2E7D32',
     padding: 20,
+  },
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
@@ -120,11 +143,17 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'flex-end',
   },
+  golferRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+    marginTop: 10,
+  },
   golferName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 2,
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
   },
   courseName: {
     fontSize: 13,

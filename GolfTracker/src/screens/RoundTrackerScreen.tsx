@@ -263,7 +263,7 @@ const RoundTrackerScreen: React.FC = () => {
 
     const scoreInfo = holesPlayed > 0 && playedPar !== undefined
       ? (() => {
-          const diff = (round.totalScore ?? 0) - playedPar;
+          const diff = (liveScore ?? 0) - playedPar;
           const scoreStr = diff === 0 ? 'E' : diff > 0 ? `+${diff}` : `${diff}`;
           return ` You've played ${holesPlayed} hole${holesPlayed === 1 ? '' : 's'} (${scoreStr}).`;
         })()
@@ -298,13 +298,19 @@ const RoundTrackerScreen: React.FC = () => {
     } );
   };
   
-  // Sum par only for played holes so score shows relative to par for holes completed
-  const playedPar = useMemo(() => {
-    const sum = holes
-      .filter(h => h.strokes > 0)
-      .reduce((s, h) => s + (h.par || 0), 0);
-    return sum || undefined;
+  // Derive score and par from the reactively observed holes
+  // (round.totalScore may be stale due to WatermelonDB's record cache + Zustand ref equality)
+  const { playedPar, liveScore } = useMemo(() => {
+    const played = holes.filter(h => h.strokes > 0);
+    const parSum = played.reduce((s, h) => s + (h.par || 0), 0);
+    const scoreSum = played.reduce((s, h) => s + h.strokes, 0);
+    return {
+      playedPar: parSum > 0 ? parSum : undefined,
+      liveScore: scoreSum > 0 ? scoreSum : undefined,
+    };
   }, [holes]);
+
+  const roundGolfer = useMemo(() => golfers.find((g) => g.id === round?.golferId), [golfers, round?.golferId]);
 
   if (loading) {
     return <LoadingScreen message="Loading round..." />;
@@ -379,7 +385,11 @@ const RoundTrackerScreen: React.FC = () => {
       <RoundHeader
         round={round}
         totalPar={playedPar}
-        golferName={golfers.find((g) => g.id === round.golferId)?.name}
+        totalScore={liveScore}
+        golferName={roundGolfer?.name}
+        golferColor={roundGolfer?.color}
+        golferEmoji={roundGolfer?.emoji}
+        golferAvatarUri={roundGolfer?.avatarUri}
         onMenuPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
       />
       

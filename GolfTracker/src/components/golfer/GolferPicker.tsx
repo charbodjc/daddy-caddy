@@ -81,7 +81,7 @@ export const GolferPicker: React.FC<GolferPickerProps> = ({
               accessibilityLabel={`${golfer.name}${isSelected ? ', selected' : ''}`}
               accessibilityState={{ selected: isSelected }}
             >
-              <GolferAvatar name={golfer.name} color={golfer.color} emoji={golfer.emoji} size={28} />
+              <GolferAvatar name={golfer.name} color={golfer.color} emoji={golfer.emoji} avatarUri={golfer.avatarUri} size={28} />
               <Text
                 style={[styles.chipText, isSelected && styles.chipTextSelected]}
                 numberOfLines={1}

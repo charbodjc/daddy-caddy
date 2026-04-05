@@ -63,7 +63,7 @@ export const useTournamentStore = create<TournamentState>()(
       
       // Create a new tournament
       createTournament: async (data: CreateTournamentData) => {
-        set({ loading: true, error: null });
+        set({ error: null });
         
         try {
           const tournament = await database.write(async () => {
