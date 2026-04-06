@@ -28,6 +28,15 @@ import Tournament from '../database/watermelon/models/Tournament';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { parseTournamentGolferIds } from '../utils/tournamentGolfers';
+import { formatDateShort } from '../utils/dateFormatting';
+import {
+  TeeTimeMap,
+  MAX_TOURNAMENT_ROUNDS,
+  parseTournamentTeeTimes,
+  formatTeeTime,
+  parseTeeTimeToDate,
+  formatDateAsTeeTime,
+} from '../utils/tournamentTeeTimes';
 import type { GolferInfo } from '../types';
 
 const TournamentsScreen: React.FC = () => {
@@ -46,9 +55,12 @@ const TournamentsScreen: React.FC = () => {
     endDate: new Date(),
   });
   const [selectedGolferIds, setSelectedGolferIds] = useState<string[]>([]);
+  const [numberOfRounds, setNumberOfRounds] = useState(1);
+  const [teeTimes, setTeeTimes] = useState<TeeTimeMap>({});
   const [creating, setCreating] = useState(false);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+  const [showTeeTimePicker, setShowTeeTimePicker] = useState<number | null>(null);
 
   // Load golfers for tournament card avatars and modal selection
   useEffect(() => {
@@ -67,9 +79,12 @@ const TournamentsScreen: React.FC = () => {
   const resetForm = () => {
     setFormData({ name: '', courseName: '', leaderboardUrl: '', startDate: new Date(), endDate: new Date() });
     setSelectedGolferIds([]);
+    setNumberOfRounds(1);
+    setTeeTimes({});
     setEditingTournamentId(null);
     setShowStartPicker(false);
     setShowEndPicker(false);
+    setShowTeeTimePicker(null);
   };
 
   const handleCreate = async () => {
@@ -94,6 +109,8 @@ const TournamentsScreen: React.FC = () => {
           startDate: formData.startDate,
           endDate: formData.endDate,
           golferIds: selectedGolferIds,
+          numberOfRounds,
+          teeTimes,
         });
       } else {
         await createTournament({
@@ -103,6 +120,8 @@ const TournamentsScreen: React.FC = () => {
           startDate: formData.startDate,
           endDate: formData.endDate,
           golferIds: selectedGolferIds,
+          numberOfRounds,
+          teeTimes,
         });
       }
 
@@ -126,6 +145,8 @@ const TournamentsScreen: React.FC = () => {
       endDate: tournament.endDate,
     });
     setSelectedGolferIds(ids);
+    setNumberOfRounds(tournament.numberOfRounds || 1);
+    setTeeTimes(parseTournamentTeeTimes(tournament.teeTimesRaw));
     setModalVisible(true);
   }, []);
 
@@ -302,7 +323,7 @@ const TournamentsScreen: React.FC = () => {
                   >
                     <Icon name="calendar-today" size={18} color="#2E7D32" />
                     <Text style={styles.dateButtonText}>
-                      {formData.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {formatDateShort(formData.startDate)}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -316,7 +337,7 @@ const TournamentsScreen: React.FC = () => {
                   >
                     <Icon name="calendar-today" size={18} color="#2E7D32" />
                     <Text style={styles.dateButtonText}>
-                      {formData.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {formatDateShort(formData.endDate)}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -343,6 +364,106 @@ const TournamentsScreen: React.FC = () => {
                   }}
                 />
               )}
+
+              {/* Number of Rounds */}
+              <View style={styles.roundsSection}>
+                <Text style={styles.sectionLabel}>Number of Rounds</Text>
+                <View style={styles.roundsRow} accessibilityRole="radiogroup" accessibilityLabel="Number of rounds">
+                  {Array.from({ length: MAX_TOURNAMENT_ROUNDS }, (_, i) => i + 1).map((num) => (
+                    <TouchableOpacity
+                      key={num}
+                      style={[
+                        styles.roundsOption,
+                        numberOfRounds === num && styles.roundsOptionSelected,
+                      ]}
+                      onPress={() => {
+                        setNumberOfRounds(num);
+                        // Clear tee times for rounds beyond the new count
+                        setTeeTimes((prev) => {
+                          const cleaned: TeeTimeMap = {};
+                          for (let i = 1; i <= num; i++) {
+                            if (prev[i]) cleaned[i] = prev[i];
+                          }
+                          return cleaned;
+                        });
+                      }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: numberOfRounds === num }}
+                      accessibilityLabel={`${num} round${num > 1 ? 's' : ''}`}
+                    >
+                      <Text
+                        style={[
+                          styles.roundsOptionText,
+                          numberOfRounds === num && styles.roundsOptionTextSelected,
+                        ]}
+                      >
+                        {num}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Tee Times */}
+              <View style={styles.teeTimesSection}>
+                <Text style={styles.sectionLabel}>Tee Times (optional)</Text>
+                {Array.from({ length: numberOfRounds }, (_, i) => i + 1).map((roundNum) => (
+                  <View key={roundNum} style={styles.teeTimeRow}>
+                    <Text style={styles.teeTimeLabel}>Round {roundNum}</Text>
+                    <TouchableOpacity
+                      style={styles.teeTimeButton}
+                      onPress={() => setShowTeeTimePicker(roundNum)}
+                      accessibilityLabel={`Set tee time for round ${roundNum}`}
+                      accessibilityRole="button"
+                    >
+                      <Icon name="schedule" size={18} color="#2E7D32" />
+                      <Text style={styles.teeTimeButtonText}>
+                        {teeTimes[roundNum]
+                          ? formatTeeTime(teeTimes[roundNum])
+                          : 'Not set'}
+                      </Text>
+                    </TouchableOpacity>
+                    {teeTimes[roundNum] && (
+                      <TouchableOpacity
+                        style={styles.teeTimeClearButton}
+                        onPress={() =>
+                          setTeeTimes((prev) => {
+                            const next = { ...prev };
+                            delete next[roundNum];
+                            return next;
+                          })
+                        }
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityLabel={`Clear tee time for round ${roundNum}`}
+                        accessibilityRole="button"
+                      >
+                        <Icon name="close" size={20} color="#999" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))}
+                {showTeeTimePicker !== null && (
+                  <DateTimePicker
+                    value={
+                      teeTimes[showTeeTimePicker]
+                        ? parseTeeTimeToDate(teeTimes[showTeeTimePicker], formData.startDate)
+                        : formData.startDate
+                    }
+                    mode="datetime"
+                    display="default"
+                    onChange={(_event, date) => {
+                      const roundNum = showTeeTimePicker;
+                      setShowTeeTimePicker(null);
+                      if (date && roundNum !== null) {
+                        setTeeTimes((prev) => ({
+                          ...prev,
+                          [roundNum]: formatDateAsTeeTime(date),
+                        }));
+                      }
+                    }}
+                  />
+                )}
+              </View>
 
               {/* Golfer Selection */}
               <View style={styles.golferSection}>
@@ -515,6 +636,80 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#333',
     fontWeight: '500',
+  },
+  roundsSection: {
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+  },
+  roundsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  roundsOption: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  roundsOptionSelected: {
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
+  },
+  roundsOptionText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#666',
+  },
+  roundsOptionTextSelected: {
+    color: '#fff',
+  },
+  teeTimesSection: {
+    marginBottom: 4,
+  },
+  teeTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  teeTimeLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#555',
+    width: 70,
+  },
+  teeTimeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 10,
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  teeTimeButtonText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+  teeTimeClearButton: {
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   golferSection: {
     marginTop: 8,

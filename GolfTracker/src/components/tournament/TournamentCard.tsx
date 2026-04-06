@@ -35,7 +35,7 @@ export const TournamentCard: React.FC<TournamentCardProps> = React.memo(({
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={`${tournament.name} at ${tournament.courseName}, ${roundCount} ${roundCount === 1 ? 'round' : 'rounds'}${golfers?.length ? `, ${golfers.length} golfers` : ''}`}
+      accessibilityLabel={`${tournament.name} at ${tournament.courseName}, ${tournament.numberOfRounds ?? roundCount} ${(tournament.numberOfRounds ?? roundCount) === 1 ? 'round' : 'rounds'}${golfers?.length ? `, ${golfers.length} golfers` : ''}`}
     >
       <View style={styles.header}>
         <View style={styles.iconContainer}>
@@ -109,7 +109,9 @@ export const TournamentCard: React.FC<TournamentCardProps> = React.memo(({
         <View style={styles.roundsContainer}>
           <Icon name="golf-course" size={14} color="#666" />
           <Text style={styles.roundsText}>
-            {roundCount} {roundCount === 1 ? 'Round' : 'Rounds'}
+            {tournament.numberOfRounds
+              ? `${tournament.numberOfRounds} ${tournament.numberOfRounds === 1 ? 'Round' : 'Rounds'}`
+              : `${roundCount} ${roundCount === 1 ? 'Round' : 'Rounds'}`}
           </Text>
         </View>
       </View>

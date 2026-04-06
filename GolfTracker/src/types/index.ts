@@ -221,6 +221,8 @@ export interface Tournament {
   startDate: Date;
   endDate: Date;
   courseName: string;
+  numberOfRounds?: number;
+  teeTimes?: Record<number, string>;
   rounds: GolfRound[];
   createdAt: Date;
   updatedAt: Date;
