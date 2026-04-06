@@ -90,5 +90,17 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 8,
+      steps: [
+        addColumns({
+          table: 'tournaments',
+          columns: [
+            { name: 'number_of_rounds', type: 'number', isOptional: true },
+            { name: 'tee_times', type: 'string', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

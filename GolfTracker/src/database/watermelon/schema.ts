@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 7,
+  version: 8,
   tables: [
     tableSchema({
       name: 'golfers',
@@ -58,6 +58,8 @@ export const schema = appSchema({
         { name: 'end_date', type: 'number' },
         { name: 'golfer_ids', type: 'string', isOptional: true },
         { name: 'leaderboard_url', type: 'string', isOptional: true },
+        { name: 'number_of_rounds', type: 'number', isOptional: true },
+        { name: 'tee_times', type: 'string', isOptional: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
       ]

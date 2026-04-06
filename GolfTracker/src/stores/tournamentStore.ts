@@ -9,6 +9,16 @@ import {
   parseTournamentGolferIds,
   serializeTournamentGolferIds,
 } from '../utils/tournamentGolfers';
+import {
+  TeeTimeMap,
+  MAX_TOURNAMENT_ROUNDS,
+  serializeTournamentTeeTimes,
+} from '../utils/tournamentTeeTimes';
+
+/** Clamp numberOfRounds to the valid 1–MAX_TOURNAMENT_ROUNDS range. */
+function clampRounds(n: number): number {
+  return Math.max(1, Math.min(MAX_TOURNAMENT_ROUNDS, Math.round(n)));
+}
 
 interface CreateTournamentData {
   name: string;
@@ -17,6 +27,8 @@ interface CreateTournamentData {
   endDate: Date;
   golferIds: string[];
   leaderboardUrl?: string;
+  numberOfRounds?: number;
+  teeTimes?: TeeTimeMap;
 }
 
 interface TournamentState {
@@ -74,9 +86,11 @@ export const useTournamentStore = create<TournamentState>()(
               t.endDate = data.endDate;
               t.golferIdsRaw = serializeTournamentGolferIds(data.golferIds);
               if (data.leaderboardUrl) t.leaderboardUrl = data.leaderboardUrl;
+              if (data.numberOfRounds !== undefined) t.numberOfRounds = clampRounds(data.numberOfRounds);
+              if (data.teeTimes !== undefined) t.teeTimesRaw = serializeTournamentTeeTimes(data.teeTimes);
             });
           });
-          
+
           // Reload tournaments (also sets loading: false)
           await get().loadTournaments();
 
@@ -102,6 +116,8 @@ export const useTournamentStore = create<TournamentState>()(
               if (data.endDate !== undefined) t.endDate = data.endDate;
               if (data.golferIds !== undefined) t.golferIdsRaw = serializeTournamentGolferIds(data.golferIds);
               if (data.leaderboardUrl !== undefined) t.leaderboardUrl = data.leaderboardUrl || undefined;
+              if (data.numberOfRounds !== undefined) t.numberOfRounds = clampRounds(data.numberOfRounds);
+              if (data.teeTimes !== undefined) t.teeTimesRaw = serializeTournamentTeeTimes(data.teeTimes);
             });
           });
           await get().loadTournaments();

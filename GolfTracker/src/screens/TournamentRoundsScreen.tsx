@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,7 @@ import { database } from '../database/watermelon/database';
 import { formatScoreVsPar } from '../utils/scoreCalculations';
 import { formatDateRange } from '../utils/dateFormatting';
 import { parseTournamentGolferIds } from '../utils/tournamentGolfers';
+import { parseTournamentTeeTimes, formatTeeTime } from '../utils/tournamentTeeTimes';
 import { Q } from '@nozbe/watermelondb';
 import type { GolferInfo } from '../types';
 
@@ -251,6 +252,11 @@ const TournamentRoundsScreen: React.FC = () => {
 
   const keyExtractor = useCallback((item: Round) => item.id, []);
 
+  const parsedTeeTimes = useMemo(
+    () => (tournament ? parseTournamentTeeTimes(tournament.teeTimesRaw) : {}),
+    [tournament],
+  );
+
   if (loading) {
     return <LoadingScreen message="Loading rounds..." />;
   }
@@ -286,7 +292,7 @@ const TournamentRoundsScreen: React.FC = () => {
       <View style={styles.summary}>
         <View>
           <Text style={styles.summaryText}>
-            {rounds.length} {rounds.length === 1 ? 'Round' : 'Rounds'}
+            {rounds.length}{tournament.numberOfRounds ? ` of ${tournament.numberOfRounds}` : ''} {(tournament.numberOfRounds ?? rounds.length) === 1 ? 'Round' : 'Rounds'}
           </Text>
           {tournamentGolfers.length > 0 && (
             <Text style={styles.summaryGolfers}>
@@ -301,6 +307,29 @@ const TournamentRoundsScreen: React.FC = () => {
           style={styles.newRoundButton}
         />
       </View>
+
+      {/* Tee Times */}
+      {tournament.numberOfRounds && Object.keys(parsedTeeTimes).length > 0 && (
+        <View style={styles.teeTimesBar}>
+          {Array.from({ length: tournament.numberOfRounds }, (_, i) => i + 1).map((roundNum) => {
+            const teeTime = parsedTeeTimes[roundNum];
+            if (!teeTime) return null;
+            const formatted = formatTeeTime(teeTime);
+            return (
+              <View
+                key={roundNum}
+                style={styles.teeTimeItem}
+                accessibilityLabel={`Round ${roundNum} tee time: ${formatted}`}
+              >
+                <Icon name="schedule" size={14} color="#2E7D32" />
+                <Text style={styles.teeTimeItemText}>
+                  R{roundNum}: {formatted}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
 
       {/* Rounds List */}
       {rounds.length === 0 ? (
@@ -562,6 +591,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     minHeight: 40,
+  },
+  teeTimesBar: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  teeTimeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  teeTimeItemText: {
+    fontSize: 13,
+    color: '#555',
+    fontWeight: '500',
   },
   list: {
     padding: 15,
